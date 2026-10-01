@@ -78,11 +78,12 @@ def test_provider_error_falls_back_and_core_analysis_stays_unchanged():
     assert len(run.indirect.findings) == 2
 
 
-def test_default_factory_is_rule_based_and_unknown_mode_is_rejected():
+def test_default_factory_is_rule_based_and_unknown_mode_is_rejected(monkeypatch):
+    monkeypatch.delenv("OPENIMPACT_LLM_PROVIDER", raising=False)
     assert isinstance(create_explanation_provider(), RuleBasedProvider)
     assert create_explanation_provider("rule").explain(_input()) == RuleBasedProvider().explain(_input())
     with pytest.raises(ValueError, match="不支持"):
-        create_explanation_provider("deepseek")
+        create_explanation_provider("unknown")
 
 
 def test_safe_entry_returns_failed_explanation_if_input_is_invalid():

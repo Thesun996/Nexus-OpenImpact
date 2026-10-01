@@ -34,7 +34,7 @@ OpenImpact 希望通过 AI 与静态分析结合，
 
 当前阶段：
 
-Phase 2.5 后端契约冻结验收：Core MVP v0.1.0 的 CLI 和内置 Demo API 保持可用；可通过 ZIP 检查 Python 项目、校验新增必填参数的 ChangeSpec，并对本次上传项目运行完整影响分析。完整源码片段证据和前端尚未实现。
+Phase 3.2 解释 Provider 开发：Core MVP v0.1.0 的 CLI 和现有 API 保持可用；ZIP 项目检查、ChangeSpec 校验、完整影响分析与源码证据已实现。解释 Provider 可在 Python 中单独调用，尚未接入 CLI/API；前端尚未实现。
 
 目标：
 
@@ -66,6 +66,17 @@ python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
 ```
 
 另开终端调用 `GET http://127.0.0.1:8000/api/v1/health` 或 `POST http://127.0.0.1:8000/api/v1/demo/analyze`。请求与响应字段见 [API 契约](docs/api-contract.md)。
+
+### 解释 Provider 配置
+
+`create_explanation_provider()` 默认读取 `OPENIMPACT_LLM_PROVIDER=rule`，使用本地规则解释。需要在 Python 中主动调用 DeepSeek 解释时，可在当前 PowerShell 会话设置环境变量：
+
+```powershell
+$env:OPENIMPACT_LLM_PROVIDER = "deepseek"
+$env:DEEPSEEK_API_KEY = "<你的 Key>"
+```
+
+然后使用 `create_explanation_provider()` 创建 Provider，并通过 `explain_safely(input, provider)` 处理已验证的 `ExplanationInput`。只有显式选用 DeepSeek 且存在 Key 时才会发送该输入中的证据片段；缺少 Key、请求失败或输出校验失败时使用规则解释。不要把真实 Key 写入仓库或提交到 Git。当前 CLI/API 尚未调用解释 Provider，设置环境变量不会改变它们的响应。
 
 检查自己的 Python 项目时，先将源码打成 ZIP，再调用：
 

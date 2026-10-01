@@ -13,13 +13,20 @@ class ExplanationProvider(ABC):
         """Explain the supplied facts without changing impact findings."""
 
 
-def create_explanation_provider(mode: str = "rule") -> ExplanationProvider:
-    """Select a local provider; future modes can be added without changing Core."""
-    if mode == "rule":
+def create_explanation_provider(mode: str | None = None) -> ExplanationProvider:
+    """Select a provider; the environment defaults to local rule explanations."""
+    import os
+
+    selected = mode if mode is not None else os.getenv("OPENIMPACT_LLM_PROVIDER", "rule")
+    if selected == "rule":
         from openimpact.explanation.fallback import RuleBasedProvider
 
         return RuleBasedProvider()
-    raise ValueError(f"不支持的解释模式：{mode}")
+    if selected == "deepseek":
+        from openimpact.explanation.deepseek import DeepSeekProvider
+
+        return DeepSeekProvider()
+    raise ValueError(f"不支持的解释模式：{selected}")
 
 
 def explain_safely(

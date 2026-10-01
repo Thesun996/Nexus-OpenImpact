@@ -6,6 +6,7 @@ from openimpact.explanation.models import (
     fallback_explanation,
 )
 from openimpact.explanation.fallback import RuleBasedProvider
+from openimpact.explanation.deepseek import DeepSeekProvider
 from openimpact.explanation.provider import (
     ExplanationProvider,
     create_explanation_provider,
@@ -14,6 +15,7 @@ from openimpact.explanation.provider import (
 
 __all__ = [
     "ExplanationInput", "ExplanationResult", "fallback_explanation",
-    "ExplanationProvider", "RuleBasedProvider", "create_explanation_provider",
+    "ExplanationProvider", "RuleBasedProvider", "DeepSeekProvider",
+    "create_explanation_provider",
     "explain_safely",
 ]
