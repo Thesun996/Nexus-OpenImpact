@@ -34,7 +34,7 @@ OpenImpact 希望通过 AI 与静态分析结合，
 
 当前阶段：
 
-Phase 0：项目初始化阶段
+Phase 1：Repository Scanner 已实现，其他分析模块尚未实现。
 
 目标：
 
@@ -58,3 +58,27 @@ Phase 0：项目初始化阶段
 ---
 
 ## 核心流程
+
+当前支持递归发现 `.py` 文件，忽略 `.git`、`.venv`、`__pycache__`、
+`node_modules`、`dist`、`build` 目录，以及符号链接和 Windows junction。
+扫描返回按路径排序的相对 `Path` 列表，不读取或执行目标源码。
+调用方可通过 `scanner.project_path / relative_path` 获取完整路径。
+不存在的输入抛出 `FileNotFoundError`，文件输入抛出 `NotADirectoryError`；
+遍历错误向调用方传播。扫描期间项目目录应保持稳定。
+
+```python
+from openimpact.repository.scanner import RepositoryScanner
+
+scanner = RepositoryScanner("path/to/project")
+for relative_path in scanner.scan():
+    print(relative_path.as_posix())
+```
+
+在项目根目录的 PowerShell 中执行测试（仅使用 Python 标准库）：
+
+```powershell
+$env:PYTHONPATH = Join-Path (Get-Location) 'src'
+python -m unittest discover -s tests/repository -v
+```
+
+AST、调用图、LLM、源码哈希与资源限额尚未实现。
