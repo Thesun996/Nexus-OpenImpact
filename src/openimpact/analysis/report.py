@@ -1,10 +1,18 @@
 """Serialize an analysis run and render a concise Chinese terminal report."""
 
 from dataclasses import asdict
+import logging
+from pathlib import Path
 from typing import Any
 
 from openimpact.analysis.call_graph import CallEdge
+from openimpact.analysis.direct_impact import ImpactFinding
+from openimpact.analysis.indirect_impact import IndirectImpactFinding
 from openimpact.analysis.pipeline import AnalysisRun
+from openimpact.reporting.evidence import EvidenceBuilder, ImpactEvidence
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _edge_data(edge: CallEdge) -> dict[str, Any]:
@@ -32,6 +40,69 @@ def _call_data(assessment: Any) -> dict[str, Any]:
         "after_reason": assessment.after_reason,
         "effect": assessment.effect,
     }
+
+
+def _evidence_data(evidence: ImpactEvidence) -> dict[str, Any]:
+    location = evidence.location
+    return {
+        "impact_type": evidence.impact_type,
+        "target_symbol": evidence.target_symbol,
+        "location": (
+            {"file": location.file.as_posix(), "line": location.line,
+             "column": location.column, "end_line": location.end_line}
+            if location is not None else None
+        ),
+        "source_snippet": evidence.source_snippet,
+        "source_hash": evidence.source_hash,
+        "rule": evidence.rule,
+        "reason": evidence.reason,
+        "propagation_path": [
+            {
+                "symbols": list(path.symbols),
+                "call_sites": [
+                    {"file": site.file.as_posix(), "line": site.line,
+                     "column": site.column, "end_line": site.end_line}
+                    for site in path.call_sites
+                ],
+                "direct_evidence_reference": path.direct_evidence_reference,
+            }
+            for path in evidence.propagation_path
+        ],
+        "call_expression": evidence.call_expression,
+        "evidence_reference": evidence.evidence_reference,
+        "status": "available" if evidence.source_snippet is not None
+                  and not evidence.diagnostics else "unavailable",
+        "diagnostics": [asdict(item) for item in evidence.diagnostics],
+    }
+
+
+def _finding_evidence(
+    project_root: Path, finding: ImpactFinding | IndirectImpactFinding
+) -> dict[str, Any]:
+    try:
+        return _evidence_data(EvidenceBuilder(project_root).build(finding))
+    except Exception:
+        # Evidence is supplementary; keep the already computed impact report usable.
+        _LOGGER.exception("Evidence generation failed")
+        target = (finding.assessment.target_symbol_id if isinstance(finding, ImpactFinding)
+                  else finding.target_symbol or "")
+        rule = (finding.rule_id if isinstance(finding, ImpactFinding)
+                else "resolved_upstream_call_path")
+        return {
+            "impact_type": finding.impact_type,
+            "target_symbol": target,
+            "location": None,
+            "source_snippet": None,
+            "source_hash": None,
+            "rule": rule,
+            "reason": finding.reason,
+            "propagation_path": [],
+            "call_expression": None,
+            "evidence_reference": finding.evidence_reference,
+            "status": "unavailable",
+            "diagnostics": [{"code": "evidence_unavailable",
+                             "message": "证据生成失败，影响分析结果仍可查看。"}],
+        }
 
 
 def build_report(run: AnalysisRun) -> dict[str, Any]:
@@ -65,6 +136,13 @@ def build_report(run: AnalysisRun) -> dict[str, Any]:
                 for source in finding.sources
             ],
         }
+        for finding in run.indirect.findings
+    ]
+    evidences = [
+        _finding_evidence(run.project_path, finding)
+        for finding in run.direct.findings if finding.effect == "direct_impact"
+    ] + [
+        _finding_evidence(run.project_path, finding)
         for finding in run.indirect.findings
     ]
     parse_errors = [
@@ -117,6 +195,7 @@ def build_report(run: AnalysisRun) -> dict[str, Any]:
         },
         "direct_impacts": direct,
         "indirect_impacts": indirect,
+        "evidences": evidences,
         "manual_reviews": manual,
         "pre_existing_problems": pre_existing,
         "diagnostics": {

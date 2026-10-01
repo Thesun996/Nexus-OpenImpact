@@ -51,6 +51,7 @@ const report = await analyzed.json();
 | `coverage.status` | `partial` 时显著显示 `coverage.message`（analyze）及诊断；零个 Finding 不能表述为全项目无影响 |
 | `direct_impacts[]` | 展示相对 `file`、行/列、caller、target、规则与原因；代表本次 Change 确定造成调用不兼容 |
 | `indirect_impacts[]` | 展示 `impacted_symbol_id`、距离、`sources[].propagation_path`；语义为上游路径需要检查 |
+| `evidences[]` | 按 `evidence_reference` 关联 Direct 证据；显示项目相对位置、源码片段、完整文件 SHA-256 与 Indirect 传播路径。`status=unavailable` 时显示该项 `diagnostics[]`，保留原影响结论 |
 | `manual_reviews[]` | 独立于确定 Direct 计数展示 |
 | `pre_existing_problems[]` | 标记为修改前已有问题 |
 | `diagnostics` | 解析错误、未解析 import / 调用独立展示；文件路径已是项目相对路径 |
@@ -67,7 +68,7 @@ const report = await analyzed.json();
 
 ## 实际响应样例
 
-以下文件由本地 Uvicorn 服务的真实 HTTP 响应生成，使用仓库公开的 `examples/signature_change/` 构造固定内容 ZIP。样例已省去 HTTP 头，JSON 字段保持接口原样；上传项目报告中的 `project_path` 为相对根目录 `.`，不含服务器临时路径。
+以下文件由 FastAPI HTTP 测试客户端的实际响应生成，使用仓库公开的 `examples/signature_change/` 构造固定内容 ZIP。样例已省去 HTTP 头，JSON 字段保持接口原样；上传项目报告中的 `project_path` 为相对根目录 `.`，不含服务器临时路径。
 
 | 操作 | 响应样例 |
 | --- | --- |
