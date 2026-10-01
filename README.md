@@ -34,7 +34,7 @@ OpenImpact 希望通过 AI 与静态分析结合，
 
 当前阶段：
 
-Phase 1.5：Repository Scanner、单文件 AST Parser、Symbol Index、确定性 Call Graph 与 ChangeSpec 校验已实现；变化影响分析尚未实现。
+Phase 1.6：Repository Scanner、单文件 AST Parser、Symbol Index、确定性 Call Graph、ChangeSpec 校验和 Direct 调用兼容性判断已实现；间接影响传播尚未实现。
 
 目标：
 
@@ -120,4 +120,6 @@ print(graph.unresolved_calls)
 
 `ChangeSpec` 通过结构化的修改前后签名、目标 Symbol ID 和新增参数描述计划变化；`validate_change_spec(index, spec)` 检查目标、当前签名及“新增必填参数”的合法性，返回诊断，不修改源码。当前只支持此一种变化类型。
 
-影响分析、LLM、源码哈希与资源限额尚未实现。
+`analyze_direct_impact(graph, spec)` 先校验变化，再只评估已解析到目标符号的调用边。`assessments` 逐调用点保存修改前后兼容性与原因；`findings` 仅包含本次变化造成的确定 Direct Impact 或需要人工检查的调用。`direct_impact_count` 只统计修改前兼容、修改后不兼容的调用点；无效变化返回诊断和空结果。
+
+1-hop / 2-hop 传播、LLM、源码哈希与资源限额尚未实现。
