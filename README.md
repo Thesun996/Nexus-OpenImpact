@@ -34,7 +34,7 @@ OpenImpact 希望通过 AI 与静态分析结合，
 
 当前阶段：
 
-Phase 3.2 解释 Provider 开发：Core MVP v0.1.0 的 CLI 和现有 API 保持可用；ZIP 项目检查、ChangeSpec 校验、完整影响分析与源码证据已实现。解释 Provider 可在 Python 中单独调用，尚未接入 CLI/API；前端尚未实现。
+Phase 3.3 解释报告集成：Core MVP v0.1.0 的 CLI 和现有 API 保持可用；ZIP 项目检查、ChangeSpec 校验、完整影响分析、源码证据和中文解释已进入报告；前端尚未实现。
 
 目标：
 
@@ -76,7 +76,7 @@ $env:OPENIMPACT_LLM_PROVIDER = "deepseek"
 $env:DEEPSEEK_API_KEY = "<你的 Key>"
 ```
 
-然后使用 `create_explanation_provider()` 创建 Provider，并通过 `explain_safely(input, provider)` 处理已验证的 `ExplanationInput`。只有显式选用 DeepSeek 且存在 Key 时才会发送该输入中的证据片段；缺少 Key、请求失败或输出校验失败时使用规则解释。不要把真实 Key 写入仓库或提交到 Git。当前 CLI/API 尚未调用解释 Provider，设置环境变量不会改变它们的响应。
+CLI JSON 和分析 API 现已在报告中返回 `explanations[]`，默认由本地规则生成。只有配置 DeepSeek 且存在 Key 时，解释阶段才会向模型发送本次 Evidence 中的源码片段、位置、变更描述、规则、原因和调用路径；请求失败或输出校验失败时使用规则解释。`explanations[]` 与 `evidences[]` 同序，证据不可用时对应的解释为 `null` 并附诊断。不要把真实 Key 写入仓库或提交到 Git。
 
 检查自己的 Python 项目时，先将源码打成 ZIP，再调用：
 

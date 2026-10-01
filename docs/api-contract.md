@@ -54,6 +54,7 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/v1/demo/analyze
 | `direct_impacts` | 本次变更确定造成的直接影响 |
 | `indirect_impacts` | 上游待检查符号及原始调用路径 |
 | `evidences` | Direct 与 Indirect 的源码片段、哈希和传播证据；证据读取失败时附诊断 |
+| `explanations` | 与 `evidences` 一一对应的中文解释或不可用诊断 |
 | `manual_reviews` | 静态证据不足的调用 |
 | `pre_existing_problems` | 修改前已有的不兼容调用 |
 | `diagnostics` | 解析错误、未解析调用与 import |
@@ -175,6 +176,7 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" -F "change=<change.
 | `coverage`、`summary` | object | 覆盖范围及 Direct/Indirect 等计数 |
 | `direct_impacts`、`indirect_impacts` | object[] | 证据位置、原因与上游路径 |
 | `evidences` | object[] | 每条确定 Direct 和 Indirect 影响对应的源码证据 |
+| `explanations` | object[] | 与 `evidences` 等长、同序的解释记录 |
 | `manual_reviews`、`pre_existing_problems` | object[] | 静态证据不足和变更前已有问题 |
 | `diagnostics` | object | 解析错误、未解析调用及 import |
 
@@ -182,9 +184,11 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" -F "change=<change.
 curl.exe -X POST -F "file=@project.zip;type=application/zip" -F "change=<change.json" -F "expected_fingerprint=<此前 inspect 返回的 64 位指纹>" http://127.0.0.1:8000/api/v1/projects/analyze
 ```
 
-成功返回 HTTP 200，主体为 Core JSON Report。其 `schema_version`、`change`、`validation`、`coverage`、`summary`、`direct_impacts`、`indirect_impacts`、`evidences`、`manual_reviews`、`pre_existing_problems` 和 `diagnostics` 字段及影响语义与 CLI JSON 格式一致。HTTP 响应把 `project_path` 规范为项目相对根目录 `"."`；调用点、证据路径和诊断中的文件路径也均相对于项目根目录，不能显示服务器临时绝对路径。上传目录在成功或失败后均清理。固定 signature_change Demo 打成 ZIP 后，预期 `summary` 中 Direct、1-hop、2-hop 各为 `1`，`coverage.status="complete"`。
+成功返回 HTTP 200，主体为 Core JSON Report。其 `schema_version`、`change`、`validation`、`coverage`、`summary`、`direct_impacts`、`indirect_impacts`、`evidences`、`explanations`、`manual_reviews`、`pre_existing_problems` 和 `diagnostics` 字段及影响语义与 CLI JSON 格式一致。HTTP 响应把 `project_path` 规范为项目相对根目录 `"."`；调用点、证据路径和诊断中的文件路径也均相对于项目根目录，不能显示服务器临时绝对路径。上传目录在成功或失败后均清理。固定 signature_change Demo 打成 ZIP 后，预期 `summary` 中 Direct、1-hop、2-hop 各为 `1`，`coverage.status="complete"`。
 
 `evidences[]` 是新增的顶层数组，顺序为确定 Direct、1-hop / 2-hop Indirect Finding 的现有顺序。每项包含 `impact_type`、`target_symbol`、`location`（项目相对 `file`、1 起始的 `line`、0 起始的 `column`、可空 `end_line`）、`source_snippet`、`source_hash`（完整源文件原始字节的 SHA-256）、`rule`、`reason`、`propagation_path`。另外提供 `call_expression`、`evidence_reference`、`status` 与 `diagnostics[]`。Direct 的 `propagation_path` 为空；Indirect 的每条路径包含 `symbols[]`、`call_sites[]` 和 `direct_evidence_reference`，可追溯到原始 Direct 调用。`status=unavailable` 时片段或哈希可为 `null`，`diagnostics[]` 给出原因；影响结论和原有计数仍保留。`manual_reviews` 与既有问题目前不生成 `evidences[]` 条目。原有字段名称与 `schema_version=1` 保持不变。
+
+`explanations[]` 与 `evidences[]` 一一对应，每项为 `{ "evidence": <原 evidence 对象>, "explanation": <ExplanationResult 或 null>, "diagnostics": [] }`。`explanation` 包含 `summary`、`why_affected`、`risk_level`、`suggested_check`、`confidence`。源码证据不可用时，`explanation=null` 且该项 `diagnostics[]` 含 `evidence_unavailable`；Provider 失败时优先返回规则解释，静态影响及 Evidence 保持不变。默认 `OPENIMPACT_LLM_PROVIDER=rule`，不调用外部模型。配置为 `deepseek` 且存在 `DEEPSEEK_API_KEY` 时，解释阶段向 DeepSeek 发送 `ExplanationInput` 中的变更描述、源码片段、位置、规则、原因和调用路径；不发送整个 ZIP。模型不可用或输出无效时自动使用规则解释。
 
 若 `coverage.status="partial"`，`coverage.message` 明确提示结果仅覆盖已解析代码，零条影响不表示全项目确定无影响；解析错误及未解析调用仍在 `diagnostics`。ChangeSpec 配置或校验失败返回 HTTP 422，使用上一节的 `change_spec`、`validation`、`diagnostics` 结构，不产生影响报告。ZIP 或指纹错误延续相同的 `error.code` 格式；内部分析异常返回 HTTP 500 `analysis_failed`，不回传临时路径或异常详情。
 

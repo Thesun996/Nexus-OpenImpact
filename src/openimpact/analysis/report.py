@@ -9,6 +9,8 @@ from openimpact.analysis.call_graph import CallEdge
 from openimpact.analysis.direct_impact import ImpactFinding
 from openimpact.analysis.indirect_impact import IndirectImpactFinding
 from openimpact.analysis.pipeline import AnalysisRun
+from openimpact.explanation.models import ExplanationInput
+from openimpact.explanation.provider import ExplanationProvider, explain_safely
 from openimpact.reporting.evidence import EvidenceBuilder, ImpactEvidence
 
 
@@ -78,9 +80,10 @@ def _evidence_data(evidence: ImpactEvidence) -> dict[str, Any]:
 
 def _finding_evidence(
     project_root: Path, finding: ImpactFinding | IndirectImpactFinding
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], ImpactEvidence | None]:
     try:
-        return _evidence_data(EvidenceBuilder(project_root).build(finding))
+        evidence = EvidenceBuilder(project_root).build(finding)
+        return _evidence_data(evidence), evidence
     except Exception:
         # Evidence is supplementary; keep the already computed impact report usable.
         _LOGGER.exception("Evidence generation failed")
@@ -102,10 +105,38 @@ def _finding_evidence(
             "status": "unavailable",
             "diagnostics": [{"code": "evidence_unavailable",
                              "message": "证据生成失败，影响分析结果仍可查看。"}],
+        }, None
+
+
+def _explanation_data(
+    evidence_data: dict[str, Any], evidence: ImpactEvidence | None,
+    change_description: str, provider: ExplanationProvider | None,
+) -> dict[str, Any]:
+    if evidence is None or evidence_data["status"] != "available":
+        return {
+            "evidence": evidence_data,
+            "explanation": None,
+            "diagnostics": [{"code": "evidence_unavailable",
+                             "message": "源码证据不可用，无法生成解释。"}],
+        }
+    try:
+        explanation_input = ExplanationInput.from_evidence(evidence, change_description)
+        explanation = explain_safely(explanation_input, provider)
+        return {"evidence": evidence_data, "explanation": explanation.to_dict(),
+                "diagnostics": []}
+    except Exception:
+        _LOGGER.exception("Explanation generation failed")
+        return {
+            "evidence": evidence_data,
+            "explanation": None,
+            "diagnostics": [{"code": "explanation_unavailable",
+                             "message": "解释生成失败，源码证据和影响结果仍可查看。"}],
         }
 
 
-def build_report(run: AnalysisRun) -> dict[str, Any]:
+def build_report(
+    run: AnalysisRun, *, explanation_provider: ExplanationProvider | None = None
+) -> dict[str, Any]:
     """Return JSON-ready facts, findings, coverage, and unresolved diagnostics."""
     direct = [
         {**_call_data(finding.assessment), "rule_id": finding.rule_id,
@@ -138,12 +169,22 @@ def build_report(run: AnalysisRun) -> dict[str, Any]:
         }
         for finding in run.indirect.findings
     ]
-    evidences = [
+    evidence_records = [
         _finding_evidence(run.project_path, finding)
         for finding in run.direct.findings if finding.effect == "direct_impact"
     ] + [
         _finding_evidence(run.project_path, finding)
         for finding in run.indirect.findings
+    ]
+    evidences = [item for item, _ in evidence_records]
+    change_description = (
+        f"{run.change_spec.target_symbol_id} 新增必填参数 "
+        f"{run.change_spec.added_parameter.name}"
+        f"（{run.change_spec.added_parameter.kind}）"
+    )
+    explanations = [
+        _explanation_data(item, evidence, change_description, explanation_provider)
+        for item, evidence in evidence_records
     ]
     parse_errors = [
         {"file": path.as_posix(), "kind": diagnostic.kind,
@@ -196,6 +237,7 @@ def build_report(run: AnalysisRun) -> dict[str, Any]:
         "direct_impacts": direct,
         "indirect_impacts": indirect,
         "evidences": evidences,
+        "explanations": explanations,
         "manual_reviews": manual,
         "pre_existing_problems": pre_existing,
         "diagnostics": {

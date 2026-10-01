@@ -52,6 +52,7 @@ const report = await analyzed.json();
 | `direct_impacts[]` | 展示相对 `file`、行/列、caller、target、规则与原因；代表本次 Change 确定造成调用不兼容 |
 | `indirect_impacts[]` | 展示 `impacted_symbol_id`、距离、`sources[].propagation_path`；语义为上游路径需要检查 |
 | `evidences[]` | 按 `evidence_reference` 关联 Direct 证据；显示项目相对位置、源码片段、完整文件 SHA-256 与 Indirect 传播路径。`status=unavailable` 时显示该项 `diagnostics[]`，保留原影响结论 |
+| `explanations[]` | 与 `evidences[]` 同序；显示 `explanation` 中的中文说明。若为 `null`，显示该项 `diagnostics[]`，继续展示 Evidence 与原影响结论 |
 | `manual_reviews[]` | 独立于确定 Direct 计数展示 |
 | `pre_existing_problems[]` | 标记为修改前已有问题 |
 | `diagnostics` | 解析错误、未解析 import / 调用独立展示；文件路径已是项目相对路径 |
