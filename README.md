@@ -43,6 +43,24 @@ Phase 1.8：本地项目目录、结构化 ChangeSpec、完整分析流水线及
 
 ---
 
+## 本地安装与 Demo
+
+需要 Python 3.11 或更新版本。在 PowerShell 中，将 `<仓库地址>` 替换为团队实际仓库地址：
+
+```powershell
+git clone "<仓库地址>" Nexus-OpenImpact
+cd Nexus-OpenImpact
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e .
+python -m openimpact analyze examples/signature_change --change examples/signature_change/change.json
+python -m openimpact analyze examples/signature_change --change examples/signature_change/change.json --format json
+```
+
+预期摘要：Direct 1、1-hop 1、2-hop 1、coverage complete。项目版本为 `0.1.0`，运行时没有第三方依赖。运行完整测试时，在已激活的虚拟环境内安装 `pytest` 并执行 `python -m pytest -q`。
+
+---
+
 ## V1 第一版本目标
 
 第一版本主要支持：
@@ -77,7 +95,6 @@ for relative_path in scanner.scan():
 在项目根目录的 PowerShell 中执行测试（仅使用 Python 标准库）：
 
 ```powershell
-$env:PYTHONPATH = Join-Path (Get-Location) 'src'
 python -m unittest discover -s tests/repository -v
 ```
 
@@ -94,8 +111,8 @@ for function in result.functions:
 完整测试可在项目根目录运行：
 
 ```powershell
-$env:PYTHONPATH = Join-Path (Get-Location) 'src'
-uv run --no-project --with pytest python -m pytest -q
+pip install pytest
+python -m pytest -q
 ```
 
 `SymbolIndex(project_path).build()` 使用扫描与解析结果登记项目模块、模块级函数，以及明确 import 的本地绑定。`symbols` 以 `module.function` 为键；`bindings` 记录本地名称的项目内模块或函数目标，无法确认时保存 `unresolved` 与原因。索引不会解析 `FunctionCall` 的目标。
@@ -124,13 +141,7 @@ print(graph.unresolved_calls)
 
 `propagate_indirect_impact(graph, direct_result, max_depth=2)` 只从确定 Direct Finding 出发，沿调用图反向查找最多两层。结果按上游符号去重，并保留通向原始 Direct 调用点的 `CallEdge` 路径；间接结论表示“建议检查”，不表示运行时一定失败。
 
-固定 Demo：`examples/signature_change/`，包含 `utils.py`、`report.py`、`dashboard.py`、`page.py` 和结构化 `change.json`。在仓库根目录的 PowerShell 中运行：
-
-```powershell
-$env:PYTHONPATH = Join-Path (Get-Location) 'src'
-python -m openimpact analyze examples/signature_change --change examples/signature_change/change.json
-python -m openimpact analyze examples/signature_change --change examples/signature_change/change.json --format json
-```
+固定 Demo：`examples/signature_change/`，包含 `utils.py`、`report.py`、`dashboard.py`、`page.py` 和结构化 `change.json`。安装后的命令见“本地安装与 Demo”。
 
 CLI 的 `text` 格式为中文终端报告，`json` 格式包含 `change`、`validation`、`coverage`、`summary`、Direct / Indirect 结果与 `diagnostics`。`change.json` 使用显式的 `before`、`after` 参数数组及 `added_parameter`；每个参数至少提供 `name`、`kind`、`has_default`。无效输入返回非零退出码；部分 Python 文件无法解析时，仍输出其余可分析结果，并标记 `coverage.status=partial`。
 

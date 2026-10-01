@@ -565,6 +565,7 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | PROJECT.md | 本文为待负责人确认的总纲草案 |
 | 独立代码目录 | 已存在，采用负责人指定的当前项目路径 |
 | Phase 1 分析引擎 | Scanner、AST、Symbol Index、Call Graph、ChangeSpec、Direct / 1-hop / 2-hop、流水线和 CLI 报告已实现；完整源码片段证据与服务层尚未开始 |
+| Core MVP v0.1 工程验收 | 版本 `0.1.0`；项目虚拟环境中 `pip install -e .` 成功；清除 `PYTHONPATH` 后导入、中文 / JSON Demo 均成功，摘要为 Direct 1、1-hop 1、2-hop 1、coverage complete |
 | 新项目测试与评测 | 完整 pytest：95 passed、1 skipped（Windows 符号链接权限）；固定 Demo 和端到端测试已完成，真实项目评测尚未实施 |
 | 新项目前端、API、Worker、数据库 | 尚未实现 |
 | 新 GitHub 仓库 | 尚未创建或核验 |
@@ -605,3 +606,4 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | 2026-10-01 | 审核修订：分别判断修改前后兼容性，区分确定 Direct、既有问题、无影响、兼容性改善及人工检查 | 完整 pytest 77 passed、1 skipped；待审核，未提交 Git |
 | 2026-10-01 | 实现以确定 Direct 为种子的 1-hop / 2-hop 反向传播、路径证据、循环与多路径去重；测试位于 tests/analysis/test_indirect_impact.py | 完整 pytest 87 passed、1 skipped；待审核，未提交 Git |
 | 2026-10-01 | 建立本地结构化 ChangeSpec 加载、流水线、CLI、JSON / 中文报告及固定 Demo；测试位于 tests/analysis/test_pipeline_cli.py | 完整 pytest 95 passed、1 skipped；待审核，未提交 Git |
+| 2026-10-01 | Core MVP v0.1 冻结前验收：补充 `src` 布局的 editable packaging，在项目虚拟环境中无 `PYTHONPATH` 复现 Demo；README 改为安装后直接运行 | 完整 pytest 95 passed、1 skipped；待审核，未提交 Git |

@@ -20,7 +20,7 @@ CHANGE = DEMO / "change.json"
 class PipelineAndCLITests(unittest.TestCase):
     def cli(self, *arguments: str) -> subprocess.CompletedProcess[str]:
         environment = dict(os.environ)
-        environment["PYTHONPATH"] = str(ROOT / "src")
+        environment.pop("PYTHONPATH", None)
         environment["PYTHONIOENCODING"] = "utf-8"
         environment["PYTHONDONTWRITEBYTECODE"] = "1"
         return subprocess.run(

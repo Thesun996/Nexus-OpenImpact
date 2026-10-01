@@ -5,3 +5,10 @@ description = "AI驱动的代码变更影响分析助手"
 requires-python = ">=3.11"
 
 dependencies = []
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
