@@ -1,6 +1,6 @@
-# Nexus OpenImpact Demo API 契约
+# Nexus OpenImpact API 契约
 
-Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 增加上传 Python 项目 ZIP 的语法检查接口。Demo 仍调用现有 `load_change_spec()`、`analyze_project()` 和 `build_report()`；上传项目当前仅作 inspect，不执行 Change Impact。
+Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 增加上传 Python 项目 ZIP 的语法检查。Phase 2.3 增加简化配置生成与校验 ChangeSpec。Demo 仍调用现有 `load_change_spec()`、`analyze_project()` 和 `build_report()`；上传项目当前不执行 Change Impact。
 
 ## 本地启动
 
@@ -75,6 +75,46 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" http://127.0.0.1:80
 
 上传上限为 ZIP 文件 5 MiB，整个 multipart 请求体 5 MiB + 64 KiB；最多 256 个 ZIP 条目、128 个文件；单文件声明及实际解压大小最多 1 MiB、合计最多 10 MiB、单条目声明压缩比最多 200。逐条检查原始 ZIP 路径，拒绝绝对路径、`..`、Windows 驱动器/UNC/保留名称、反斜杠、重复路径、符号链接及特殊文件。只接受未加密的 Stored / Deflated 条目；目录和非 `.py` 文件仍计入条目、文件及声明解压大小限制。无可分析 Python 文件返回 422。
 
+## `POST /api/v1/changes/validate`
+
+请求体为 `multipart/form-data`，需要各一个 `file`（重新上传的 Python 项目 ZIP）和 `change`（JSON 字符串）字段，可提供一个 `expected_fingerprint`（之前 inspect 返回的 SHA-256）。与 inspect 使用同一套 ZIP 安全校验、资源限额、根目录识别、Scanner、AST Parser、Symbol Index 和临时目录清理流程；不接受查询参数或其他字段。
+
+```json
+{
+  "target_symbol_id": "utils.format_date",
+  "added_parameter": {"name": "timezone", "kind": "positional_or_keyword"}
+}
+```
+
+`added_parameter.kind` 仅允许 `positional_only`、`positional_or_keyword`、`keyword_only`。默认插入位置为该参数类型组的末尾、下一类型组的开头；如果这导致非法签名，返回 Core Validator 的 `invalid_after_signature`，不会自行寻找其他插入点。可选 `"insert_before": "现有参数名"` 指定插入在该参数之前，仍由 Core Validator 判断合法性。接口总是生成 `add_required_parameter`，新增参数 `required=true` 且无默认值；其他变更类型、默认值及额外字段不在本接口范围内。
+
+PowerShell 示例（先准备好 `project.zip` 和仅含上述 JSON 的 `change.json`）：
+
+```powershell
+curl.exe -X POST -F "file=@project.zip;type=application/zip" -F "change=<change.json" -F "expected_fingerprint=<此前 inspect 返回的 64 位指纹>" http://127.0.0.1:8000/api/v1/changes/validate
+```
+
+成功返回 HTTP 200：
+
+```json
+{
+  "project_name": "project",
+  "project_fingerprint": "<本次 ZIP 的 SHA-256>",
+  "coverage": {"status": "complete", "python_files": 1, "indexed_modules": 1, "indexed_functions": 1, "files_with_parse_errors": 0},
+  "change_spec": {
+    "change_type": "add_required_parameter",
+    "target_symbol_id": "utils.format_date",
+    "before": {"name": "format_date", "parameters": [{"name": "date", "kind": "positional_or_keyword", "has_default": false, "default_source": null, "annotation_source": null}], "is_async": false, "return_annotation_source": null},
+    "after": {"name": "format_date", "parameters": [{"name": "date", "kind": "positional_or_keyword", "has_default": false, "default_source": null, "annotation_source": null}, {"name": "timezone", "kind": "positional_or_keyword", "has_default": false, "default_source": null, "annotation_source": null}], "is_async": false, "return_annotation_source": null},
+    "added_parameter": {"name": "timezone", "kind": "positional_or_keyword", "required": true, "annotation_source": null}
+  },
+  "validation": {"valid": true, "diagnostics": []},
+  "diagnostics": {"parse_errors": [], "unresolved_imports": [], "ambiguous_modules": [], "ambiguous_symbols": []}
+}
+```
+
+`before` 完整取自本次上传源码的模块级函数签名，包括参数默认值、注解、异步标记和返回注解；`after` 只增加一个必填参数。`validation.diagnostics` 保存变更配置及 Core Validator 的错误；顶层 `diagnostics` 保存项目解析与 import 诊断。目标不存在或签名无效时返回 HTTP 422，结构仍与上例相同，`validation.valid=false`；无法构建 ChangeSpec 时 `change_spec=null`。指纹不一致返回 HTTP 409 `fingerprint_mismatch`，不会用另一份源码继续校验。返回结果不包含服务器临时路径，用户源码保持原样。
+
 ## 错误响应
 
 本阶段由服务显式处理的错误使用以下 JSON 形状：
@@ -95,5 +135,8 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" http://127.0.0.1:80
 | 415 | `unsupported_zip_entry` | 加密或不支持的压缩方法 |
 | 422 | `no_python_files` | ZIP 内没有可分析的 `.py` 文件 |
 | 503 | `inspection_unavailable` | 服务端临时目录或源码读取失败 |
+| 409 | `fingerprint_mismatch` | validate 重新上传的 ZIP 与预期 SHA-256 不一致 |
+| 422 | `invalid_fingerprint` | `expected_fingerprint` 不是 64 位十六进制值 |
+| 422 | `validation.valid=false` | ChangeSpec 配置、目标或 Core 签名校验失败；详见 `validation.diagnostics` 的 `code`、`message` |
 
-缺少 `file` 或 multipart 格式错误时，FastAPI 返回标准 `detail` 格式的 422 / 400；未知路径或 HTTP 方法返回标准 404 / 405。当前接口无认证、项目持久化或上传项目的 Change Impact 能力。
+缺少必填字段或 multipart 格式错误时，FastAPI 返回标准 `detail` 格式的 422 / 400；未知路径或 HTTP 方法返回标准 404 / 405。当前接口无认证、项目持久化或上传项目的 Change Impact 能力。

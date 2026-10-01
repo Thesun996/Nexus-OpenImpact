@@ -6,6 +6,7 @@ import stat
 import struct
 import zipfile
 import zlib
+from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -222,20 +223,34 @@ def _result(
     }
 
 
-def inspect_python_zip(data: bytes, filename: str | None = None) -> dict:
-    """Validate, briefly extract Python sources, index syntax facts, then clean up."""
+@contextmanager
+def indexed_python_zip(data: bytes, filename: str | None = None):
+    """Yield the existing syntax index and inspect report inside one isolated import."""
     if len(data) > MAX_UPLOAD_BYTES:
         _reject("zip_limit_exceeded", "ZIP 上传大小超过限制。", 413)
     fingerprint = hashlib.sha256(data).hexdigest()
     try:
-        with zipfile.ZipFile(io.BytesIO(data)) as archive:
-            entries = _inspect_entries(archive, data)
-            sources, stripped_root = _python_entries(entries)
-            with TemporaryDirectory(prefix="openimpact-zip-") as temporary:
-                project_root = Path(temporary) / "source"
-                project_root.mkdir()
-                _extract_python(archive, sources, project_root, stripped_root)
-                index = SymbolIndex(project_root).build()
-                return _result(index, filename, fingerprint, stripped_root, len(sources))
+        archive = zipfile.ZipFile(io.BytesIO(data))
     except (zipfile.BadZipFile, EOFError, RuntimeError, NotImplementedError, zlib.error) as error:
         _reject("invalid_zip", f"ZIP 文件损坏或无法解压：{error}")
+    with archive:
+        try:
+            entries = _inspect_entries(archive, data)
+            sources, stripped_root = _python_entries(entries)
+        except (zipfile.BadZipFile, EOFError, RuntimeError, NotImplementedError, zlib.error) as error:
+            _reject("invalid_zip", f"ZIP 文件损坏或无法解压：{error}")
+        with TemporaryDirectory(prefix="openimpact-zip-") as temporary:
+            project_root = Path(temporary) / "source"
+            project_root.mkdir()
+            try:
+                _extract_python(archive, sources, project_root, stripped_root)
+            except (zipfile.BadZipFile, EOFError, RuntimeError, NotImplementedError, zlib.error) as error:
+                _reject("invalid_zip", f"ZIP 文件损坏或无法解压：{error}")
+            index = SymbolIndex(project_root).build()
+            yield index, _result(index, filename, fingerprint, stripped_root, len(sources))
+
+
+def inspect_python_zip(data: bytes, filename: str | None = None) -> dict:
+    """Return syntax facts from an untrusted ZIP, cleaning up before returning."""
+    with indexed_python_zip(data, filename) as (_, report):
+        return report
