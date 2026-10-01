@@ -34,7 +34,7 @@ OpenImpact 希望通过 AI 与静态分析结合，
 
 当前阶段：
 
-Phase 1.4：Repository Scanner、单文件 AST Parser、Symbol Index 与确定性 Call Graph 已实现；变化影响分析尚未实现。
+Phase 1.5：Repository Scanner、单文件 AST Parser、Symbol Index、确定性 Call Graph 与 ChangeSpec 校验已实现；变化影响分析尚未实现。
 
 目标：
 
@@ -118,4 +118,6 @@ print(graph.edges)
 print(graph.unresolved_calls)
 ```
 
-ChangeSpec、影响分析、LLM、源码哈希与资源限额尚未实现。
+`ChangeSpec` 通过结构化的修改前后签名、目标 Symbol ID 和新增参数描述计划变化；`validate_change_spec(index, spec)` 检查目标、当前签名及“新增必填参数”的合法性，返回诊断，不修改源码。当前只支持此一种变化类型。
+
+影响分析、LLM、源码哈希与资源限额尚未实现。

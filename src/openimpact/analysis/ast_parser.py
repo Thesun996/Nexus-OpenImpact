@@ -19,15 +19,39 @@ def _parameters(arguments: ast.arguments) -> tuple[Parameter, ...]:
     first_default = len(positional) - len(arguments.defaults)
     result: list[Parameter] = []
     for index, argument in enumerate(arguments.posonlyargs):
-        result.append(Parameter(argument.arg, "positional_only", index >= first_default))
+        default = arguments.defaults[index - first_default] if index >= first_default else None
+        result.append(Parameter(
+            argument.arg, "positional_only", default is not None,
+            ast.unparse(default) if default is not None else None,
+            ast.unparse(argument.annotation) if argument.annotation is not None else None,
+        ))
     for index, argument in enumerate(arguments.args, start=len(arguments.posonlyargs)):
-        result.append(Parameter(argument.arg, "positional_or_keyword", index >= first_default))
+        default = arguments.defaults[index - first_default] if index >= first_default else None
+        result.append(Parameter(
+            argument.arg, "positional_or_keyword", default is not None,
+            ast.unparse(default) if default is not None else None,
+            ast.unparse(argument.annotation) if argument.annotation is not None else None,
+        ))
     if arguments.vararg is not None:
-        result.append(Parameter(arguments.vararg.arg, "var_positional"))
+        argument = arguments.vararg
+        result.append(Parameter(
+            argument.arg, "var_positional", annotation_source=(
+                ast.unparse(argument.annotation) if argument.annotation is not None else None
+            ),
+        ))
     for argument, default in zip(arguments.kwonlyargs, arguments.kw_defaults, strict=True):
-        result.append(Parameter(argument.arg, "keyword_only", default is not None))
+        result.append(Parameter(
+            argument.arg, "keyword_only", default is not None,
+            ast.unparse(default) if default is not None else None,
+            ast.unparse(argument.annotation) if argument.annotation is not None else None,
+        ))
     if arguments.kwarg is not None:
-        result.append(Parameter(arguments.kwarg.arg, "var_keyword"))
+        argument = arguments.kwarg
+        result.append(Parameter(
+            argument.arg, "var_keyword", annotation_source=(
+                ast.unparse(argument.annotation) if argument.annotation is not None else None
+            ),
+        ))
     return tuple(result)
 
 
@@ -188,6 +212,9 @@ class ASTParser:
                         parameters=_parameters(node.args),
                         is_async=isinstance(node, ast.AsyncFunctionDef),
                         local_bindings=_bound_names(node.body),
+                        return_annotation_source=(
+                            ast.unparse(node.returns) if node.returns is not None else None
+                        ),
                     )
                 )
 

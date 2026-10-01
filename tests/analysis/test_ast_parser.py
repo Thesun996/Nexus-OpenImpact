@@ -1,8 +1,8 @@
 """Tests for per-file Python syntax facts."""
 
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from openimpact.analysis.ast_parser import ASTParser
 from openimpact.analysis.models import Parameter, ParsedModule
@@ -37,10 +37,10 @@ class ASTParserTests(unittest.TestCase):
             result.functions[0].parameters,
             (
                 Parameter("date", "positional_only"),
-                Parameter("locale", "positional_or_keyword", True),
+                Parameter("locale", "positional_or_keyword", True, "'zh'"),
                 Parameter("args", "var_positional"),
                 Parameter("timezone", "keyword_only"),
-                Parameter("mode", "keyword_only", True),
+                Parameter("mode", "keyword_only", True, "'short'"),
                 Parameter("kw", "var_keyword"),
             ),
         )
@@ -52,8 +52,8 @@ class ASTParserTests(unittest.TestCase):
             result.functions[0].parameters,
             (
                 Parameter("a", "positional_only"),
-                Parameter("b", "positional_only", True),
-                Parameter("c", "positional_or_keyword", True),
+                Parameter("b", "positional_only", True, "1"),
+                Parameter("c", "positional_or_keyword", True, "2"),
             ),
         )
 
@@ -63,7 +63,7 @@ class ASTParserTests(unittest.TestCase):
             result.functions[0].parameters,
             (
                 Parameter("a", "positional_only", False),
-                Parameter("b", "positional_or_keyword", True),
+                Parameter("b", "positional_or_keyword", True, "1"),
             ),
         )
 

@@ -2,7 +2,7 @@
 
 > 更新日期：2026-10-01（Asia/Shanghai）  
 > 文档状态：待项目负责人确认。  
-> 项目阶段：Phase 0 只读资产审计已完成；Phase 1.4 已实现 Repository Scanner、单文件 AST Parser、Symbol Index 与确定性 Call Graph。
+> 项目阶段：Phase 0 只读资产审计已完成；Phase 1.5 已实现 Repository Scanner、单文件 AST Parser、Symbol Index、确定性 Call Graph 与 ChangeSpec 校验。
 > 读者：项目负责人、团队成员、后续 Codex / AI 开发助手、比赛答辩材料整理人员。
 
 本文统一记录产品定位、范围、技术边界、开发约束与当前事实，作为后续开发的项目总纲。本文中的“计划”“建议”“待确认”均不代表功能已实现。功能完成必须有代码、对应测试和可复核结果支撑。
@@ -234,19 +234,28 @@ V1 暂不包含：
 
 ### 8.6 ChangeSpec
 
-描述分析对象和拟发生的变化，至少包含类型、目标文件、目标符号、修改前签名与修改后签名。分析前校验目标存在、旧签名匹配当前源码、新签名有效。
+当前实现使用结构化的 `ChangeSpec`：变化类型、目标 Symbol ID、修改前与修改后的 `FunctionSignature`，以及 `AddedParameter`。签名由函数名、参数元组、异步标记和返回注解组成；参数保留种类、默认值有无、默认值表达式及注解。默认值与注解只读取并比较语法表达式，不求值。
 
 ```json
 {
-  "type": "function_signature_change",
-  "file": "utils.py",
-  "symbol": "format_date",
-  "before": "format_date(date)",
-  "after": "format_date(date, timezone)"
+  "change_type": "add_required_parameter",
+  "target_symbol_id": "utils.format_date",
+  "before": {
+    "name": "format_date",
+    "parameters": [{"name": "date", "kind": "positional_or_keyword", "has_default": false}]
+  },
+  "after": {
+    "name": "format_date",
+    "parameters": [
+      {"name": "date", "kind": "positional_or_keyword", "has_default": false},
+      {"name": "timezone", "kind": "positional_or_keyword", "has_default": false}
+    ]
+  },
+  "added_parameter": {"name": "timezone", "kind": "positional_or_keyword", "required": true}
 }
 ```
 
-模拟变更不修改目标仓库。首版采用结构化输入，暂不依赖 LLM 从自然语言猜测目标。
+这是结构示意，当前公开接口为 Python 数据类与 `validate_change_spec(index, spec)`，尚未提供 JSON 反序列化接口。校验要求目标为已索引的模块级函数、修改前签名与索引中的源码事实一致、修改后符合 Python 参数规则，且只新增一个无默认值的参数。失败返回结构化诊断，不进入影响分析。校验使用已构建的索引快照，不修改目标仓库；源码在建索引后若变化，应重新构建索引。首版暂不依赖 LLM 从自然语言猜测目标。
 
 ### 8.7 Impact Engine
 
@@ -549,8 +558,8 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | Phase 0 旧资产审计 | 已完成只读源码与文档审计 |
 | PROJECT.md | 本文为待负责人确认的总纲草案 |
 | 独立代码目录 | 已存在，采用负责人指定的当前项目路径 |
-| Phase 1 分析引擎 | Repository Scanner、单文件 AST Parser、Symbol Index 与确定性 Call Graph 已实现；ChangeSpec、Impact Engine 尚未开始 |
-| 新项目测试与评测 | 完整 pytest：45 passed、1 skipped（Windows 符号链接权限）；评测尚未实施 |
+| Phase 1 分析引擎 | Repository Scanner、单文件 AST Parser、Symbol Index、确定性 Call Graph 与 ChangeSpec 校验已实现；Impact Engine 尚未开始 |
+| 新项目测试与评测 | 完整 pytest：60 passed、1 skipped（Windows 符号链接权限）；评测尚未实施 |
 | 新项目前端、API、Worker、数据库 | 尚未实现 |
 | 新 GitHub 仓库 | 尚未创建或核验 |
 | A312 | 本轮及当前开发阶段不操作 |
@@ -573,7 +582,7 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 - 已实现结论必须注明对应测试或验收记录，历史结果不能替代当前验证。
 - 规划与实际状态分开记录，失败案例和已知限制不得隐去。
 - 引用旧 Nexus 的资产时保留来源，不继承旧赛道目标和平台义务。
-- 负责人已授权 Phase 1.4 的 Call Graph 任务；本轮不提交 Git，不提前实现 ChangeSpec 或 Impact Engine，不操作 A312。
+- 负责人已授权 Phase 1.5 的 ChangeSpec 任务；本轮不提交 Git，不提前实现 Impact Engine，不操作 A312。
 
 ### 变更记录
 
@@ -585,3 +594,4 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | 2026-10-01 | 审核修订：补充 callee 结构路径、调用者和边界测试 | 完整 pytest 22 passed、1 skipped；待审核，未提交 Git |
 | 2026-10-01 | 实现项目级 Symbol Index 和明确 import 绑定，保留 unresolved 原因 | 完整 pytest 32 passed、1 skipped；待审核，未提交 Git |
 | 2026-10-01 | 实现确定性 Call Graph、未解析调用诊断及作用域遮蔽边界 | 完整 pytest 45 passed、1 skipped；待审核，未提交 Git |
+| 2026-10-01 | 实现结构化 ChangeSpec 与新增必填参数校验，保留明确诊断；测试位于 tests/analysis/test_change_spec.py | 完整 pytest 60 passed、1 skipped；待审核，未提交 Git |

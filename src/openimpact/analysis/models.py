@@ -21,6 +21,8 @@ class Parameter:
     name: str
     kind: ParameterKind
     has_default: bool = False
+    default_source: str | None = None
+    annotation_source: str | None = None
 
 
 @dataclass(frozen=True)
@@ -31,6 +33,7 @@ class FunctionDefinition:
     parameters: tuple[Parameter, ...]
     is_async: bool = False
     local_bindings: frozenset[str] = frozenset()
+    return_annotation_source: str | None = None
 
 
 @dataclass(frozen=True)
