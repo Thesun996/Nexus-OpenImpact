@@ -11,7 +11,7 @@ from openimpact.analysis.change_spec import (
     FunctionSignature,
     validate_change_spec,
 )
-from openimpact.analysis.models import FunctionCall
+from openimpact.analysis.models import FunctionCall, SourceLocation
 
 CompatibilityStatus = Literal["compatible", "incompatible", "manual_review"]
 ChangeEffect = Literal[
@@ -45,6 +45,7 @@ class CallCompatibilityAssessment:
     before_rule_id: str
     after_rule_id: str
     effect: ChangeEffect
+    call_expression: str | None = None
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,11 @@ class ImpactFinding:
     effect: Literal["direct_impact", "manual_review"]
     rule_id: str
     reason: str
+    target_symbol: str | None = None
+    source_file: Path | None = None
+    source_location: SourceLocation | None = None
+    call_expression: str | None = None
+    evidence_reference: str | None = None
 
 
 @dataclass(frozen=True)
@@ -170,17 +176,29 @@ def analyze_direct_impact(graph: CallGraph, spec: ChangeSpec) -> DirectImpactRes
             edge.line, edge.col_offset, edge.basis,
             before.status, after.status, before.reason, after.reason,
             before.rule_id, after.rule_id, effect,
+            call_expression=call.call_expression,
         )
         assessments.append(assessment)
+        evidence = {
+            "target_symbol": edge.callee_symbol_id,
+            "source_file": edge.file,
+            "source_location": SourceLocation(edge.line, edge.col_offset, call.end_lineno),
+            "call_expression": call.call_expression,
+            "evidence_reference": (
+                f"call:{edge.file.as_posix()}:{edge.line}:{edge.col_offset}"
+            ),
+        }
         if effect == "direct_impact":
             findings.append(ImpactFinding(
                 assessment, "direct", effect, "required_parameter_added_breaks_call",
                 f"修改前调用兼容；修改后{after.reason}",
+                **evidence,
             ))
         elif effect == "manual_review":
             findings.append(ImpactFinding(
                 assessment, "direct", effect, "argument_expansion_unknown",
                 "修改前或修改后的参数绑定无法静态确定，需要人工检查。",
+                **evidence,
             ))
     return DirectImpactResult(validation, tuple(assessments), tuple(findings))
 

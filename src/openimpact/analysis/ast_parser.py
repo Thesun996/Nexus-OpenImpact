@@ -112,8 +112,9 @@ def _bound_names(statements: list[ast.stmt]) -> frozenset[str]:
 
 
 class _CallCollector(ast.NodeVisitor):
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, source: str):
         self.path = path
+        self.source = source
         self.calls: list[FunctionCall] = []
         self.enclosing_function: str | None = None
 
@@ -163,6 +164,7 @@ class _CallCollector(ast.NodeVisitor):
                 ),
                 has_star_args=any(isinstance(arg, ast.Starred) for arg in node.args),
                 has_star_kwargs=any(keyword.arg is None for keyword in node.keywords),
+                call_expression=ast.get_source_segment(self.source, node) or ast.unparse(node),
             )
         )
         self.generic_visit(node)
@@ -239,7 +241,7 @@ class ASTParser:
                         )
                     )
 
-        collector = _CallCollector(self.path)
+        collector = _CallCollector(self.path, source)
         collector.visit(tree)
         module_rebindings = _bound_names(
             [

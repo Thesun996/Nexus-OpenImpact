@@ -2,10 +2,12 @@
 
 from collections import defaultdict, deque
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 from openimpact.analysis.call_graph import CallEdge, CallGraph
 from openimpact.analysis.direct_impact import DirectImpactResult, ImpactFinding
+from openimpact.analysis.models import FunctionCall, SourceLocation
 
 
 @dataclass(frozen=True)
@@ -14,6 +16,7 @@ class PropagationEvidence:
 
     source_direct_impact: ImpactFinding
     propagation_path: tuple[CallEdge, ...]
+    evidence_reference: str | None = None
 
 
 @dataclass(frozen=True)
@@ -24,6 +27,11 @@ class IndirectImpactFinding:
     certainty: Literal["needs_review"]
     reason: str
     sources: tuple[PropagationEvidence, ...]
+    target_symbol: str | None = None
+    source_file: Path | None = None
+    source_location: SourceLocation | None = None
+    call_expression: str | None = None
+    evidence_reference: str | None = None
 
 
 @dataclass(frozen=True)
@@ -98,16 +106,34 @@ def propagate_indirect_impact(
                 new_path = (edge, *path)
                 new_depth = depth + 1
                 if upstream not in direct_callers:
-                    evidence_by_symbol[upstream].append(PropagationEvidence(seed, new_path))
+                    evidence_by_symbol[upstream].append(PropagationEvidence(
+                        seed, new_path, seed.evidence_reference
+                    ))
                 queue.append((upstream, new_path, new_depth))
 
+    calls_by_site: dict[tuple[Path, int, int], FunctionCall] = {
+        (relative_path, call.lineno, call.col_offset): call
+        for module, relative_path in graph.index.modules.items()
+        for call in graph.index.parsed_modules[module].calls
+    }
     findings: list[IndirectImpactFinding] = []
     for symbol_id, sources in sorted(evidence_by_symbol.items()):
         min_depth = min(len(source.propagation_path) - 1 for source in sources)
         impact_type = "indirect_1hop" if min_depth == 1 else "indirect_2hop"
+        representative = min(sources, key=lambda source: len(source.propagation_path))
+        first_edge = representative.propagation_path[0]
+        first_call = calls_by_site.get((first_edge.file, first_edge.line, first_edge.col_offset))
         findings.append(IndirectImpactFinding(
             symbol_id, impact_type, min_depth + 1, "needs_review",
             "该符号位于确定 Direct Impact 的上游调用路径中，建议检查；静态路径不保证运行时失败。",
             tuple(sources),
+            target_symbol=representative.source_direct_impact.assessment.target_symbol_id,
+            source_file=first_edge.file,
+            source_location=SourceLocation(
+                first_edge.line, first_edge.col_offset,
+                first_call.end_lineno if first_call is not None else None,
+            ),
+            call_expression=first_call.call_expression if first_call is not None else None,
+            evidence_reference=representative.evidence_reference,
         ))
     return IndirectImpactResult(tuple(findings))

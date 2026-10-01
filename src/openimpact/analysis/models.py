@@ -63,6 +63,16 @@ class FunctionCall:
     keyword_names: frozenset[str]
     has_star_args: bool
     has_star_kwargs: bool
+    call_expression: str | None = None
+
+
+@dataclass(frozen=True)
+class SourceLocation:
+    """A stable source span beginning at a zero-based AST column."""
+
+    line: int
+    column: int
+    end_line: int | None = None
 
 
 @dataclass(frozen=True)
