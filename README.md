@@ -34,7 +34,7 @@ OpenImpact 希望通过 AI 与静态分析结合，
 
 当前阶段：
 
-Phase 2.4：Core MVP v0.1.0 的 CLI 和内置 Demo API 保持可用；可通过 ZIP 检查 Python 项目、校验新增必填参数的 ChangeSpec，并对本次上传项目运行完整影响分析。完整源码片段证据和前端尚未实现。
+Phase 2.5 后端契约冻结验收：Core MVP v0.1.0 的 CLI 和内置 Demo API 保持可用；可通过 ZIP 检查 Python 项目、校验新增必填参数的 ChangeSpec，并对本次上传项目运行完整影响分析。完整源码片段证据和前端尚未实现。
 
 目标：
 
@@ -78,6 +78,8 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" http://127.0.0.1:80
 选择 inspect 返回的 Symbol ID 后，可把简化变更 JSON 作为 `change` 表单字段，连同同一 ZIP 提交到 `POST /api/v1/changes/validate`。可选 `expected_fingerprint` 用于核对文件版本。服务会从源码读取当前签名、生成新增必填参数的 ChangeSpec，并交给 Core Validator 校验；请求格式及诊断见 [API 契约](docs/api-contract.md)。
 
 使用同样的表单字段调用 `POST /api/v1/projects/analyze`，即可对本次上传的 ZIP 生成 Core JSON 影响报告。报告中的 `project_path` 为相对根目录 `.`；`coverage.status=partial` 时需结合诊断查看未覆盖代码，零条影响不代表整个项目确定无影响。调用示例和状态码见 [API 契约](docs/api-contract.md)。
+
+前端开发可直接使用 [前端交接说明](docs/frontend-handoff.md) 与 [真实 HTTP 响应样例](docs/api-samples/inspect-response.json)。V1 每一步均需重新上传 ZIP；服务器不保留用户项目。
 
 ---
 

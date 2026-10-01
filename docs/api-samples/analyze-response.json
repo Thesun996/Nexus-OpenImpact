@@ -1,0 +1,188 @@
+{
+  "schema_version": 1,
+  "project_path": ".",
+  "change": {
+    "change_type": "add_required_parameter",
+    "target_symbol_id": "utils.format_date",
+    "before": {
+      "name": "format_date",
+      "parameters": [
+        {
+          "name": "date",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "after": {
+      "name": "format_date",
+      "parameters": [
+        {
+          "name": "date",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        },
+        {
+          "name": "timezone",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "added_parameter": {
+      "name": "timezone",
+      "kind": "positional_or_keyword",
+      "required": true,
+      "annotation_source": null
+    }
+  },
+  "validation": {
+    "valid": true,
+    "diagnostics": []
+  },
+  "coverage": {
+    "status": "complete",
+    "indexed_modules": 4,
+    "indexed_functions": 4,
+    "files_with_parse_errors": 0,
+    "ambiguous_modules": [],
+    "ambiguous_symbols": []
+  },
+  "summary": {
+    "direct_impact_count": 1,
+    "indirect_1hop_count": 1,
+    "indirect_2hop_count": 1,
+    "manual_review_count": 0,
+    "pre_existing_problem_count": 0,
+    "unresolved_call_count": 0
+  },
+  "direct_impacts": [
+    {
+      "caller_symbol_id": "report.report",
+      "target_symbol_id": "utils.format_date",
+      "file": "report.py",
+      "line": 5,
+      "column": 11,
+      "resolution_basis": "from_import",
+      "before_status": "compatible",
+      "after_status": "incompatible",
+      "before_reason": "当前调用的确定参数可绑定到该签名。",
+      "after_reason": "该签名的必填参数 timezone 未由当前调用提供。",
+      "effect": "direct_impact",
+      "rule_id": "required_parameter_added_breaks_call",
+      "reason": "修改前调用兼容；修改后该签名的必填参数 timezone 未由当前调用提供。",
+      "impact_type": "direct"
+    }
+  ],
+  "indirect_impacts": [
+    {
+      "impacted_symbol_id": "dashboard.dashboard",
+      "impact_type": "indirect_1hop",
+      "graph_distance": 2,
+      "certainty": "needs_review",
+      "reason": "该符号位于确定 Direct Impact 的上游调用路径中，建议检查；静态路径不保证运行时失败。",
+      "sources": [
+        {
+          "direct_call": {
+            "caller_symbol_id": "report.report",
+            "target_symbol_id": "utils.format_date",
+            "file": "report.py",
+            "line": 5,
+            "column": 11,
+            "resolution_basis": "from_import",
+            "before_status": "compatible",
+            "after_status": "incompatible",
+            "before_reason": "当前调用的确定参数可绑定到该签名。",
+            "after_reason": "该签名的必填参数 timezone 未由当前调用提供。",
+            "effect": "direct_impact"
+          },
+          "propagation_path": [
+            {
+              "caller_symbol_id": "dashboard.dashboard",
+              "callee_symbol_id": "report.report",
+              "file": "dashboard.py",
+              "line": 5,
+              "column": 11,
+              "resolution_basis": "from_import"
+            },
+            {
+              "caller_symbol_id": "report.report",
+              "callee_symbol_id": "utils.format_date",
+              "file": "report.py",
+              "line": 5,
+              "column": 11,
+              "resolution_basis": "from_import"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "impacted_symbol_id": "page.page",
+      "impact_type": "indirect_2hop",
+      "graph_distance": 3,
+      "certainty": "needs_review",
+      "reason": "该符号位于确定 Direct Impact 的上游调用路径中，建议检查；静态路径不保证运行时失败。",
+      "sources": [
+        {
+          "direct_call": {
+            "caller_symbol_id": "report.report",
+            "target_symbol_id": "utils.format_date",
+            "file": "report.py",
+            "line": 5,
+            "column": 11,
+            "resolution_basis": "from_import",
+            "before_status": "compatible",
+            "after_status": "incompatible",
+            "before_reason": "当前调用的确定参数可绑定到该签名。",
+            "after_reason": "该签名的必填参数 timezone 未由当前调用提供。",
+            "effect": "direct_impact"
+          },
+          "propagation_path": [
+            {
+              "caller_symbol_id": "page.page",
+              "callee_symbol_id": "dashboard.dashboard",
+              "file": "page.py",
+              "line": 5,
+              "column": 11,
+              "resolution_basis": "from_import"
+            },
+            {
+              "caller_symbol_id": "dashboard.dashboard",
+              "callee_symbol_id": "report.report",
+              "file": "dashboard.py",
+              "line": 5,
+              "column": 11,
+              "resolution_basis": "from_import"
+            },
+            {
+              "caller_symbol_id": "report.report",
+              "callee_symbol_id": "utils.format_date",
+              "file": "report.py",
+              "line": 5,
+              "column": 11,
+              "resolution_basis": "from_import"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "manual_reviews": [],
+  "pre_existing_problems": [],
+  "diagnostics": {
+    "parse_errors": [],
+    "unresolved_calls": [],
+    "unresolved_imports": []
+  }
+}

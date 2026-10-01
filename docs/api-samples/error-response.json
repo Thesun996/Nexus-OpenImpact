@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "fingerprint_mismatch",
+    "message": "ZIP 指纹与此前 inspect 结果不一致。"
+  }
+}

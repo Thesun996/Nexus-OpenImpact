@@ -2,7 +2,7 @@
 
 > 更新日期：2026-10-01（Asia/Shanghai）  
 > 文档状态：待项目负责人确认。  
-> 项目阶段：Core MVP v0.1.0 已完成；Phase 2.4 增加上传项目的完整影响分析 API。
+> 项目阶段：Core MVP v0.1.0 已完成；Phase 2.5 进行后端契约冻结验收。
 > 读者：项目负责人、团队成员、后续 Codex / AI 开发助手、比赛答辩材料整理人员。
 
 本文统一记录产品定位、范围、技术边界、开发约束与当前事实，作为后续开发的项目总纲。本文中的“计划”“建议”“待确认”均不代表功能已实现。功能完成必须有代码、对应测试和可复核结果支撑。
@@ -568,7 +568,7 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | 独立代码目录 | 已存在，采用负责人指定的当前项目路径 |
 | Phase 1 分析引擎 | Scanner、AST、Symbol Index、Call Graph、ChangeSpec、Direct / 1-hop / 2-hop、流水线和 CLI 报告已实现；完整源码片段证据尚未实现 |
 | Core MVP v0.1 工程验收 | 版本 `0.1.0`；项目虚拟环境中 `pip install -e .` 成功；清除 `PYTHONPATH` 后导入、中文 / JSON Demo 均成功，摘要为 Direct 1、1-hop 1、2-hop 1、coverage complete |
-| 新项目测试与评测 | Phase 2.4 完整 pytest：151 passed、1 skipped（Windows 符号链接权限）；上传 Demo ZIP 通过真实本地 HTTP 验收，真实项目评测尚未实施 |
+| 新项目测试与评测 | Phase 2.5 完整 pytest：155 passed、1 skipped（Windows 符号链接权限）；三步真实 HTTP 与 CLI 回归已验收，真实项目评测尚未实施 |
 | 新项目前端、API、Worker、数据库 | Demo、ZIP inspect、ChangeSpec 校验及用户项目影响分析 API 已实现；前端、Worker、数据库尚未实现 |
 | 新 GitHub 仓库 | 尚未创建或核验 |
 | A312 | 本轮及当前开发阶段不操作 |
@@ -595,6 +595,7 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 - ZIP inspect 仅调用现有 Scanner、AST Parser 和 Symbol Index。上传 5 MiB、multipart 请求体 5 MiB + 64 KiB、256 条目、128 文件、单文件解压 1 MiB、总解压 10 MiB、压缩比 200；逐条校验路径与条目类型，分块复核解压字节，临时隔离目录在请求结束后清理。单层外包装目录按规则剥离，Python 包根目录保留。接口字段、错误码与覆盖语义见 `docs/api-contract.md`。
 - 负责人已授权 Phase 2.3 的 ChangeSpec 配置与校验 API；沿用同一 ZIP 校验及临时索引流程，从目标 Symbol 读取当前签名，新增必填参数后调用现有 Core Validator。可选预期指纹不符时拒绝；本轮不提交 Git，不修改 Core 分析规则或执行影响传播。
 - 负责人已授权 Phase 2.4 的用户项目完整影响分析 API；复用上述 ZIP 与 ChangeSpec 流程，在请求专用临时目录中调用现有 Core 分析和报告能力。部分覆盖时不把零条影响表述为全项目确定无影响；本轮不提交 Git，不新增分析规则或 Change 类型。
+- 负责人已授权 Phase 2.5 后端契约冻结验收；`docs/api-contract.md` 记录三个正式业务接口，`docs/frontend-handoff.md` 与 `docs/api-samples/` 供前端开发交接。上传项目在每次请求结束后清理，指纹只用于核对本次 ZIP 字节，不提供项目持久化或服务器路径输入。本轮不新增业务功能或分析规则，不提交 Git。
 
 ### 变更记录
 
@@ -616,3 +617,4 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | 2026-10-01 | Phase 2.2：安全 ZIP 导入检查、模块/符号/参数/诊断 JSON、根目录识别及接口文档；提交前补充重复/归一化冲突与拒绝后清理测试 | 完整 pytest 128 passed、1 skipped；真实 HTTP 正常 ZIP 200、危险路径 400、原 Demo 200；待审核，未提交 Git |
 | 2026-10-01 | Phase 2.3：简化 HTTP 变更配置、源签名读取、ChangeSpec 构建与 Core Validator 校验；复用 ZIP 安全导入与指纹核对 | 完整 pytest 143 passed、1 skipped；真实 HTTP 成功 200、指纹不符 409、无效 ZIP 400；待审核，未提交 Git |
 | 2026-10-01 | Phase 2.4：上传 ZIP 的完整影响分析 API、相对路径报告与 partial coverage 提示；复用已冻结 Core 能力 | 完整 pytest 151 passed、1 skipped；真实 HTTP Demo Direct / 1-hop / 2-hop 各 1、coverage complete，指纹不符 409、无效 ZIP 400；待审核，未提交 Git |
+| 2026-10-01 | Phase 2.5：三步 HTTP 工作流、安全输出核查、接口契约与前端交接样例 | 完整 pytest 155 passed、1 skipped；真实 HTTP 三步均 200，Direct / 1-hop / 2-hop 各 1、coverage complete，改 ZIP 后旧指纹 409；CLI 中文 / JSON 与固定 Demo API 通过；待审核，未提交 Git |

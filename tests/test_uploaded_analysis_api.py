@@ -156,6 +156,8 @@ def test_internal_analysis_exception_returns_500_and_cleans_temp():
     assert response.json()["error"]["code"] == "analysis_failed"
     assert locations and all(not location.exists() for location in locations)
     assert "openimpact-zip-" not in response.text
+    assert "Traceback" not in response.text
+    assert "internal failure" not in response.text
 
 
 def test_upload_limits_and_extra_path_field_apply_to_analyze():

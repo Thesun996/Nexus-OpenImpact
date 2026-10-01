@@ -214,6 +214,8 @@ async def analyze_uploaded_project(
                 for item in report["diagnostics"]["parse_errors"]:
                     if item["kind"] == "read_error":
                         item["message"] = "无法读取项目源文件。"
+                    elif item["kind"] == "encoding_error":
+                        item["message"] = "项目源文件编码无法解析。"
                 if report["coverage"]["status"] == "partial":
                     report["coverage"]["message"] = (
                         "分析范围不完整；结果仅覆盖已成功解析的代码，未报告影响不能视为确定无影响。"

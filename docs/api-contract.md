@@ -2,6 +2,18 @@
 
 Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 增加上传 Python 项目 ZIP 的语法检查。Phase 2.3 增加简化配置生成与校验 ChangeSpec。Phase 2.4 增加上传项目的完整影响分析，调用现有 `analyze_project()` 和 `build_report()`。
 
+## 前后端冻结范围
+
+| HTTP Method | Path | Content-Type | 用途 | 成功状态 |
+| --- | --- | --- | --- | --- |
+| POST | `/api/v1/projects/inspect` | `multipart/form-data` | 检查上传 ZIP 的模块、Symbol 与覆盖情况 | 200 |
+| POST | `/api/v1/changes/validate` | `multipart/form-data` | 从上传源码构建并校验 ChangeSpec | 200 |
+| POST | `/api/v1/projects/analyze` | `multipart/form-data` | 在本次上传项目上生成完整影响报告 | 200 |
+
+三个正式业务接口都需要重新上传 ZIP。V1 不保留用户项目，也不提供项目 ID；每次请求在独立临时目录完成并清理。`expected_fingerprint` 是 ZIP 原始字节的 SHA-256 校验值，不是服务端项目查找键。同一源码重新打包也可能产生不同指纹；修改或重新打包后应重新 inspect。文件名只用于展示项目名称的回退值，不参与指纹计算。不接受服务器本地路径、查询参数或额外表单字段。
+
+三个接口的 `file` 均为 multipart 文件字段，建议浏览器以 `application/zip` 上传；服务以 ZIP 内容及安全规则判断，不依赖客户端声明的 MIME。每个请求的 multipart 总量最多 5 MiB + 64 KiB，其中 ZIP 文件最多 5 MiB。其余 ZIP 条目和解压限额见下文。前端交接示例见 [frontend-handoff.md](frontend-handoff.md)，真实响应见 [api-samples](api-samples)。
+
 ## 本地启动
 
 在仓库根目录安装项目后运行：
@@ -51,6 +63,20 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/v1/demo/analyze
 
 请求体为 `multipart/form-data`，恰好一个名为 `file` 的 ZIP 文件字段；不接收查询参数、服务器路径或 ChangeSpec。示例：
 
+| 请求字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `file` | ZIP 文件（二进制 multipart part） | 是 | 本次要检查的 Python 项目 |
+
+| 正常返回字段 | 类型 | 含义 |
+| --- | --- | --- |
+| `project_name` | string | 展示名称，来自剥离的外层目录或上传文件名 |
+| `project_fingerprint` | string | 本次 ZIP 原始字节的 64 位小写 SHA-256 |
+| `source_root` | string 或 null | 被剥离的单层外包装目录 |
+| `modules` | object[] | `module`、相对 `file`、`parse_status` |
+| `symbols` | object[] | `symbol_id`、模块/文件/行号、参数信息 |
+| `coverage` | object | `status`、文件及索引计数 |
+| `diagnostics` | object | 解析、未解析 import、歧义模块/符号 |
+
 ```powershell
 curl.exe -X POST -F "file=@project.zip;type=application/zip" http://127.0.0.1:8000/api/v1/projects/inspect
 ```
@@ -78,6 +104,19 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" http://127.0.0.1:80
 ## `POST /api/v1/changes/validate`
 
 请求体为 `multipart/form-data`，需要各一个 `file`（重新上传的 Python 项目 ZIP）和 `change`（JSON 字符串）字段，可提供一个 `expected_fingerprint`（之前 inspect 返回的 SHA-256）。与 inspect 使用同一套 ZIP 安全校验、资源限额、根目录识别、Scanner、AST Parser、Symbol Index 和临时目录清理流程；不接受查询参数或其他字段。
+
+| 请求字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `file` | ZIP 文件（二进制 multipart part） | 是 | 本次用于读取真实函数签名的项目 |
+| `change` | string（JSON 文本） | 是 | 简化变更配置；作为普通表单字段发送 |
+| `expected_fingerprint` | string（64 位十六进制） | 否 | 与本次 ZIP 字节核对；可用 inspect 返回值 |
+
+| `change` JSON 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `target_symbol_id` | string | 是 | inspect `symbols[].symbol_id` 中的模块级函数 |
+| `added_parameter.name` | string | 是 | 新增参数名；合法性由 Core Validator 判断 |
+| `added_parameter.kind` | string 枚举 | 是 | `positional_only`、`positional_or_keyword` 或 `keyword_only` |
+| `insert_before` | string | 否 | 目标函数中已有参数名；新增参数插在其前面 |
 
 ```json
 {
@@ -115,9 +154,27 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" -F "change=<change.
 
 `before` 完整取自本次上传源码的模块级函数签名，包括参数默认值、注解、异步标记和返回注解；`after` 只增加一个必填参数。`validation.diagnostics` 保存变更配置及 Core Validator 的错误；顶层 `diagnostics` 保存项目解析与 import 诊断。目标不存在或签名无效时返回 HTTP 422，结构仍与上例相同，`validation.valid=false`；无法构建 ChangeSpec 时 `change_spec=null`。指纹不一致返回 HTTP 409 `fingerprint_mismatch`，不会用另一份源码继续校验。返回结果不包含服务器临时路径，用户源码保持原样。
 
+正常返回的顶层字段为 `project_name: string`、`project_fingerprint: string`、`coverage: object`、`change_spec: object`、`validation: object`、`diagnostics: object`。校验失败但 ZIP 可读取时仍返回这些字段，`change_spec` 允许为 `null`，`validation.valid=false`，原因位于 `validation.diagnostics[]` 的 `code` 与 `message`。
+
 ## `POST /api/v1/projects/analyze`
 
 请求字段与 `POST /api/v1/changes/validate` 相同：`multipart/form-data` 中各一个 `file`（Python 项目 ZIP）和 `change`（上一节的简化 JSON 字符串），可选一个 `expected_fingerprint`。请求体与 ZIP 继续使用 Phase 2.2 的全部安全和大小限制。指纹不符时停止；指纹通过后，在同一请求的同一临时项目目录内构建并校验 ChangeSpec，校验有效才调用现有 `analyze_project()` 和 `build_report()`。不接受服务器路径、查询参数或额外表单字段。
+
+| 请求字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `file` | ZIP 文件（二进制 multipart part） | 是 | 本次实际分析的项目 |
+| `change` | string（JSON 文本） | 是 | 与 validate 相同的简化配置 |
+| `expected_fingerprint` | string（64 位十六进制） | 否 | 与本次 ZIP 字节核对 |
+
+| 正常返回字段 | 类型 | 含义 |
+| --- | --- | --- |
+| `schema_version` | integer | Core JSON Report 版本，当前为 `1` |
+| `project_path` | string | 上传项目相对根目录，固定为 `.` |
+| `change`、`validation` | object | 实际分析的结构化 ChangeSpec 及校验结果 |
+| `coverage`、`summary` | object | 覆盖范围及 Direct/Indirect 等计数 |
+| `direct_impacts`、`indirect_impacts` | object[] | 证据位置、原因与上游路径 |
+| `manual_reviews`、`pre_existing_problems` | object[] | 静态证据不足和变更前已有问题 |
+| `diagnostics` | object | 解析错误、未解析调用及 import |
 
 ```powershell
 curl.exe -X POST -F "file=@project.zip;type=application/zip" -F "change=<change.json" -F "expected_fingerprint=<此前 inspect 返回的 64 位指纹>" http://127.0.0.1:8000/api/v1/projects/analyze
@@ -126,6 +183,8 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" -F "change=<change.
 成功返回 HTTP 200，主体为 Core JSON Report。其 `schema_version`、`change`、`validation`、`coverage`、`summary`、`direct_impacts`、`indirect_impacts`、`manual_reviews`、`pre_existing_problems` 和 `diagnostics` 字段及影响语义与 CLI JSON 格式一致。HTTP 响应把 `project_path` 规范为项目相对根目录 `"."`；调用点、证据路径和诊断中的文件路径也均相对于项目根目录，不能显示服务器临时绝对路径。上传目录在成功或失败后均清理。固定 signature_change Demo 打成 ZIP 后，预期 `summary` 中 Direct、1-hop、2-hop 各为 `1`，`coverage.status="complete"`。
 
 若 `coverage.status="partial"`，`coverage.message` 明确提示结果仅覆盖已解析代码，零条影响不表示全项目确定无影响；解析错误及未解析调用仍在 `diagnostics`。ChangeSpec 配置或校验失败返回 HTTP 422，使用上一节的 `change_spec`、`validation`、`diagnostics` 结构，不产生影响报告。ZIP 或指纹错误延续相同的 `error.code` 格式；内部分析异常返回 HTTP 500 `analysis_failed`，不回传临时路径或异常详情。
+
+`coverage.status` 为 `complete` 或 `partial`。inspect / validate 在解析错误、未解析 import 或模块/符号歧义时标记 partial；analyze 还将未解析调用计入 partial。`diagnostics.parse_errors[].file`、`diagnostics.unresolved_imports[].file`、`diagnostics.unresolved_calls[].file` 使用项目相对路径。解析失败的文件不会生成虚构的 Symbol 或调用证据。Direct 表示本次 Change 确定造成调用不兼容；1-hop / 2-hop 表示位于 Direct 上游的待检查调用路径。`manual_reviews` 不计为确定 Direct，`pre_existing_problems` 不归因于本次 Change。
 
 ## 错误响应
 
@@ -147,9 +206,11 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" -F "change=<change.
 | 415 | `unsupported_zip_entry` | 加密或不支持的压缩方法 |
 | 422 | `no_python_files` | ZIP 内没有可分析的 `.py` 文件 |
 | 503 | `inspection_unavailable` | ZIP 请求的服务端临时目录或源码读取失败 |
-| 409 | `fingerprint_mismatch` | validate 重新上传的 ZIP 与预期 SHA-256 不一致 |
+| 409 | `fingerprint_mismatch` | validate / analyze 本次 ZIP 与预期 SHA-256 不一致 |
 | 422 | `invalid_fingerprint` | `expected_fingerprint` 不是 64 位十六进制值 |
 | 422 | `validation.valid=false` | ChangeSpec 配置、目标或 Core 签名校验失败；详见 `validation.diagnostics` 的 `code`、`message` |
 | 500 | `analysis_failed` | 上传项目通过 ZIP 与 ChangeSpec 校验后，内部影响分析失败 |
 
 缺少必填字段或 multipart 格式错误时，FastAPI 返回标准 `detail` 格式的 422 / 400；未知路径或 HTTP 方法返回标准 404 / 405。当前接口无认证、项目持久化、Worker 或任意服务器路径输入能力。
+
+普通 ZIP/输入错误和 HTTP 500 使用 `{"error":{"code":"...","message":"..."}}`；ChangeSpec 配置或校验错误使用 422 的 `validation.valid=false` 与 `validation.diagnostics[]`；FastAPI 对缺字段等框架级错误使用 `{"detail": ...}`。前端需按响应形状和状态码分支处理，不能假设所有非 200 响应都有相同结构。
