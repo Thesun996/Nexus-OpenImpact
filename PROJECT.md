@@ -2,7 +2,7 @@
 
 > 更新日期：2026-10-01（Asia/Shanghai）  
 > 文档状态：待项目负责人确认。  
-> 项目阶段：Phase 0 只读资产审计已完成；Phase 1.7 已实现 Repository Scanner、单文件 AST Parser、Symbol Index、确定性 Call Graph、ChangeSpec 校验、Direct 调用兼容性判断及有限间接传播。
+> 项目阶段：Phase 0 只读资产审计已完成；Phase 1.8 已实现本地目录的结构化 ChangeSpec → CLI / JSON / 中文报告闭环。
 > 读者：项目负责人、团队成员、后续 Codex / AI 开发助手、比赛答辩材料整理人员。
 
 本文统一记录产品定位、范围、技术边界、开发约束与当前事实，作为后续开发的项目总纲。本文中的“计划”“建议”“待确认”均不代表功能已实现。功能完成必须有代码、对应测试和可复核结果支撑。
@@ -198,6 +198,8 @@ V1 暂不包含：
 
 分析核心使用 Python 标准 AST 和确定性规则。后续服务层采用 FastAPI、SQLite、独立 Worker，前端采用 React + TypeScript。Embedding / Retrieval 暂缓，待明确出现检索需求再评估。
 
+当前本地目录闭环由 `analyze_project(project_path, change_spec)` 顺序编排 Symbol Index（内部调用 Scanner 和 AST Parser）、Call Graph、ChangeSpec 校验、Direct 与 Indirect。`python -m openimpact analyze` 从 JSON 加载结构化 ChangeSpec，输出中文终端报告或机器可读 JSON。固定样例位于 `examples/signature_change/`。ZIP、完整源码片段证据、持久任务和服务层仍待实现。
+
 ### 8.2 Repository Scanner
 
 当前已实现的第一步：`RepositoryScanner(project_path).scan()` 递归返回排序后的相对 `Path` 列表，仅收集常规 `.py` 文件，跳过 `.git`、`.venv`、`__pycache__`、`node_modules`、`dist`、`build` 目录及链接条目（含 Windows junction）。不读取或执行源码；输入无效或遍历失败时抛出异常。扫描期间目录应保持稳定，不提供针对并发文件系统替换的隔离保证。
@@ -262,6 +264,8 @@ V1 暂不包含：
 当前已实现 Direct 层：先校验 ChangeSpec，再仅对 Call Graph 中已解析且 `callee_symbol_id` 等于目标 Symbol ID 的调用，使用 AST Parser 已提取的位置参数数量、关键字名称及展开标记分别检查修改前、修改后签名。`CallCompatibilityAssessment` 保存两次兼容性状态、原因、规则及调用位置。只有修改前兼容、修改后不兼容才生成确定的 Direct `ImpactFinding`；任一状态需要人工判断时可生成 `manual_review` Finding。两次都兼容、两次都不兼容、或从不兼容变为兼容，均不计入本次 Direct Impact。`direct_impact_count` 仅统计确定的直接影响。含 `*args` 或 `**kwargs` 的调用保守归入人工检查。
 
 当前已实现 1-hop / 2-hop 有限间接传播：仅以确定 Direct Finding 为种子，建立调用边的反向查找表，从 Direct 调用者向上按广度优先遍历，最多两层。每个上游符号只产生一条间接 Finding，层级取最近的确定路径；不同 Direct 种子的证据分别保留，同一种子的多条路径保留一条最短代表路径。证据路径按 `上游调用者 → … → Direct 调用者 → 变更目标` 保存原始 `CallEdge`，末端与 Direct Finding 的文件、行列和符号对应。循环和重复符号通过逐种子 visited 截断。间接状态为 `needs_review`，仅表示位于上游调用路径中，不能断言运行时失败。完整 Evidence Report 尚未实现。
+
+Phase 1.8 报告区分确定 Direct、1-hop、2-hop、人工检查及既有问题，并提供解析错误、未解析调用和 import 摘要。部分文件解析失败时，剩余项目仍可分析，`coverage.status` 标为 `partial`，附文件诊断。目标缺失或 ChangeSpec 校验失败会返回非零退出码；JSON 格式或字段类型错误由 CLI 明确报错。当前 JSON 为本地报告契约，`schema_version=1`，尚未提供 API 服务。
 
 发现应区分“与新签名确定不兼容”“潜在间接影响”“信息不足”。间接可达性不能直接升级为确定运行失败。
 
@@ -560,8 +564,8 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | Phase 0 旧资产审计 | 已完成只读源码与文档审计 |
 | PROJECT.md | 本文为待负责人确认的总纲草案 |
 | 独立代码目录 | 已存在，采用负责人指定的当前项目路径 |
-| Phase 1 分析引擎 | Repository Scanner、单文件 AST Parser、Symbol Index、确定性 Call Graph、ChangeSpec 校验、Direct 调用兼容性判断及 1-hop / 2-hop 间接传播已实现；完整证据报告尚未开始 |
-| 新项目测试与评测 | 完整 pytest：87 passed、1 skipped（Windows 符号链接权限）；评测尚未实施 |
+| Phase 1 分析引擎 | Scanner、AST、Symbol Index、Call Graph、ChangeSpec、Direct / 1-hop / 2-hop、流水线和 CLI 报告已实现；完整源码片段证据与服务层尚未开始 |
+| 新项目测试与评测 | 完整 pytest：95 passed、1 skipped（Windows 符号链接权限）；固定 Demo 和端到端测试已完成，真实项目评测尚未实施 |
 | 新项目前端、API、Worker、数据库 | 尚未实现 |
 | 新 GitHub 仓库 | 尚未创建或核验 |
 | A312 | 本轮及当前开发阶段不操作 |
@@ -584,7 +588,7 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 - 已实现结论必须注明对应测试或验收记录，历史结果不能替代当前验证。
 - 规划与实际状态分开记录，失败案例和已知限制不得隐去。
 - 引用旧 Nexus 的资产时保留来源，不继承旧赛道目标和平台义务。
-- 负责人已授权 Phase 1.7 的间接传播任务；本轮不提交 Git，不扩展至测试推荐、LLM 或服务层，不操作 A312。
+- 负责人已授权 Phase 1.8 的本地分析闭环与 CLI Demo 任务；本轮不提交 Git，不扩展新的分析算法、LLM 或服务层，不操作 A312。
 
 ### 变更记录
 
@@ -600,3 +604,4 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | 2026-10-01 | 实现新增必填参数的直接调用兼容性判断；测试位于 tests/analysis/test_direct_impact.py | 完整 pytest 75 passed、1 skipped；待审核，未提交 Git |
 | 2026-10-01 | 审核修订：分别判断修改前后兼容性，区分确定 Direct、既有问题、无影响、兼容性改善及人工检查 | 完整 pytest 77 passed、1 skipped；待审核，未提交 Git |
 | 2026-10-01 | 实现以确定 Direct 为种子的 1-hop / 2-hop 反向传播、路径证据、循环与多路径去重；测试位于 tests/analysis/test_indirect_impact.py | 完整 pytest 87 passed、1 skipped；待审核，未提交 Git |
+| 2026-10-01 | 建立本地结构化 ChangeSpec 加载、流水线、CLI、JSON / 中文报告及固定 Demo；测试位于 tests/analysis/test_pipeline_cli.py | 完整 pytest 95 passed、1 skipped；待审核，未提交 Git |

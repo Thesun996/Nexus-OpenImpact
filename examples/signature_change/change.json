@@ -1,0 +1,22 @@
+{
+  "change_type": "add_required_parameter",
+  "target_symbol_id": "utils.format_date",
+  "before": {
+    "name": "format_date",
+    "parameters": [
+      {"name": "date", "kind": "positional_or_keyword", "has_default": false}
+    ]
+  },
+  "after": {
+    "name": "format_date",
+    "parameters": [
+      {"name": "date", "kind": "positional_or_keyword", "has_default": false},
+      {"name": "timezone", "kind": "positional_or_keyword", "has_default": false}
+    ]
+  },
+  "added_parameter": {
+    "name": "timezone",
+    "kind": "positional_or_keyword",
+    "required": true
+  }
+}

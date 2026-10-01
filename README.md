@@ -34,7 +34,7 @@ OpenImpact 希望通过 AI 与静态分析结合，
 
 当前阶段：
 
-Phase 1.7：Repository Scanner、单文件 AST Parser、Symbol Index、确定性 Call Graph、ChangeSpec 校验、Direct 调用兼容性判断和两层间接传播已实现；完整证据报告尚未实现。
+Phase 1.8：本地项目目录、结构化 ChangeSpec、完整分析流水线及中文 / JSON CLI 报告已实现；完整源码片段证据和服务层尚未实现。
 
 目标：
 
@@ -124,4 +124,14 @@ print(graph.unresolved_calls)
 
 `propagate_indirect_impact(graph, direct_result, max_depth=2)` 只从确定 Direct Finding 出发，沿调用图反向查找最多两层。结果按上游符号去重，并保留通向原始 Direct 调用点的 `CallEdge` 路径；间接结论表示“建议检查”，不表示运行时一定失败。
 
-测试推荐、完整证据报告、LLM、源码哈希与资源限额尚未实现。
+固定 Demo：`examples/signature_change/`，包含 `utils.py`、`report.py`、`dashboard.py`、`page.py` 和结构化 `change.json`。在仓库根目录的 PowerShell 中运行：
+
+```powershell
+$env:PYTHONPATH = Join-Path (Get-Location) 'src'
+python -m openimpact analyze examples/signature_change --change examples/signature_change/change.json
+python -m openimpact analyze examples/signature_change --change examples/signature_change/change.json --format json
+```
+
+CLI 的 `text` 格式为中文终端报告，`json` 格式包含 `change`、`validation`、`coverage`、`summary`、Direct / Indirect 结果与 `diagnostics`。`change.json` 使用显式的 `before`、`after` 参数数组及 `added_parameter`；每个参数至少提供 `name`、`kind`、`has_default`。无效输入返回非零退出码；部分 Python 文件无法解析时，仍输出其余可分析结果，并标记 `coverage.status=partial`。
+
+测试推荐、完整源码片段证据、LLM、源码哈希与资源限额尚未实现。
