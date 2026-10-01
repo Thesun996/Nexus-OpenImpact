@@ -34,7 +34,7 @@ OpenImpact 希望通过 AI 与静态分析结合，
 
 当前阶段：
 
-Phase 1.8：本地项目目录、结构化 ChangeSpec、完整分析流水线及中文 / JSON CLI 报告已实现；完整源码片段证据和服务层尚未实现。
+Phase 2.1：Core MVP v0.1.0 的 CLI 保持可用；新增只分析仓库内置 Demo 的 FastAPI 服务。完整源码片段证据、任意项目 HTTP 分析和前端尚未实现。
 
 目标：
 
@@ -57,7 +57,15 @@ python -m openimpact analyze examples/signature_change --change examples/signatu
 python -m openimpact analyze examples/signature_change --change examples/signature_change/change.json --format json
 ```
 
-预期摘要：Direct 1、1-hop 1、2-hop 1、coverage complete。项目版本为 `0.1.0`，运行时没有第三方依赖。运行完整测试时，在已激活的虚拟环境内安装 `pytest` 并执行 `python -m pytest -q`。
+预期摘要：Direct 1、1-hop 1、2-hop 1、coverage complete。项目版本为 `0.1.0`；Core 分析仍使用标准库，HTTP 服务安装 FastAPI 和 Uvicorn。运行完整测试时，在已激活的虚拟环境内执行 `pip install -e ".[test]"` 和 `python -m pytest -q`。
+
+本地启动 Demo API：
+
+```powershell
+python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
+```
+
+另开终端调用 `GET http://127.0.0.1:8000/api/v1/health` 或 `POST http://127.0.0.1:8000/api/v1/demo/analyze`。请求与响应字段见 [API 契约](docs/api-contract.md)。
 
 ---
 

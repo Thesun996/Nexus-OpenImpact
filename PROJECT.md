@@ -2,7 +2,7 @@
 
 > 更新日期：2026-10-01（Asia/Shanghai）  
 > 文档状态：待项目负责人确认。  
-> 项目阶段：Phase 0 只读资产审计已完成；Phase 1.8 已实现本地目录的结构化 ChangeSpec → CLI / JSON / 中文报告闭环。
+> 项目阶段：Core MVP v0.1.0 已完成；Phase 2.1 增加只分析内置 Demo 的最小 FastAPI 服务。
 > 读者：项目负责人、团队成员、后续 Codex / AI 开发助手、比赛答辩材料整理人员。
 
 本文统一记录产品定位、范围、技术边界、开发约束与当前事实，作为后续开发的项目总纲。本文中的“计划”“建议”“待确认”均不代表功能已实现。功能完成必须有代码、对应测试和可复核结果支撑。
@@ -272,6 +272,8 @@ Phase 1.8 报告区分确定 Direct、1-hop、2-hop、人工检查及既有问�
 ### 8.8 服务层与前端
 
 引擎通过纯函数或明确服务接口供 CLI、API 和 Worker 调用，避免分析规则依赖 HTTP、SQLite 或 UI。
+
+Phase 2.1 已提供 `openimpact.api:app`，仅包含 `GET /api/v1/health` 与 `POST /api/v1/demo/analyze`。Demo API 直接返回现有 `build_report()` 的 JSON，拒绝请求体和查询参数；接口及错误响应见 `docs/api-contract.md`。任意项目路径、ZIP 上传、持久任务、Worker 和前端仍未实现。
 
 持久任务后续处理排队、运行、成功、失败与取消。模型解释失败不应抹掉已经完成的静态报告；静态分析重放与付费模型调用重试分别制定策略。
 
@@ -566,8 +568,8 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | 独立代码目录 | 已存在，采用负责人指定的当前项目路径 |
 | Phase 1 分析引擎 | Scanner、AST、Symbol Index、Call Graph、ChangeSpec、Direct / 1-hop / 2-hop、流水线和 CLI 报告已实现；完整源码片段证据与服务层尚未开始 |
 | Core MVP v0.1 工程验收 | 版本 `0.1.0`；项目虚拟环境中 `pip install -e .` 成功；清除 `PYTHONPATH` 后导入、中文 / JSON Demo 均成功，摘要为 Direct 1、1-hop 1、2-hop 1、coverage complete |
-| 新项目测试与评测 | 完整 pytest：95 passed、1 skipped（Windows 符号链接权限）；固定 Demo 和端到端测试已完成，真实项目评测尚未实施 |
-| 新项目前端、API、Worker、数据库 | 尚未实现 |
+| 新项目测试与评测 | 完整 pytest：100 passed、1 skipped（Windows 符号链接权限）；Demo API 已通过真实本地 HTTP 验收，真实项目评测尚未实施 |
+| 新项目前端、API、Worker、数据库 | 最小 Demo API 已实现；前端、Worker、数据库尚未实现 |
 | 新 GitHub 仓库 | 尚未创建或核验 |
 | A312 | 本轮及当前开发阶段不操作 |
 
@@ -589,7 +591,7 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 - 已实现结论必须注明对应测试或验收记录，历史结果不能替代当前验证。
 - 规划与实际状态分开记录，失败案例和已知限制不得隐去。
 - 引用旧 Nexus 的资产时保留来源，不继承旧赛道目标和平台义务。
-- 负责人已授权 Phase 1.8 的本地分析闭环与 CLI Demo 任务；本轮不提交 Git，不扩展新的分析算法、LLM 或服务层，不操作 A312。
+- 负责人已授权 Phase 2.1 的最小 FastAPI 服务封装；本轮不提交 Git，不扩展分析算法、任意项目输入、LLM、前端或持久化，不操作 A312。
 
 ### 变更记录
 
@@ -607,3 +609,4 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | 2026-10-01 | 实现以确定 Direct 为种子的 1-hop / 2-hop 反向传播、路径证据、循环与多路径去重；测试位于 tests/analysis/test_indirect_impact.py | 完整 pytest 87 passed、1 skipped；待审核，未提交 Git |
 | 2026-10-01 | 建立本地结构化 ChangeSpec 加载、流水线、CLI、JSON / 中文报告及固定 Demo；测试位于 tests/analysis/test_pipeline_cli.py | 完整 pytest 95 passed、1 skipped；待审核，未提交 Git |
 | 2026-10-01 | Core MVP v0.1 冻结前验收：补充 `src` 布局的 editable packaging，在项目虚拟环境中无 `PYTHONPATH` 复现 Demo；README 改为安装后直接运行 | 完整 pytest 95 passed、1 skipped；待审核，未提交 Git |
+| 2026-10-01 | Phase 2.1：内置 Demo 的 FastAPI 服务、接口契约和 HTTP 测试；直接返回既有 Core JSON Report | 完整 pytest 100 passed、1 skipped；待审核，未提交 Git |
