@@ -48,7 +48,7 @@ Phase 1.8：本地项目目录、结构化 ChangeSpec、完整分析流水线及
 需要 Python 3.11 或更新版本。在 PowerShell 中，将 `<仓库地址>` 替换为团队实际仓库地址：
 
 ```powershell
-git clone "<仓库地址>" Nexus-OpenImpact
+git clone "<https://github.com/lhy070311/Nexus-OpenImpact.git>" Nexus-OpenImpact
 cd Nexus-OpenImpact
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
