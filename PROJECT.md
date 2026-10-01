@@ -2,7 +2,7 @@
 
 > 更新日期：2026-10-01（Asia/Shanghai）  
 > 文档状态：待项目负责人确认。  
-> 项目阶段：Phase 0 只读资产审计已完成；Phase 1.6 已实现 Repository Scanner、单文件 AST Parser、Symbol Index、确定性 Call Graph、ChangeSpec 校验及 Direct 调用兼容性判断。
+> 项目阶段：Phase 0 只读资产审计已完成；Phase 1.7 已实现 Repository Scanner、单文件 AST Parser、Symbol Index、确定性 Call Graph、ChangeSpec 校验、Direct 调用兼容性判断及有限间接传播。
 > 读者：项目负责人、团队成员、后续 Codex / AI 开发助手、比赛答辩材料整理人员。
 
 本文统一记录产品定位、范围、技术边界、开发约束与当前事实，作为后续开发的项目总纲。本文中的“计划”“建议”“待确认”均不代表功能已实现。功能完成必须有代码、对应测试和可复核结果支撑。
@@ -261,7 +261,7 @@ V1 暂不包含：
 
 当前已实现 Direct 层：先校验 ChangeSpec，再仅对 Call Graph 中已解析且 `callee_symbol_id` 等于目标 Symbol ID 的调用，使用 AST Parser 已提取的位置参数数量、关键字名称及展开标记分别检查修改前、修改后签名。`CallCompatibilityAssessment` 保存两次兼容性状态、原因、规则及调用位置。只有修改前兼容、修改后不兼容才生成确定的 Direct `ImpactFinding`；任一状态需要人工判断时可生成 `manual_review` Finding。两次都兼容、两次都不兼容、或从不兼容变为兼容，均不计入本次 Direct Impact。`direct_impact_count` 仅统计确定的直接影响。含 `*args` 或 `**kwargs` 的调用保守归入人工检查。
 
-尚未实现 1-hop / 2-hop 传播、图遍历、完整 Evidence Report。后续从相关调用者向上查找有限间接关系时，必须保留不确定性边界。
+当前已实现 1-hop / 2-hop 有限间接传播：仅以确定 Direct Finding 为种子，建立调用边的反向查找表，从 Direct 调用者向上按广度优先遍历，最多两层。每个上游符号只产生一条间接 Finding，层级取最近的确定路径；不同 Direct 种子的证据分别保留，同一种子的多条路径保留一条最短代表路径。证据路径按 `上游调用者 → … → Direct 调用者 → 变更目标` 保存原始 `CallEdge`，末端与 Direct Finding 的文件、行列和符号对应。循环和重复符号通过逐种子 visited 截断。间接状态为 `needs_review`，仅表示位于上游调用路径中，不能断言运行时失败。完整 Evidence Report 尚未实现。
 
 发现应区分“与新签名确定不兼容”“潜在间接影响”“信息不足”。间接可达性不能直接升级为确定运行失败。
 
@@ -318,7 +318,7 @@ page() → dashboard() → report() → format_date()
 
 该示例需要四个函数、三条调用边。仅有 `A → B → C` 且修改 C 时，覆盖 Direct 与 1-hop Indirect。
 
-Direct 仅包含修改前兼容、修改后确定不兼容的调用点；已有的不兼容调用和人工检查项不计入确定 Direct 数量。Indirect 表示需要检查的依赖路径，不承诺运行时必然失败。多路径发现需要去重；路径展示及数量上限由实现契约明确。
+Direct 仅包含修改前兼容、修改后确定不兼容的调用点；已有的不兼容调用和人工检查项不计入确定 Direct 数量。Indirect 表示需要检查的依赖路径，不承诺运行时必然失败。当前按上游符号去重，保留每个 Direct 种子的一条最短代表路径；最多传播至 2-hop。
 
 ### 9.4 相关测试
 
@@ -560,8 +560,8 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | Phase 0 旧资产审计 | 已完成只读源码与文档审计 |
 | PROJECT.md | 本文为待负责人确认的总纲草案 |
 | 独立代码目录 | 已存在，采用负责人指定的当前项目路径 |
-| Phase 1 分析引擎 | Repository Scanner、单文件 AST Parser、Symbol Index、确定性 Call Graph、ChangeSpec 校验与 Direct 调用兼容性判断已实现；间接影响传播尚未开始 |
-| 新项目测试与评测 | 完整 pytest：77 passed、1 skipped（Windows 符号链接权限）；评测尚未实施 |
+| Phase 1 分析引擎 | Repository Scanner、单文件 AST Parser、Symbol Index、确定性 Call Graph、ChangeSpec 校验、Direct 调用兼容性判断及 1-hop / 2-hop 间接传播已实现；完整证据报告尚未开始 |
+| 新项目测试与评测 | 完整 pytest：87 passed、1 skipped（Windows 符号链接权限）；评测尚未实施 |
 | 新项目前端、API、Worker、数据库 | 尚未实现 |
 | 新 GitHub 仓库 | 尚未创建或核验 |
 | A312 | 本轮及当前开发阶段不操作 |
@@ -584,7 +584,7 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 - 已实现结论必须注明对应测试或验收记录，历史结果不能替代当前验证。
 - 规划与实际状态分开记录，失败案例和已知限制不得隐去。
 - 引用旧 Nexus 的资产时保留来源，不继承旧赛道目标和平台义务。
-- 负责人已授权 Phase 1.6 的 Direct Impact 任务；本轮不提交 Git，不实现间接影响传播，不操作 A312。
+- 负责人已授权 Phase 1.7 的间接传播任务；本轮不提交 Git，不扩展至测试推荐、LLM 或服务层，不操作 A312。
 
 ### 变更记录
 
@@ -599,3 +599,4 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | 2026-10-01 | 实现结构化 ChangeSpec 与新增必填参数校验，保留明确诊断；测试位于 tests/analysis/test_change_spec.py | 完整 pytest 60 passed、1 skipped；待审核，未提交 Git |
 | 2026-10-01 | 实现新增必填参数的直接调用兼容性判断；测试位于 tests/analysis/test_direct_impact.py | 完整 pytest 75 passed、1 skipped；待审核，未提交 Git |
 | 2026-10-01 | 审核修订：分别判断修改前后兼容性，区分确定 Direct、既有问题、无影响、兼容性改善及人工检查 | 完整 pytest 77 passed、1 skipped；待审核，未提交 Git |
+| 2026-10-01 | 实现以确定 Direct 为种子的 1-hop / 2-hop 反向传播、路径证据、循环与多路径去重；测试位于 tests/analysis/test_indirect_impact.py | 完整 pytest 87 passed、1 skipped；待审核，未提交 Git |
