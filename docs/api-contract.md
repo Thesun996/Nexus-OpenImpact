@@ -1,6 +1,6 @@
 # Nexus OpenImpact API 契约
 
-Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 增加上传 Python 项目 ZIP 的语法检查。Phase 2.3 增加简化配置生成与校验 ChangeSpec。Demo 仍调用现有 `load_change_spec()`、`analyze_project()` 和 `build_report()`；上传项目当前不执行 Change Impact。
+Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 增加上传 Python 项目 ZIP 的语法检查。Phase 2.3 增加简化配置生成与校验 ChangeSpec。Phase 2.4 增加上传项目的完整影响分析，调用现有 `analyze_project()` 和 `build_report()`。
 
 ## 本地启动
 
@@ -115,6 +115,18 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" -F "change=<change.
 
 `before` 完整取自本次上传源码的模块级函数签名，包括参数默认值、注解、异步标记和返回注解；`after` 只增加一个必填参数。`validation.diagnostics` 保存变更配置及 Core Validator 的错误；顶层 `diagnostics` 保存项目解析与 import 诊断。目标不存在或签名无效时返回 HTTP 422，结构仍与上例相同，`validation.valid=false`；无法构建 ChangeSpec 时 `change_spec=null`。指纹不一致返回 HTTP 409 `fingerprint_mismatch`，不会用另一份源码继续校验。返回结果不包含服务器临时路径，用户源码保持原样。
 
+## `POST /api/v1/projects/analyze`
+
+请求字段与 `POST /api/v1/changes/validate` 相同：`multipart/form-data` 中各一个 `file`（Python 项目 ZIP）和 `change`（上一节的简化 JSON 字符串），可选一个 `expected_fingerprint`。请求体与 ZIP 继续使用 Phase 2.2 的全部安全和大小限制。指纹不符时停止；指纹通过后，在同一请求的同一临时项目目录内构建并校验 ChangeSpec，校验有效才调用现有 `analyze_project()` 和 `build_report()`。不接受服务器路径、查询参数或额外表单字段。
+
+```powershell
+curl.exe -X POST -F "file=@project.zip;type=application/zip" -F "change=<change.json" -F "expected_fingerprint=<此前 inspect 返回的 64 位指纹>" http://127.0.0.1:8000/api/v1/projects/analyze
+```
+
+成功返回 HTTP 200，主体为 Core JSON Report。其 `schema_version`、`change`、`validation`、`coverage`、`summary`、`direct_impacts`、`indirect_impacts`、`manual_reviews`、`pre_existing_problems` 和 `diagnostics` 字段及影响语义与 CLI JSON 格式一致。HTTP 响应把 `project_path` 规范为项目相对根目录 `"."`；调用点、证据路径和诊断中的文件路径也均相对于项目根目录，不能显示服务器临时绝对路径。上传目录在成功或失败后均清理。固定 signature_change Demo 打成 ZIP 后，预期 `summary` 中 Direct、1-hop、2-hop 各为 `1`，`coverage.status="complete"`。
+
+若 `coverage.status="partial"`，`coverage.message` 明确提示结果仅覆盖已解析代码，零条影响不表示全项目确定无影响；解析错误及未解析调用仍在 `diagnostics`。ChangeSpec 配置或校验失败返回 HTTP 422，使用上一节的 `change_spec`、`validation`、`diagnostics` 结构，不产生影响报告。ZIP 或指纹错误延续相同的 `error.code` 格式；内部分析异常返回 HTTP 500 `analysis_failed`，不回传临时路径或异常详情。
+
 ## 错误响应
 
 本阶段由服务显式处理的错误使用以下 JSON 形状：
@@ -130,13 +142,14 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" -F "change=<change.
 | 503 | `demo_invalid` | 内置 ChangeSpec 与项目源码校验失败 |
 | 400 | `unsafe_zip_entry` | ZIP 路径、链接、特殊文件、重复路径等不安全条目 |
 | 400 | `invalid_zip` | 非 ZIP、损坏的 ZIP 或解压校验失败 |
-| 400 | `unsupported_input` | inspect 包含查询参数或额外表单字段 |
+| 400 | `unsupported_input` | inspect / validate / analyze 包含查询参数或额外表单字段 |
 | 413 | `zip_limit_exceeded` | 上传、条目数、文件数、解压大小或压缩比超限 |
 | 415 | `unsupported_zip_entry` | 加密或不支持的压缩方法 |
 | 422 | `no_python_files` | ZIP 内没有可分析的 `.py` 文件 |
-| 503 | `inspection_unavailable` | 服务端临时目录或源码读取失败 |
+| 503 | `inspection_unavailable` | ZIP 请求的服务端临时目录或源码读取失败 |
 | 409 | `fingerprint_mismatch` | validate 重新上传的 ZIP 与预期 SHA-256 不一致 |
 | 422 | `invalid_fingerprint` | `expected_fingerprint` 不是 64 位十六进制值 |
 | 422 | `validation.valid=false` | ChangeSpec 配置、目标或 Core 签名校验失败；详见 `validation.diagnostics` 的 `code`、`message` |
+| 500 | `analysis_failed` | 上传项目通过 ZIP 与 ChangeSpec 校验后，内部影响分析失败 |
 
-缺少必填字段或 multipart 格式错误时，FastAPI 返回标准 `detail` 格式的 422 / 400；未知路径或 HTTP 方法返回标准 404 / 405。当前接口无认证、项目持久化或上传项目的 Change Impact 能力。
+缺少必填字段或 multipart 格式错误时，FastAPI 返回标准 `detail` 格式的 422 / 400；未知路径或 HTTP 方法返回标准 404 / 405。当前接口无认证、项目持久化、Worker 或任意服务器路径输入能力。

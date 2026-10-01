@@ -1,6 +1,7 @@
 """HTTP access to the fixed demo and bounded ZIP-based project services."""
 
 import hashlib
+import logging
 import re
 from collections import deque
 from dataclasses import asdict
@@ -10,14 +11,16 @@ from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse
 
 from openimpact.analysis.change_file import ChangeFileError, load_change_spec
-from openimpact.analysis.change_spec import validate_change_spec
+from openimpact.analysis.change_spec import ChangeSpec, validate_change_spec
 from openimpact.analysis.pipeline import analyze_project
 from openimpact.analysis.report import build_report
+from openimpact.analysis.symbol_index import SymbolIndex
 from openimpact.api_change import ChangeConfigError, build_change_spec, parse_change_config
 from openimpact.repository import zip_inspector
 
 _DEMO_DIR = Path(__file__).resolve().parents[2] / "examples" / "signature_change"
 _DEMO_CHANGE = _DEMO_DIR / "change.json"
+_LOGGER = logging.getLogger(__name__)
 
 app = FastAPI(title="Nexus OpenImpact Demo API", version="0.1.0")
 
@@ -30,7 +33,10 @@ class _ZipBodyLimit:
 
     async def __call__(self, scope, receive, send):
         if (scope["type"] != "http" or scope["method"] != "POST"
-                or scope["path"] not in {"/api/v1/projects/inspect", "/api/v1/changes/validate"}):
+                or scope["path"] not in {
+                    "/api/v1/projects/inspect", "/api/v1/changes/validate",
+                    "/api/v1/projects/analyze",
+                }):
             await self.application(scope, receive, send)
             return
 
@@ -90,6 +96,47 @@ def _validation_response(
     })
 
 
+async def _change_input_error(
+    request: Request, file: UploadFile, expected_fingerprint: str | None
+) -> JSONResponse | None:
+    items = (await request.form()).multi_items()
+    keys = [key for key, _ in items]
+    if (request.query_params or keys.count("file") != 1 or keys.count("change") != 1
+            or keys.count("expected_fingerprint") > 1
+            or set(keys) - {"file", "change", "expected_fingerprint"}):
+        await file.close()
+        return _error(400, "unsupported_input", "仅接受 file、change 和可选 expected_fingerprint。")
+    if expected_fingerprint is not None and not re.fullmatch(r"[0-9a-fA-F]{64}", expected_fingerprint):
+        await file.close()
+        return _error(422, "invalid_fingerprint", "expected_fingerprint 必须是 SHA-256 十六进制值。")
+    return None
+
+
+def _fingerprint_error(data: bytes, expected_fingerprint: str | None) -> JSONResponse | None:
+    if (expected_fingerprint is not None
+            and hashlib.sha256(data).hexdigest() != expected_fingerprint.lower()):
+        return _error(409, "fingerprint_mismatch", "ZIP 指纹与此前 inspect 结果不一致。")
+    return None
+
+
+def _validated_spec(
+    index: SymbolIndex, report: dict, change: str
+) -> ChangeSpec | JSONResponse:
+    try:
+        config = parse_change_config(change)
+        spec = build_change_spec(index, config)
+    except ChangeConfigError as error:
+        return _validation_response(report, None, False, [
+            {"code": error.code, "message": str(error)}
+        ], 422)
+    validation = validate_change_spec(index, spec)
+    if not validation.valid:
+        return _validation_response(
+            report, spec, False, [asdict(item) for item in validation.diagnostics], 422
+        )
+    return spec
+
+
 @app.get("/api/v1/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "version": app.version}
@@ -121,35 +168,60 @@ async def validate_change(
     change: str = Form(...),
     expected_fingerprint: str | None = Form(None),
 ) -> JSONResponse:
-    items = (await request.form()).multi_items()
-    keys = [key for key, _ in items]
-    if (request.query_params or keys.count("file") != 1 or keys.count("change") != 1
-            or keys.count("expected_fingerprint") > 1
-            or set(keys) - {"file", "change", "expected_fingerprint"}):
-        await file.close()
-        return _error(400, "unsupported_input", "仅接受 file、change 和可选 expected_fingerprint。")
-    if expected_fingerprint is not None and not re.fullmatch(r"[0-9a-fA-F]{64}", expected_fingerprint):
-        await file.close()
-        return _error(422, "invalid_fingerprint", "expected_fingerprint 必须是 SHA-256 十六进制值。")
+    if error := await _change_input_error(request, file, expected_fingerprint):
+        return error
 
     try:
         data = await _read_zip(file)
-        fingerprint = hashlib.sha256(data).hexdigest()
-        if expected_fingerprint is not None and fingerprint != expected_fingerprint.lower():
-            return _error(409, "fingerprint_mismatch", "ZIP 指纹与此前 inspect 结果不一致。")
+        if error := _fingerprint_error(data, expected_fingerprint):
+            return error
         with zip_inspector.indexed_python_zip(data, file.filename) as (index, report):
+            spec = _validated_spec(index, report, change)
+            if isinstance(spec, JSONResponse):
+                return spec
+            return _validation_response(report, spec, True, [], 200)
+    except zip_inspector.ZipInspectionError as error:
+        return _error(error.status_code, error.code, str(error))
+    except OSError:
+        return _error(503, "inspection_unavailable", "临时导入或源码读取失败。")
+    finally:
+        await file.close()
+
+
+@app.post("/api/v1/projects/analyze")
+async def analyze_uploaded_project(
+    request: Request,
+    file: UploadFile = File(...),
+    change: str = Form(...),
+    expected_fingerprint: str | None = Form(None),
+) -> JSONResponse:
+    if error := await _change_input_error(request, file, expected_fingerprint):
+        return error
+
+    try:
+        data = await _read_zip(file)
+        if error := _fingerprint_error(data, expected_fingerprint):
+            return error
+        with zip_inspector.indexed_python_zip(data, file.filename) as (index, inspect_report):
+            spec = _validated_spec(index, inspect_report, change)
+            if isinstance(spec, JSONResponse):
+                return spec
             try:
-                config = parse_change_config(change)
-                spec = build_change_spec(index, config)
-            except ChangeConfigError as error:
-                return _validation_response(report, None, False, [
-                    {"code": error.code, "message": str(error)}
-                ], 422)
-            validation = validate_change_spec(index, spec)
-            diagnostics = [asdict(item) for item in validation.diagnostics]
-            return _validation_response(
-                report, spec, validation.valid, diagnostics, 200 if validation.valid else 422
-            )
+                report = build_report(analyze_project(index.scanner.project_path, spec))
+                if not report["validation"]["valid"]:
+                    raise RuntimeError("Validated ChangeSpec failed against the same project snapshot")
+                report["project_path"] = "."
+                for item in report["diagnostics"]["parse_errors"]:
+                    if item["kind"] == "read_error":
+                        item["message"] = "无法读取项目源文件。"
+                if report["coverage"]["status"] == "partial":
+                    report["coverage"]["message"] = (
+                        "分析范围不完整；结果仅覆盖已成功解析的代码，未报告影响不能视为确定无影响。"
+                    )
+                return JSONResponse(content=report)
+            except Exception:
+                _LOGGER.exception("Uploaded project analysis failed")
+                return _error(500, "analysis_failed", "项目影响分析失败，请重试。")
     except zip_inspector.ZipInspectionError as error:
         return _error(error.status_code, error.code, str(error))
     except OSError:

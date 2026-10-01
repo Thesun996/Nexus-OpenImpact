@@ -2,7 +2,7 @@
 
 > 更新日期：2026-10-01（Asia/Shanghai）  
 > 文档状态：待项目负责人确认。  
-> 项目阶段：Core MVP v0.1.0 已完成；Phase 2.3 增加上传项目的 ChangeSpec 配置与校验 API。
+> 项目阶段：Core MVP v0.1.0 已完成；Phase 2.4 增加上传项目的完整影响分析 API。
 > 读者：项目负责人、团队成员、后续 Codex / AI 开发助手、比赛答辩材料整理人员。
 
 本文统一记录产品定位、范围、技术边界、开发约束与当前事实，作为后续开发的项目总纲。本文中的“计划”“建议”“待确认”均不代表功能已实现。功能完成必须有代码、对应测试和可复核结果支撑。
@@ -265,7 +265,7 @@ V1 暂不包含：
 
 当前已实现 1-hop / 2-hop 有限间接传播：仅以确定 Direct Finding 为种子，建立调用边的反向查找表，从 Direct 调用者向上按广度优先遍历，最多两层。每个上游符号只产生一条间接 Finding，层级取最近的确定路径；不同 Direct 种子的证据分别保留，同一种子的多条路径保留一条最短代表路径。证据路径按 `上游调用者 → … → Direct 调用者 → 变更目标` 保存原始 `CallEdge`，末端与 Direct Finding 的文件、行列和符号对应。循环和重复符号通过逐种子 visited 截断。间接状态为 `needs_review`，仅表示位于上游调用路径中，不能断言运行时失败。完整 Evidence Report 尚未实现。
 
-Phase 1.8 报告区分确定 Direct、1-hop、2-hop、人工检查及既有问题，并提供解析错误、未解析调用和 import 摘要。部分文件解析失败时，剩余项目仍可分析，`coverage.status` 标为 `partial`，附文件诊断。目标缺失或 ChangeSpec 校验失败会返回非零退出码；JSON 格式或字段类型错误由 CLI 明确报错。当前 JSON 为本地报告契约，`schema_version=1`，尚未提供 API 服务。
+Phase 1.8 报告区分确定 Direct、1-hop、2-hop、人工检查及既有问题，并提供解析错误、未解析调用和 import 摘要。部分文件解析失败时，剩余项目仍可分析，`coverage.status` 标为 `partial`，附文件诊断。目标缺失或 ChangeSpec 校验失败会返回非零退出码；JSON 格式或字段类型错误由 CLI 明确报错。该阶段形成了 `schema_version=1` 的本地 JSON 报告契约，后续 API 沿用此契约。
 
 发现应区分“与新签名确定不兼容”“潜在间接影响”“信息不足”。间接可达性不能直接升级为确定运行失败。
 
@@ -273,7 +273,7 @@ Phase 1.8 报告区分确定 Direct、1-hop、2-hop、人工检查及既有问�
 
 引擎通过纯函数或明确服务接口供 CLI、API 和 Worker 调用，避免分析规则依赖 HTTP、SQLite 或 UI。
 
-`openimpact.api:app` 已提供 `GET /api/v1/health`、`POST /api/v1/demo/analyze`、`POST /api/v1/projects/inspect` 和 `POST /api/v1/changes/validate`。Demo API 直接返回现有 `build_report()` 的 JSON。上传项目可经受限 ZIP 导入获得模块与 Symbol Index，再提交简化配置，由服务从当前源码签名构建 ChangeSpec，并复用 Core Validator 校验。接口及错误响应见 `docs/api-contract.md`。任意服务器路径、上传项目的完整影响分析、持久任务、Worker 和前端仍未实现。
+`openimpact.api:app` 已提供健康检查、内置 Demo 分析、上传 ZIP inspect、ChangeSpec 校验和上传项目完整影响分析接口。上传项目经受限 ZIP 导入获得模块与 Symbol Index；服务从当前源码签名构建 ChangeSpec，复用 Core Validator 校验，再对同一临时项目快照调用现有 `analyze_project()` 和 `build_report()`。HTTP 报告的 `project_path` 规范为相对根目录 `.`，partial coverage 附明确说明。接口及错误响应见 `docs/api-contract.md`。任意服务器路径、持久任务、Worker 和前端仍未实现。
 
 持久任务后续处理排队、运行、成功、失败与取消。模型解释失败不应抹掉已经完成的静态报告；静态分析重放与付费模型调用重试分别制定策略。
 
@@ -568,8 +568,8 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | 独立代码目录 | 已存在，采用负责人指定的当前项目路径 |
 | Phase 1 分析引擎 | Scanner、AST、Symbol Index、Call Graph、ChangeSpec、Direct / 1-hop / 2-hop、流水线和 CLI 报告已实现；完整源码片段证据尚未实现 |
 | Core MVP v0.1 工程验收 | 版本 `0.1.0`；项目虚拟环境中 `pip install -e .` 成功；清除 `PYTHONPATH` 后导入、中文 / JSON Demo 均成功，摘要为 Direct 1、1-hop 1、2-hop 1、coverage complete |
-| 新项目测试与评测 | Phase 2.3 完整 pytest：143 passed、1 skipped（Windows 符号链接权限）；ChangeSpec 校验 API、ZIP inspect 和 Demo API 已通过真实本地 HTTP 验收，真实项目评测尚未实施 |
-| 新项目前端、API、Worker、数据库 | Demo API、Python 项目 ZIP inspect API 和 ChangeSpec 校验 API 已实现；前端、Worker、数据库尚未实现 |
+| 新项目测试与评测 | Phase 2.4 完整 pytest：151 passed、1 skipped（Windows 符号链接权限）；上传 Demo ZIP 通过真实本地 HTTP 验收，真实项目评测尚未实施 |
+| 新项目前端、API、Worker、数据库 | Demo、ZIP inspect、ChangeSpec 校验及用户项目影响分析 API 已实现；前端、Worker、数据库尚未实现 |
 | 新 GitHub 仓库 | 尚未创建或核验 |
 | A312 | 本轮及当前开发阶段不操作 |
 
@@ -594,6 +594,7 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 - 负责人已授权 Phase 2.2 的 Python 项目 ZIP 导入检查；本轮不提交 Git，不扩展分析算法或 Change 类型，不实现上传项目的影响分析、LLM、前端或持久化，不操作 A312。
 - ZIP inspect 仅调用现有 Scanner、AST Parser 和 Symbol Index。上传 5 MiB、multipart 请求体 5 MiB + 64 KiB、256 条目、128 文件、单文件解压 1 MiB、总解压 10 MiB、压缩比 200；逐条校验路径与条目类型，分块复核解压字节，临时隔离目录在请求结束后清理。单层外包装目录按规则剥离，Python 包根目录保留。接口字段、错误码与覆盖语义见 `docs/api-contract.md`。
 - 负责人已授权 Phase 2.3 的 ChangeSpec 配置与校验 API；沿用同一 ZIP 校验及临时索引流程，从目标 Symbol 读取当前签名，新增必填参数后调用现有 Core Validator。可选预期指纹不符时拒绝；本轮不提交 Git，不修改 Core 分析规则或执行影响传播。
+- 负责人已授权 Phase 2.4 的用户项目完整影响分析 API；复用上述 ZIP 与 ChangeSpec 流程，在请求专用临时目录中调用现有 Core 分析和报告能力。部分覆盖时不把零条影响表述为全项目确定无影响；本轮不提交 Git，不新增分析规则或 Change 类型。
 
 ### 变更记录
 
@@ -614,3 +615,4 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | 2026-10-01 | Phase 2.1：内置 Demo 的 FastAPI 服务、接口契约和 HTTP 测试；直接返回既有 Core JSON Report | 完整 pytest 100 passed、1 skipped；待审核，未提交 Git |
 | 2026-10-01 | Phase 2.2：安全 ZIP 导入检查、模块/符号/参数/诊断 JSON、根目录识别及接口文档；提交前补充重复/归一化冲突与拒绝后清理测试 | 完整 pytest 128 passed、1 skipped；真实 HTTP 正常 ZIP 200、危险路径 400、原 Demo 200；待审核，未提交 Git |
 | 2026-10-01 | Phase 2.3：简化 HTTP 变更配置、源签名读取、ChangeSpec 构建与 Core Validator 校验；复用 ZIP 安全导入与指纹核对 | 完整 pytest 143 passed、1 skipped；真实 HTTP 成功 200、指纹不符 409、无效 ZIP 400；待审核，未提交 Git |
+| 2026-10-01 | Phase 2.4：上传 ZIP 的完整影响分析 API、相对路径报告与 partial coverage 提示；复用已冻结 Core 能力 | 完整 pytest 151 passed、1 skipped；真实 HTTP Demo Direct / 1-hop / 2-hop 各 1、coverage complete，指纹不符 409、无效 ZIP 400；待审核，未提交 Git |
