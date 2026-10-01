@@ -2,7 +2,7 @@
 
 > 更新日期：2026-10-01（Asia/Shanghai）  
 > 文档状态：待项目负责人确认。  
-> 项目阶段：Phase 0 只读资产审计已完成；Phase 1.2 已实现 Repository Scanner 与单文件 AST Parser。
+> 项目阶段：Phase 0 只读资产审计已完成；Phase 1.3 已实现 Repository Scanner、单文件 AST Parser 与 Symbol Index。
 > 读者：项目负责人、团队成员、后续 Codex / AI 开发助手、比赛答辩材料整理人员。
 
 本文统一记录产品定位、范围、技术边界、开发约束与当前事实，作为后续开发的项目总纲。本文中的“计划”“建议”“待确认”均不代表功能已实现。功能完成必须有代码、对应测试和可复核结果支撑。
@@ -218,9 +218,11 @@ V1 暂不包含：
 
 ### 8.4 Symbol Index
 
+当前已实现：`SymbolIndex(project_path).build()` 从 Scanner 与 AST Parser 结果建立项目模块和模块级函数索引。函数 ID 采用相对路径生成的模块名加函数名，例如 `utils.format_date`；Symbol 同时保存相对文件路径与定义事实。明确的绝对 `import` / `from ... import ...` 及别名只在索引内能找到项目模块或函数时绑定。无法确认的绑定保留 `unresolved` 与原因；解析失败文件、重名模块与重名函数不产生猜测性绑定。当前不解析调用目标，不构建调用图。
+
 以项目、模块路径和限定名称标识符号，维护作用域、函数签名和导入别名。避免只按函数名拼接调用边。
 
-首批处理模块级函数、本模块明确调用、`from module import func`、明确别名及 `import module` 后的可解析属性调用。相对导入、包布局与 `src` 布局逐项实现并用测试确认，不能默认已全面支持。
+当前索引支持模块级函数与明确的绝对 import 绑定；本模块调用和属性调用的目标解析留待 Call Graph 阶段。相对导入、复杂包布局与 `src` 布局仍需逐项实现并测试，不能默认已全面支持。
 
 ### 8.5 Call Graph
 
@@ -545,8 +547,8 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | Phase 0 旧资产审计 | 已完成只读源码与文档审计 |
 | PROJECT.md | 本文为待负责人确认的总纲草案 |
 | 独立代码目录 | 已存在，采用负责人指定的当前项目路径 |
-| Phase 1 分析引擎 | Repository Scanner 与单文件 AST Parser 已实现；Symbol Index、Call Graph 等尚未开始 |
-| 新项目测试与评测 | 完整 pytest：22 passed、1 skipped（Windows 符号链接权限）；评测尚未实施 |
+| Phase 1 分析引擎 | Repository Scanner、单文件 AST Parser 与 Symbol Index 已实现；Call Graph 等尚未开始 |
+| 新项目测试与评测 | 完整 pytest：32 passed、1 skipped（Windows 符号链接权限）；评测尚未实施 |
 | 新项目前端、API、Worker、数据库 | 尚未实现 |
 | 新 GitHub 仓库 | 尚未创建或核验 |
 | A312 | 本轮及当前开发阶段不操作 |
@@ -569,7 +571,7 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 - 已实现结论必须注明对应测试或验收记录，历史结果不能替代当前验证。
 - 规划与实际状态分开记录，失败案例和已知限制不得隐去。
 - 引用旧 Nexus 的资产时保留来源，不继承旧赛道目标和平台义务。
-- 负责人已授权 Phase 1.2 的 AST Parser 任务；本轮不提交 Git，待审核后再进入 Symbol Index，不操作 A312。
+- 负责人已授权 Phase 1.3 的 Symbol Index 任务；本轮不提交 Git，不提前实现 Call Graph，不操作 A312。
 
 ### 变更记录
 
@@ -579,3 +581,4 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | 2026-10-01 | 按负责人指定目录进入 Phase 1，仅实现 Repository Scanner；验收命令见 README，测试位于 tests/repository/test_scanner.py | 6 项通过、1 项因权限跳过；待人工代码检查 |
 | 2026-10-01 | 实现单文件 AST Parser 和语法事实模型；验收命令见 README，测试位于 tests/analysis/test_ast_parser.py | 完整 pytest 18 passed、1 skipped；待审核，未提交 Git |
 | 2026-10-01 | 审核修订：补充 callee 结构路径、调用者和边界测试 | 完整 pytest 22 passed、1 skipped；待审核，未提交 Git |
+| 2026-10-01 | 实现项目级 Symbol Index 和明确 import 绑定，保留 unresolved 原因 | 完整 pytest 32 passed、1 skipped；待审核，未提交 Git |

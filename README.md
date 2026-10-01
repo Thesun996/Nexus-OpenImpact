@@ -34,7 +34,7 @@ OpenImpact 希望通过 AI 与静态分析结合，
 
 当前阶段：
 
-Phase 1.2：Repository Scanner 与单文件 AST Parser 已实现；符号解析和影响分析尚未实现。
+Phase 1.3：Repository Scanner、单文件 AST Parser 与项目级 Symbol Index 已实现；调用图和影响分析尚未实现。
 
 目标：
 
@@ -98,4 +98,14 @@ $env:PYTHONPATH = Join-Path (Get-Location) 'src'
 uv run --no-project --with pytest python -m pytest -q
 ```
 
-符号索引、调用图、LLM、源码哈希与资源限额尚未实现。
+`SymbolIndex(project_path).build()` 使用扫描与解析结果登记项目模块、模块级函数，以及明确 import 的本地绑定。`symbols` 以 `module.function` 为键；`bindings` 记录本地名称的项目内模块或函数目标，无法确认时保存 `unresolved` 与原因。索引不会解析 `FunctionCall` 的目标。
+
+```python
+from openimpact.analysis.symbol_index import SymbolIndex
+
+index = SymbolIndex("path/to/project").build()
+print(index.symbols)
+print(index.bindings)
+```
+
+调用图、LLM、源码哈希与资源限额尚未实现。
