@@ -1,0 +1,7 @@
+[project]
+name = "nexus-openimpact"
+version = "0.1.0"
+description = "AI驱动的代码变更影响分析助手"
+requires-python = ">=3.11"
+
+dependencies = []
