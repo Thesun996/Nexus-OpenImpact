@@ -2,7 +2,7 @@
 
 > 更新日期：2026-10-01（Asia/Shanghai）  
 > 文档状态：待项目负责人确认。  
-> 项目阶段：Phase 0 只读资产审计已完成；Phase 1.3 已实现 Repository Scanner、单文件 AST Parser 与 Symbol Index。
+> 项目阶段：Phase 0 只读资产审计已完成；Phase 1.4 已实现 Repository Scanner、单文件 AST Parser、Symbol Index 与确定性 Call Graph。
 > 读者：项目负责人、团队成员、后续 Codex / AI 开发助手、比赛答辩材料整理人员。
 
 本文统一记录产品定位、范围、技术边界、开发约束与当前事实，作为后续开发的项目总纲。本文中的“计划”“建议”“待确认”均不代表功能已实现。功能完成必须有代码、对应测试和可复核结果支撑。
@@ -222,11 +222,13 @@ V1 暂不包含：
 
 以项目、模块路径和限定名称标识符号，维护作用域、函数签名和导入别名。避免只按函数名拼接调用边。
 
-当前索引支持模块级函数与明确的绝对 import 绑定；本模块调用和属性调用的目标解析留待 Call Graph 阶段。相对导入、复杂包布局与 `src` 布局仍需逐项实现并测试，不能默认已全面支持。
+当前索引支持模块级函数与明确的绝对 import 绑定；Call Graph 在此基础上处理本模块函数与导入后的明确调用。相对导入、复杂包布局与 `src` 布局仍需逐项实现并测试，不能默认已全面支持。
 
 ### 8.5 Call Graph
 
-记录“调用者 → 被调用者”的有向边，并为每条边保存调用位置与解析状态。建立反向索引，供引擎查找调用目标的上层函数。
+当前已实现：`CallGraph(SymbolIndex(project_path).build()).build()` 保存静态确定的函数到函数调用边，边记录调用者、被调用者、相对文件、行列、`resolved` 状态及同模块 / from import / module import 的解析依据。模块顶层调用、未知名称、外部或 unresolved import、局部或目标模块名称遮蔽、动态表达式和过长属性链保留为 `unresolved_calls`，不会形成确定边。循环调用可以同时保存两条边；相同调用点去重，不进行传播、深度计算或影响判断。
+
+记录“调用者 → 被调用者”的有向边，并为每条边保存调用位置与解析状态。供后续引擎使用的反向索引尚未实现。
 
 调用图是静态可解析关系的近似，不能保证运行时一定执行该路径。图遍历必须有深度上限、循环处理和发现去重。
 
@@ -547,8 +549,8 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | Phase 0 旧资产审计 | 已完成只读源码与文档审计 |
 | PROJECT.md | 本文为待负责人确认的总纲草案 |
 | 独立代码目录 | 已存在，采用负责人指定的当前项目路径 |
-| Phase 1 分析引擎 | Repository Scanner、单文件 AST Parser 与 Symbol Index 已实现；Call Graph 等尚未开始 |
-| 新项目测试与评测 | 完整 pytest：32 passed、1 skipped（Windows 符号链接权限）；评测尚未实施 |
+| Phase 1 分析引擎 | Repository Scanner、单文件 AST Parser、Symbol Index 与确定性 Call Graph 已实现；ChangeSpec、Impact Engine 尚未开始 |
+| 新项目测试与评测 | 完整 pytest：45 passed、1 skipped（Windows 符号链接权限）；评测尚未实施 |
 | 新项目前端、API、Worker、数据库 | 尚未实现 |
 | 新 GitHub 仓库 | 尚未创建或核验 |
 | A312 | 本轮及当前开发阶段不操作 |
@@ -571,7 +573,7 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 - 已实现结论必须注明对应测试或验收记录，历史结果不能替代当前验证。
 - 规划与实际状态分开记录，失败案例和已知限制不得隐去。
 - 引用旧 Nexus 的资产时保留来源，不继承旧赛道目标和平台义务。
-- 负责人已授权 Phase 1.3 的 Symbol Index 任务；本轮不提交 Git，不提前实现 Call Graph，不操作 A312。
+- 负责人已授权 Phase 1.4 的 Call Graph 任务；本轮不提交 Git，不提前实现 ChangeSpec 或 Impact Engine，不操作 A312。
 
 ### 变更记录
 
@@ -582,3 +584,4 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | 2026-10-01 | 实现单文件 AST Parser 和语法事实模型；验收命令见 README，测试位于 tests/analysis/test_ast_parser.py | 完整 pytest 18 passed、1 skipped；待审核，未提交 Git |
 | 2026-10-01 | 审核修订：补充 callee 结构路径、调用者和边界测试 | 完整 pytest 22 passed、1 skipped；待审核，未提交 Git |
 | 2026-10-01 | 实现项目级 Symbol Index 和明确 import 绑定，保留 unresolved 原因 | 完整 pytest 32 passed、1 skipped；待审核，未提交 Git |
+| 2026-10-01 | 实现确定性 Call Graph、未解析调用诊断及作用域遮蔽边界 | 完整 pytest 45 passed、1 skipped；待审核，未提交 Git |

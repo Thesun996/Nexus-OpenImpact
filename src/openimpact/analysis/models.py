@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-
 ParameterKind = Literal[
     "positional_only",
     "positional_or_keyword",
@@ -31,6 +30,7 @@ class FunctionDefinition:
     end_lineno: int | None
     parameters: tuple[Parameter, ...]
     is_async: bool = False
+    local_bindings: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -77,3 +77,4 @@ class ParsedModule:
     imports: tuple[ImportReference, ...]
     calls: tuple[FunctionCall, ...]
     diagnostics: tuple[ParseDiagnostic, ...] = ()
+    module_rebindings: frozenset[str] = frozenset()

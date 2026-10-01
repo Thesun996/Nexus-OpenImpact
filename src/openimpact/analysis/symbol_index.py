@@ -52,6 +52,7 @@ class SymbolIndex:
         self.modules: dict[str, Path] = {}
         self.symbols: dict[str, Symbol] = {}
         self.bindings: dict[str, dict[str, ImportBinding]] = {}
+        self.parsed_modules: dict[str, ParsedModule] = {}
         self.parse_diagnostics: dict[Path, tuple[ParseDiagnostic, ...]] = {}
         self.ambiguous_modules: set[str] = set()
         self.ambiguous_symbols: set[str] = set()
@@ -60,6 +61,7 @@ class SymbolIndex:
         self.modules.clear()
         self.symbols.clear()
         self.bindings.clear()
+        self.parsed_modules.clear()
         self.parse_diagnostics.clear()
         self.ambiguous_modules.clear()
         self.ambiguous_symbols.clear()
@@ -82,6 +84,7 @@ class SymbolIndex:
 
         for module, relative_path in self.modules.items():
             parsed = parsed_by_path[relative_path]
+            self.parsed_modules[module] = parsed
             if parsed.diagnostics:
                 continue
             counts = Counter(function.name for function in parsed.functions)

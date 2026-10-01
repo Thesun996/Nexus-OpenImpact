@@ -34,7 +34,7 @@ OpenImpact 希望通过 AI 与静态分析结合，
 
 当前阶段：
 
-Phase 1.3：Repository Scanner、单文件 AST Parser 与项目级 Symbol Index 已实现；调用图和影响分析尚未实现。
+Phase 1.4：Repository Scanner、单文件 AST Parser、Symbol Index 与确定性 Call Graph 已实现；变化影响分析尚未实现。
 
 目标：
 
@@ -108,4 +108,14 @@ print(index.symbols)
 print(index.bindings)
 ```
 
-调用图、LLM、源码哈希与资源限额尚未实现。
+`CallGraph(index).build()` 将已解析的函数调用保存为 `edges`，将模块顶层、动态或无法确认目标的调用保存为 `unresolved_calls`。调用边只表示静态可确定的关系，不表示运行时一定执行或发生错误。
+
+```python
+from openimpact.analysis.call_graph import CallGraph
+
+graph = CallGraph(index).build()
+print(graph.edges)
+print(graph.unresolved_calls)
+```
+
+ChangeSpec、影响分析、LLM、源码哈希与资源限额尚未实现。

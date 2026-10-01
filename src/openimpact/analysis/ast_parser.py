@@ -9,8 +9,8 @@ from openimpact.analysis.models import (
     FunctionDefinition,
     ImportReference,
     Parameter,
-    ParsedModule,
     ParseDiagnostic,
+    ParsedModule,
 )
 
 
@@ -43,6 +43,48 @@ def _callee_syntax(expression: ast.expr) -> tuple[str, tuple[str, ...] | None]:
         if isinstance(current, ast.Name):
             return "attribute", (current.id, *reversed(names))
     return "other", None
+
+
+class _BoundNames(ast.NodeVisitor):
+    """Conservatively collect names that can shadow a static function binding."""
+
+    def __init__(self):
+        self.names: set[str] = set()
+
+    def visit_Name(self, node: ast.Name) -> None:
+        if isinstance(node.ctx, (ast.Store, ast.Del)):
+            self.names.add(node.id)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        self.names.add(node.name)
+        # A nested body has a different scope.
+
+    visit_AsyncFunctionDef = visit_FunctionDef
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self.names.add(node.name)
+
+    def visit_Lambda(self, node: ast.Lambda) -> None:
+        pass
+
+    def visit_Import(self, node: ast.Import) -> None:
+        self.names.update(alias.asname or alias.name.split(".")[0] for alias in node.names)
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        self.names.update(alias.asname or alias.name for alias in node.names)
+
+    def visit_Global(self, node: ast.Global) -> None:
+        self.names.update(node.names)
+
+    def visit_Nonlocal(self, node: ast.Nonlocal) -> None:
+        self.names.update(node.names)
+
+
+def _bound_names(statements: list[ast.stmt]) -> frozenset[str]:
+    collector = _BoundNames()
+    for statement in statements:
+        collector.visit(statement)
+    return frozenset(collector.names)
 
 
 class _CallCollector(ast.NodeVisitor):
@@ -145,6 +187,7 @@ class ASTParser:
                         end_lineno=getattr(node, "end_lineno", None),
                         parameters=_parameters(node.args),
                         is_async=isinstance(node, ast.AsyncFunctionDef),
+                        local_bindings=_bound_names(node.body),
                     )
                 )
 
@@ -171,9 +214,17 @@ class ASTParser:
 
         collector = _CallCollector(self.path)
         collector.visit(tree)
+        module_rebindings = _bound_names(
+            [
+                statement for statement in tree.body
+                if not isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                              ast.Import, ast.ImportFrom))
+            ]
+        )
         return ParsedModule(
             path=self.path,
             functions=tuple(functions),
             imports=tuple(sorted(imports, key=lambda item: item.lineno)),
             calls=tuple(sorted(collector.calls, key=lambda item: (item.lineno, item.col_offset))),
+            module_rebindings=module_rebindings,
         )
