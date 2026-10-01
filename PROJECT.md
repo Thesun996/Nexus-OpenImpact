@@ -2,7 +2,7 @@
 
 > 更新日期：2026-10-01（Asia/Shanghai）  
 > 文档状态：待项目负责人确认。  
-> 项目阶段：Phase 0 只读资产审计已完成；负责人已授权进入 Phase 1，本轮仅实现 Repository Scanner。
+> 项目阶段：Phase 0 只读资产审计已完成；Phase 1.2 已实现 Repository Scanner 与单文件 AST Parser。
 > 读者：项目负责人、团队成员、后续 Codex / AI 开发助手、比赛答辩材料整理人员。
 
 本文统一记录产品定位、范围、技术边界、开发约束与当前事实，作为后续开发的项目总纲。本文中的“计划”“建议”“待确认”均不代表功能已实现。功能完成必须有代码、对应测试和可复核结果支撑。
@@ -209,6 +209,8 @@ V1 暂不包含：
 不跟随符号链接或 Windows junction 越出分析根目录。ZIP 导入需要检查路径穿越、链接条目、文件数量和解压总量，并放入新项目管理的数据目录。具体限额在实现前确定。
 
 ### 8.3 AST Parser
+
+当前已实现：`ASTParser(path).parse()` 读取一个 Python 文件，返回 `ParsedModule`。模型位于 `analysis/models.py`，记录模块级函数与参数种类、模块顶层 import 原始形式、调用表达式及实参形态；`FunctionCall` 保留所在文件、模块级调用者及未绑定的 callee 结构路径。读取、编码和语法错误分类为诊断，错误文件不产生部分语法事实。函数列表仅含模块级函数；类方法与嵌套函数体中的调用不进入正式 `calls`。当前没有项目级解析调度器。
 
 读取源码文本并解析 AST，收集函数定义、参数、默认值是否存在、import、调用表达式和源码位置。目标代码只作为数据处理，不使用 `exec`、`eval` 或目标模块导入。
 
@@ -543,8 +545,8 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | Phase 0 旧资产审计 | 已完成只读源码与文档审计 |
 | PROJECT.md | 本文为待负责人确认的总纲草案 |
 | 独立代码目录 | 已存在，采用负责人指定的当前项目路径 |
-| Phase 1 分析引擎 | Repository Scanner 已实现；AST、调用图等后续模块尚未开始 |
-| 新项目测试与评测 | scanner 标准库 unittest 共 7 项，6 通过、1 因 Windows 符号链接权限跳过；junction 测试通过，评测尚未实施 |
+| Phase 1 分析引擎 | Repository Scanner 与单文件 AST Parser 已实现；Symbol Index、Call Graph 等尚未开始 |
+| 新项目测试与评测 | 完整 pytest：22 passed、1 skipped（Windows 符号链接权限）；评测尚未实施 |
 | 新项目前端、API、Worker、数据库 | 尚未实现 |
 | 新 GitHub 仓库 | 尚未创建或核验 |
 | A312 | 本轮及当前开发阶段不操作 |
@@ -567,7 +569,7 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 - 已实现结论必须注明对应测试或验收记录，历史结果不能替代当前验证。
 - 规划与实际状态分开记录，失败案例和已知限制不得隐去。
 - 引用旧 Nexus 的资产时保留来源，不继承旧赛道目标和平台义务。
-- 负责人已授权 Phase 1 的 Repository Scanner 任务；后续按具体任务推进，不提前实现 AST、Call Graph 或 LLM，不操作 A312。
+- 负责人已授权 Phase 1.2 的 AST Parser 任务；本轮不提交 Git，待审核后再进入 Symbol Index，不操作 A312。
 
 ### 变更记录
 
@@ -575,3 +577,5 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | --- | --- | --- |
 | 2026-10-01 | 根据项目交接说明、Phase 0 审计和本轮范围要求建立总纲 | 待负责人确认 |
 | 2026-10-01 | 按负责人指定目录进入 Phase 1，仅实现 Repository Scanner；验收命令见 README，测试位于 tests/repository/test_scanner.py | 6 项通过、1 项因权限跳过；待人工代码检查 |
+| 2026-10-01 | 实现单文件 AST Parser 和语法事实模型；验收命令见 README，测试位于 tests/analysis/test_ast_parser.py | 完整 pytest 18 passed、1 skipped；待审核，未提交 Git |
+| 2026-10-01 | 审核修订：补充 callee 结构路径、调用者和边界测试 | 完整 pytest 22 passed、1 skipped；待审核，未提交 Git |

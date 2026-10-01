@@ -34,7 +34,7 @@ OpenImpact 希望通过 AI 与静态分析结合，
 
 当前阶段：
 
-Phase 1：Repository Scanner 已实现，其他分析模块尚未实现。
+Phase 1.2：Repository Scanner 与单文件 AST Parser 已实现；符号解析和影响分析尚未实现。
 
 目标：
 
@@ -81,4 +81,21 @@ $env:PYTHONPATH = Join-Path (Get-Location) 'src'
 python -m unittest discover -s tests/repository -v
 ```
 
-AST、调用图、LLM、源码哈希与资源限额尚未实现。
+单文件 AST Parser 可使用 `ASTParser(path).parse()`。它返回 `ParsedModule`：模块级函数、模块顶层 import、调用语法事实，以及读取、编码或语法错误诊断。调用名称尚未绑定到函数定义。解析器不会执行目标源码。
+
+```python
+from openimpact.analysis.ast_parser import ASTParser
+
+result = ASTParser("path/to/project/report.py").parse()
+for function in result.functions:
+    print(function.name, function.parameters)
+```
+
+完整测试可在项目根目录运行：
+
+```powershell
+$env:PYTHONPATH = Join-Path (Get-Location) 'src'
+uv run --no-project --with pytest python -m pytest -q
+```
+
+符号索引、调用图、LLM、源码哈希与资源限额尚未实现。
