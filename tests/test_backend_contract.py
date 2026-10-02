@@ -124,7 +124,8 @@ def test_uploaded_read_and_encoding_diagnostics_hide_temporary_paths():
     assert analyzed.json()["coverage"]["status"] == "partial"
 
 
-def test_checked_in_http_samples_match_the_frozen_contract():
+def test_checked_in_http_samples_match_the_frozen_contract(monkeypatch):
+    monkeypatch.setenv("OPENIMPACT_LLM_PROVIDER", "rule")
     data = demo_zip()
     samples = Path(__file__).resolve().parents[1] / "docs" / "api-samples"
 
