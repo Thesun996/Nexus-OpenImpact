@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 from openimpact.analysis.change_file import ChangeFileError, load_change_spec
 from openimpact.analysis.change_spec import ChangeSpec, validate_change_spec
@@ -70,6 +71,13 @@ app.add_middleware(_ZipBodyLimit)
 
 def _error(status: int, code: str, message: str) -> JSONResponse:
     return JSONResponse(status_code=status, content={"error": {"code": code, "message": message}})
+
+
+@app.exception_handler(Exception)
+async def unexpected_error(_request: Request, _exception: Exception) -> JSONResponse:
+    # Do not copy unexpected exception text, credentials, or paths into responses/logs.
+    _LOGGER.error("Unexpected backend request failure")
+    return _error(500, "internal_error", "后端请求处理失败，请重试。")
 
 
 async def _read_zip(file: UploadFile) -> bytes:
@@ -137,6 +145,61 @@ def _validated_spec(
     return spec
 
 
+def _inspect_zip(data: bytes, filename: str | None) -> JSONResponse:
+    return JSONResponse(content=zip_inspector.inspect_python_zip(data, filename))
+
+
+def _validate_zip(
+    data: bytes, filename: str | None, change: str, expected_fingerprint: str | None
+) -> JSONResponse:
+    if error := _fingerprint_error(data, expected_fingerprint):
+        return error
+    with zip_inspector.indexed_python_zip(data, filename) as (index, report):
+        spec = _validated_spec(index, report, change)
+        if isinstance(spec, JSONResponse):
+            return spec
+        return _validation_response(report, spec, True, [], 200)
+
+
+def _analyze_zip(
+    data: bytes, filename: str | None, change: str, expected_fingerprint: str | None
+) -> JSONResponse:
+    """Keep the snapshot, validation, report, and cleanup inside one worker call."""
+    if error := _fingerprint_error(data, expected_fingerprint):
+        return error
+    with zip_inspector.indexed_python_zip(data, filename) as (index, inspect_report):
+        spec = _validated_spec(index, inspect_report, change)
+        if isinstance(spec, JSONResponse):
+            return spec
+        try:
+            report = build_report(analyze_project(index.scanner.project_path, spec))
+            if not report["validation"]["valid"]:
+                raise RuntimeError("Validated ChangeSpec failed against the same project snapshot")
+            report["project_path"] = "."
+            for item in report["diagnostics"]["parse_errors"]:
+                if item["kind"] == "read_error":
+                    item["message"] = "无法读取项目源文件。"
+                elif item["kind"] == "encoding_error":
+                    item["message"] = "项目源文件编码无法解析。"
+            if report["coverage"]["status"] == "partial":
+                report["coverage"]["message"] = (
+                    "分析范围不完整；结果仅覆盖已成功解析的代码，未报告影响不能视为确定无影响。"
+                )
+            return JSONResponse(content=report)
+        except Exception:
+            _LOGGER.exception("Uploaded project analysis failed")
+            return _error(500, "analysis_failed", "项目影响分析失败，请重试。")
+
+
+def _demo_report() -> JSONResponse:
+    change = load_change_spec(_DEMO_CHANGE)
+    report = build_report(analyze_project(_DEMO_DIR, change))
+    if not report["validation"]["valid"]:
+        return _error(503, "demo_invalid", "内置 Demo 的 ChangeSpec 校验未通过。")
+    report["project_path"] = "."
+    return JSONResponse(content=report)
+
+
 @app.get("/api/v1/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "version": app.version}
@@ -151,14 +214,13 @@ async def inspect_project(request: Request, file: UploadFile = File(...)) -> JSO
 
     try:
         data = await _read_zip(file)
-        result = zip_inspector.inspect_python_zip(data, file.filename)
+        return await run_in_threadpool(_inspect_zip, data, file.filename)
     except zip_inspector.ZipInspectionError as error:
         return _error(error.status_code, error.code, str(error))
     except OSError:
         return _error(503, "inspection_unavailable", "临时导入或源码读取失败。")
     finally:
         await file.close()
-    return JSONResponse(content=result)
 
 
 @app.post("/api/v1/changes/validate")
@@ -173,13 +235,7 @@ async def validate_change(
 
     try:
         data = await _read_zip(file)
-        if error := _fingerprint_error(data, expected_fingerprint):
-            return error
-        with zip_inspector.indexed_python_zip(data, file.filename) as (index, report):
-            spec = _validated_spec(index, report, change)
-            if isinstance(spec, JSONResponse):
-                return spec
-            return _validation_response(report, spec, True, [], 200)
+        return await run_in_threadpool(_validate_zip, data, file.filename, change, expected_fingerprint)
     except zip_inspector.ZipInspectionError as error:
         return _error(error.status_code, error.code, str(error))
     except OSError:
@@ -200,30 +256,7 @@ async def analyze_uploaded_project(
 
     try:
         data = await _read_zip(file)
-        if error := _fingerprint_error(data, expected_fingerprint):
-            return error
-        with zip_inspector.indexed_python_zip(data, file.filename) as (index, inspect_report):
-            spec = _validated_spec(index, inspect_report, change)
-            if isinstance(spec, JSONResponse):
-                return spec
-            try:
-                report = build_report(analyze_project(index.scanner.project_path, spec))
-                if not report["validation"]["valid"]:
-                    raise RuntimeError("Validated ChangeSpec failed against the same project snapshot")
-                report["project_path"] = "."
-                for item in report["diagnostics"]["parse_errors"]:
-                    if item["kind"] == "read_error":
-                        item["message"] = "无法读取项目源文件。"
-                    elif item["kind"] == "encoding_error":
-                        item["message"] = "项目源文件编码无法解析。"
-                if report["coverage"]["status"] == "partial":
-                    report["coverage"]["message"] = (
-                        "分析范围不完整；结果仅覆盖已成功解析的代码，未报告影响不能视为确定无影响。"
-                    )
-                return JSONResponse(content=report)
-            except Exception:
-                _LOGGER.exception("Uploaded project analysis failed")
-                return _error(500, "analysis_failed", "项目影响分析失败，请重试。")
+        return await run_in_threadpool(_analyze_zip, data, file.filename, change, expected_fingerprint)
     except zip_inspector.ZipInspectionError as error:
         return _error(error.status_code, error.code, str(error))
     except OSError:
@@ -238,11 +271,6 @@ async def analyze_demo(request: Request) -> JSONResponse:
         return _error(400, "unsupported_input", "Demo 接口不接受项目路径、查询参数或请求体。")
 
     try:
-        change = load_change_spec(_DEMO_CHANGE)
-        report = build_report(analyze_project(_DEMO_DIR, change))
+        return await run_in_threadpool(_demo_report)
     except (ChangeFileError, OSError):
         return _error(503, "demo_unavailable", "内置 Demo 文件不可用，无法完成分析。")
-
-    if not report["validation"]["valid"]:
-        return _error(503, "demo_invalid", "内置 Demo 的 ChangeSpec 校验未通过。")
-    return JSONResponse(content=report)

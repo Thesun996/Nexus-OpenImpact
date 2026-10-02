@@ -65,7 +65,7 @@ const report = await analyzed.json();
 - `422` 且有 `validation.valid=false`：显示 `validation.diagnostics[]`。此时 analyze 未执行影响分析。
 - `400/413/415/422` 且有 `error`：显示 `error.message`；常见原因是 ZIP 损坏、不安全条目、超限或没有可分析 `.py`。
 - 框架级 `400/422` 且有 `detail`：检查 multipart 字段缺失或格式错误。
-- `500 analysis_failed` 或 `503 inspection_unavailable`：显示可重试提示；响应不包含内部堆栈或临时路径。
+- `500 analysis_failed` / `internal_error` 或 `503 inspection_unavailable`：显示可重试提示；响应不包含内部堆栈或临时路径。
 
 ## 实际响应样例
 

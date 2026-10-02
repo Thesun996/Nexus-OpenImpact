@@ -41,12 +41,12 @@ python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/v1/demo/analyze
 ```
 
-成功响应为 HTTP 200，直接返回 Core CLI JSON 模式使用的 `build_report()` 结果。顶层字段保持为：
+成功响应为 HTTP 200，返回 Core CLI JSON 模式使用的 `build_report()` 结果；HTTP 层将 `project_path` 规范为 `.`，避免暴露服务器目录。CLI 保留本地项目路径，其他分析数据相同。顶层字段保持为：
 
 | 字段 | 含义 |
 | --- | --- |
 | `schema_version` | 当前为 `1` |
-| `project_path` | 内置 Demo 的本地目录 |
+| `project_path` | 相对项目根目录，固定为 `.` |
 | `change` | 结构化 ChangeSpec |
 | `validation` | ChangeSpec 校验结论和诊断 |
 | `coverage` | 覆盖状态、模块与解析计数 |
@@ -218,7 +218,10 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" -F "change=<change.
 | 422 | `invalid_fingerprint` | `expected_fingerprint` 不是 64 位十六进制值 |
 | 422 | `validation.valid=false` | ChangeSpec 配置、目标或 Core 签名校验失败；详见 `validation.diagnostics` 的 `code`、`message` |
 | 500 | `analysis_failed` | 上传项目通过 ZIP 与 ChangeSpec 校验后，内部影响分析失败 |
+| 500 | `internal_error` | 未被既有错误分支处理的后端异常（例如建立上传项目索引失败）；仅返回固定安全消息 |
 
 缺少必填字段或 multipart 格式错误时，FastAPI 返回标准 `detail` 格式的 422 / 400；未知路径或 HTTP 方法返回标准 404 / 405。当前接口无认证、项目持久化、Worker 或任意服务器路径输入能力。
 
 普通 ZIP/输入错误和 HTTP 500 使用 `{"error":{"code":"...","message":"..."}}`；ChangeSpec 配置或校验错误使用 422 的 `validation.valid=false` 与 `validation.diagnostics[]`；FastAPI 对缺字段等框架级错误使用 `{"detail": ...}`。前端需按响应形状和状态码分支处理，不能假设所有非 200 响应都有相同结构。
+
+Phase 3.4 稳定性验收记录见 [backend-stability-audit.md](backend-stability-audit.md)。公开路径与 JSON 字段名保持不变；异常响应不会拼接内部异常文本或堆栈。
