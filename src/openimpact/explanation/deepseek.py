@@ -2,6 +2,9 @@
 
 import json
 import os
+from dataclasses import dataclass
+from typing import Literal
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from openimpact.explanation.fallback import RuleBasedProvider
@@ -39,33 +42,83 @@ def _build_messages(input: ExplanationInput) -> list[dict[str, str]]:
     ]
 
 
+@dataclass(frozen=True)
+class DeepSeekCallDiagnostic:
+    """Local call provenance, never containing credentials or raw error text."""
+
+    status: Literal["model_success", "fallback"]
+    reason_code: str | None
+    requested_model: str
+    response_model: str | None = None
+    http_status: int | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+
+
+class _DeepSeekFailure(ValueError):
+    pass
+
+
 class DeepSeekProvider(ExplanationProvider):
     """Send only ExplanationInput to DeepSeek when explicitly selected and keyed."""
 
     def __init__(self, api_key: str | None = None, timeout_seconds: float = 20.0):
         self._api_key = api_key if api_key is not None else os.getenv("DEEPSEEK_API_KEY", "")
         self._timeout_seconds = timeout_seconds
+        self.last_call: DeepSeekCallDiagnostic | None = None
+        self._response_model: str | None = None
+        self._http_status: int | None = None
+        self._usage: dict[str, int] = {}
 
     def explain(self, input: ExplanationInput) -> ExplanationResult:
+        self.last_call = None
+        self._response_model = None
+        self._http_status = None
+        self._usage = {}
         if not self._api_key or not self._api_key.strip():
-            return RuleBasedProvider().explain(input)
+            return self._fallback(input, "missing_key")
         try:
             content = self._request_completion(input)
             payload = json.loads(content)
             if not isinstance(payload, dict) or payload.keys() != _RESULT_FIELDS:
-                raise ValueError("模型输出字段与 ExplanationResult 不符。")
+                raise _DeepSeekFailure("invalid_output_fields")
             result = ExplanationResult(**payload)
             if result.risk_level != "unknown":
-                raise ValueError("现有证据无法确定业务风险等级。")
+                raise _DeepSeekFailure("unsupported_risk_level")
+            self._record("model_success", None)
             return result
+        except _DeepSeekFailure as error:
+            return self._fallback(input, str(error))
+        except HTTPError as error:
+            self._http_status = error.code
+            return self._fallback(input, f"http_{error.code}")
+        except TimeoutError:
+            return self._fallback(input, "request_timeout")
+        except URLError:
+            return self._fallback(input, "network_error")
+        except json.JSONDecodeError:
+            return self._fallback(input, "invalid_json")
+        except (ValueError, TypeError, KeyError, IndexError):
+            return self._fallback(input, "invalid_response")
         except Exception:
-            return RuleBasedProvider().explain(input)
+            return self._fallback(input, "provider_error")
+
+    def _record(self, status: Literal["model_success", "fallback"], reason: str | None) -> None:
+        self.last_call = DeepSeekCallDiagnostic(
+            status, reason, _MODEL, self._response_model, self._http_status,
+            self._usage.get("prompt_tokens"), self._usage.get("completion_tokens"),
+        )
+
+    def _fallback(self, input: ExplanationInput, reason: str) -> ExplanationResult:
+        self._record("fallback", reason)
+        return RuleBasedProvider().explain(input)
 
     def _request_completion(self, input: ExplanationInput) -> str:
         body = json.dumps({
             "model": _MODEL,
             "messages": _build_messages(input),
             "response_format": {"type": "json_object"},
+            "thinking": {"type": "disabled"},
             "max_tokens": 1024,
             "stream": False,
         }, ensure_ascii=False).encode("utf-8")
@@ -79,14 +132,21 @@ class DeepSeekProvider(ExplanationProvider):
             method="POST",
         )
         with urlopen(request, timeout=self._timeout_seconds) as response:
+            self._http_status = getattr(response, "status", 200)
             raw = response.read(_MAX_RESPONSE_BYTES + 1)
         if len(raw) > _MAX_RESPONSE_BYTES:
-            raise ValueError("模型响应超出大小限制。")
+            raise _DeepSeekFailure("response_too_large")
         data = json.loads(raw.decode("utf-8"))
+        model = data.get("model")
+        self._response_model = model if isinstance(model, str) and model.startswith("deepseek") else None
+        usage = data.get("usage", {})
+        if isinstance(usage, dict):
+            self._usage = {name: usage[name] for name in ("prompt_tokens", "completion_tokens")
+                           if isinstance(usage.get(name), int) and not isinstance(usage[name], bool)}
         choice = data["choices"][0]
         if choice["finish_reason"] != "stop":
-            raise ValueError("模型响应未完整结束。")
+            raise _DeepSeekFailure("incomplete_response")
         content = choice["message"]["content"]
         if not isinstance(content, str) or not content.strip():
-            raise ValueError("模型响应内容为空。")
+            raise _DeepSeekFailure("empty_content")
         return content

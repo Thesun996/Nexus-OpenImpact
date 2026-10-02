@@ -78,6 +78,8 @@ $env:DEEPSEEK_API_KEY = "<你的 Key>"
 
 CLI JSON 和分析 API 现已在报告中返回 `explanations[]`，默认由本地规则生成。只有配置 DeepSeek 且存在 Key 时，解释阶段才会向模型发送本次 Evidence 中的源码片段、位置、变更描述、规则、原因和调用路径；请求失败或输出校验失败时使用规则解释。`explanations[]` 与 `evidences[]` 同序，证据不可用时对应的解释为 `null` 并附诊断。不要把真实 Key 写入仓库或提交到 Git。
 
+真实 API 联调可运行 `python scripts/deepseek_live_check.py`；替换 Key 时可加 `--prompt-key` 在本地终端隐藏输入。脚本明确区分模型成功与规则回退，完整操作和本轮实际结果见 [DeepSeek 联调说明](docs/deepseek-live-check.md)。
+
 检查自己的 Python 项目时，先将源码打成 ZIP，再调用：
 
 ```powershell
