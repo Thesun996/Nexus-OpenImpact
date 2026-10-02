@@ -63,7 +63,8 @@ class DeepSeekProvider(ExplanationProvider):
     """Send only ExplanationInput to DeepSeek when explicitly selected and keyed."""
 
     def __init__(self, api_key: str | None = None, timeout_seconds: float = 20.0):
-        self._api_key = api_key if api_key is not None else os.getenv("DEEPSEEK_API_KEY", "")
+        key = api_key if api_key is not None else os.getenv("DEEPSEEK_API_KEY", "")
+        self._api_key = key.strip()
         self._timeout_seconds = timeout_seconds
         self.last_call: DeepSeekCallDiagnostic | None = None
         self._response_model: str | None = None
