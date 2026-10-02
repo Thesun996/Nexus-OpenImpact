@@ -16,6 +16,8 @@ Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 
 
 ## 本地启动
 
+Phase 4.1 核查：当前后端没有配置 CORS，保持跨域关闭。React 开发服务器实际 Origin 尚未确认，后续经负责人确认后使用环境配置加载明确白名单；本轮不设置通配 Origin 或假设部署地址。独立前端直接访问后端时，浏览器尚无法读取跨域响应；同源或实际配置的开发代理可使用相对 `/api` 路径。启动、接入条件及报告状态说明见 [frontend-handoff.md](frontend-handoff.md)。
+
 在仓库根目录安装项目后运行：
 
 ```powershell
