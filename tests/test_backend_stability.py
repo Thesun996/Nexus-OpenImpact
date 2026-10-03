@@ -2,6 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
+from http.client import HTTPResponse
 import io
 import json
 from pathlib import Path, PureWindowsPath
@@ -295,7 +296,7 @@ def test_real_http_provider_exception_falls_back_without_state_pollution(live_ba
 def test_real_http_unexpected_index_exception_uses_safe_json_and_cleans_up(
     live_backend, monkeypatch, route
 ):
-    client, _, directories = live_backend
+    client, url, directories = live_backend
     with monkeypatch.context() as faults:
         def fail_index(_self):
             raise RuntimeError(PRIVATE_ERROR)
@@ -305,13 +306,78 @@ def test_real_http_unexpected_index_exception_uses_safe_json_and_cleans_up(
                                files={"file": ("project.zip", make_zip(demo_files()), "application/zip")})
     assert response.status_code == 500
     assert response.headers["content-type"].startswith("application/json")
+    assert len(response.content) == int(response.headers["content-length"])
     assert_safe(response)
     assert set(response.json()) == {"error"}
     assert response.json()["error"]["code"] == "internal_error"
     assert len(directories) == 1
     assert all(not path.exists() for path in directories)
-    assert client.get("/api/v1/health").status_code == 200
-    assert submit(client, route, make_zip(demo_files())).status_code == 200
+    # Starlette re-raises after sending the safe 500; Uvicorn closes that TCP
+    # connection. Immediate pool reuse can race the close (Windows ReadError).
+    # Check recovery over a new connection, without retrying the failed request.
+    with httpx.Client(base_url=url, timeout=10, trust_env=False) as recovered:
+        health = recovered.get("/api/v1/health")
+        assert health.status_code == 200
+        assert health.json() == {"status": "ok", "version": "0.1.0"}
+        assert submit(recovered, route, make_zip(demo_files())).status_code == 200
+    assert all(not path.exists() for path in directories)
+
+
+def test_real_http_unexpected_exception_completes_json_then_closes_tcp(
+    live_backend, monkeypatch
+):
+    """Observe EOF/reset on the actual socket, independent of a client pool."""
+    _, url, directories = live_backend
+    request = httpx.Request(
+        "POST", url + ROUTES[0], headers={"Connection": "keep-alive"},
+        files={"file": ("project.zip", make_zip(demo_files()), "application/zip")},
+    )
+    body = request.read()
+    headers = b"\r\n".join(name + b": " + value for name, value in request.headers.raw)
+    wire_request = b"POST /api/v1/projects/inspect HTTP/1.1\r\n" + headers + b"\r\n\r\n" + body
+
+    with monkeypatch.context() as faults:
+        def fail_index(_self):
+            raise RuntimeError(PRIVATE_ERROR)
+
+        faults.setattr(zip_inspector.SymbolIndex, "build", fail_index)
+        with socket.create_connection((request.url.host, request.url.port), timeout=5) as connection:
+            # Confirm the same socket supports keep-alive before the failure.
+            connection.sendall(
+                b"GET /api/v1/health HTTP/1.1\r\nHost: "
+                + request.headers["host"].encode("ascii")
+                + b"\r\nConnection: keep-alive\r\n\r\n"
+            )
+            with HTTPResponse(connection) as reply:
+                reply.begin()
+                assert reply.status == 200
+                assert json.loads(reply.read()) == {"status": "ok", "version": "0.1.0"}
+            connection.sendall(wire_request)
+            with HTTPResponse(connection) as reply:
+                reply.begin()
+                # read() also rejects a truncated Content-Length response.
+                response = httpx.Response(reply.status, headers=reply.getheaders(), content=reply.read())
+            assert response.status_code == 500
+            assert response.headers["content-type"].startswith("application/json")
+            assert len(response.content) == int(response.headers["content-length"])
+            assert assert_safe(response) == {
+                "error": {"code": "internal_error", "message": "后端请求处理失败，请重试。"},
+            }
+            # The server terminates the connection even though we requested
+            # keep-alive. A timeout or further response bytes fail this test.
+            try:
+                assert connection.recv(1) == b""
+            except (ConnectionResetError, ConnectionAbortedError):
+                pass  # Windows may report peer closure as a reset instead of EOF.
+
+    assert len(directories) == 1
+    assert all(not path.exists() for path in directories)
+    with httpx.Client(base_url=url, timeout=10, trust_env=False) as recovered:
+        health = recovered.get("/api/v1/health")
+        assert health.status_code == 200
+        assert health.json() == {"status": "ok", "version": "0.1.0"}
+        assert submit(recovered, ROUTES[0], make_zip(demo_files())).status_code == 200
+    assert all(not path.exists() for path in directories)
 
 
 def test_real_http_demo_does_not_disclose_server_project_path(live_backend):
