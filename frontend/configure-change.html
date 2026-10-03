@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nexus OpenImpact - 配置变更</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-page="configure-change">
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">N</div>
+          <span>Nexus OpenImpact</span>
+        </div>
+
+        <div class="project-switcher">
+          <button class="select-button" type="button" data-notice="项目切换会在接入上传历史后启用。">
+            <span class="line-icon">▣</span>
+            signature_change
+            <span class="chevron">⌄</span>
+          </button>
+          <button class="select-button" type="button" data-notice="当前项目来自上传 ZIP，暂不支持分支切换。">
+            <span class="line-icon">⑂</span>
+            uploaded-zip
+            <span class="chevron">⌄</span>
+          </button>
+        </div>
+
+        <nav class="side-nav" aria-label="主导航">
+          <a href="./index.html"><span>⌂</span>首页</a>
+          <a class="active" href="./function-select.html"><span>‹›</span>变更分析</a>
+          <a href="./analysis-report.html"><span>⌘</span>影响范围</a>
+          <a href="./coming-soon.html?module=callgraph"><span>⌬</span>调用关系</a>
+          <a href="./coming-soon.html?module=dependency"><span>◇</span>依赖分析</a>
+          <a href="./coming-soon.html?module=history"><span>◴</span>历史记录</a>
+          <a href="./coming-soon.html?module=settings"><span>⚙</span>配置管理</a>
+        </nav>
+
+        <div class="engine-card">
+          <div class="engine-title"><span class="status-dot"></span>分析引擎 <b>运行正常</b></div>
+          <ul>
+            <li>Python 3.11.6</li>
+            <li>AST 解析 <span>✓</span></li>
+            <li>符号索引 <span>✓</span></li>
+            <li>影响分析 <span>✓</span></li>
+          </ul>
+          <small>v0.1.0</small>
+        </div>
+      </aside>
+
+      <section class="main-shell">
+        <header class="topbar">
+          <label class="global-search">
+            <span>⌕</span>
+            <input type="search" placeholder="搜索文件、函数、类或提交信息..." />
+            <kbd>Ctrl</kbd><kbd>K</kbd>
+          </label>
+          <div class="top-actions">
+            <a class="top-action-link" href="./coming-soon.html?module=docs">▤ 文档</a>
+            <a class="top-action-link" href="./coming-soon.html?module=settings">⚙ 设置</a>
+            <button class="language-toggle" type="button" data-language-toggle aria-label="Switch language">EN</button>
+            <div class="user-chip">
+              <div class="avatar default-avatar" aria-hidden="true"></div>
+              <span>未命名用户</span>
+              <span>⌄</span>
+            </div>
+          </div>
+        </header>
+
+        <main class="content workflow-content">
+          <section class="page-heading">
+            <div>
+              <h1>配置签名变更</h1>
+              <p>目标函数已选择，填写新增必填参数后先校验 ChangeSpec。</p>
+            </div>
+            <div class="heading-actions">
+              <span>目标&nbsp;&nbsp;<b data-target-symbol>utils.format_date</b></span>
+              <a class="ghost-action" href="./function-select.html">返回选择</a>
+            </div>
+          </section>
+
+          <section class="step-card" aria-label="分析步骤">
+            <ol class="progress-steps">
+              <li class="done"><span>1</span><b>上传项目</b><small>已完成</small></li>
+              <li class="done"><span>2</span><b>选择函数</b><small data-target-symbol>utils.format_date</small></li>
+              <li class="current"><span>3</span><b>配置变更</b><small>当前步骤</small></li>
+              <li><span>4</span><b>查看报告</b><small>未开始</small></li>
+            </ol>
+          </section>
+
+          <section class="config-grid">
+            <article class="detail-card target-card">
+              <header>
+                <div class="detail-title"><b>‹/›</b> 目标函数</div>
+              </header>
+              <section class="info-list signature-info">
+                <div><span>目标函数</span><b data-target-symbol>utils.format_date</b></div>
+                <div><span>当前签名</span><code data-current-signature>format_date(date)</code></div>
+                <div><span>文件位置</span><b data-target-location>utils.py:1</b></div>
+                <div><span>覆盖状态</span><mark class="tag low">complete</mark></div>
+              </section>
+            </article>
+
+            <article class="detail-card form-card">
+              <header>
+                <div class="detail-title"><b>＋</b> 新增参数</div>
+                <button type="button" data-notice="参数高级选项暂未开放。">⌄</button>
+              </header>
+              <form class="change-form">
+                <label>
+                  <span>新增参数名</span>
+                  <input type="text" value="timezone" data-parameter-name />
+                </label>
+                <label>
+                  <span>参数类型</span>
+                  <select data-parameter-kind>
+                    <option selected>positional_or_keyword</option>
+                    <option>positional_only</option>
+                    <option>keyword_only</option>
+                  </select>
+                </label>
+                <button class="primary-action form-submit" type="button" data-action="validate">校验变更</button>
+              </form>
+            </article>
+
+            <article class="detail-card validation-card">
+              <header>
+                <div class="detail-title"><b>✓</b> 校验结果</div>
+                <mark class="tag low" data-validation-status>校验通过</mark>
+              </header>
+              <section class="signature-compare">
+                <div>
+                  <span>修改前</span>
+                  <code data-current-signature>format_date(date)</code>
+                </div>
+                <div>
+                  <span>修改后</span>
+                  <code data-after-signature>format_date(date, <mark>timezone</mark>)</code>
+                </div>
+              </section>
+              <section class="state-message" data-validation-message>填写参数后点击校验。</section>
+              <footer class="config-actions">
+                <span data-analysis-message>新增必填参数会用于后续影响分析。</span>
+                <a class="primary-action" href="./analysis-report.html" data-action="analyze">开始分析</a>
+              </footer>
+            </article>
+          </section>
+        </main>
+      </section>
+    </div>
+    <script src="./app.js" defer></script>
+  </body>
+</html>
