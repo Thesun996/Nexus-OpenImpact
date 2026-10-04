@@ -1,0 +1,442 @@
+{
+  "schema_version": 1,
+  "project_path": ".",
+  "change": {
+    "change_type": "add_required_parameter",
+    "target_symbol_id": "utils.format_date",
+    "before": {
+      "name": "format_date",
+      "parameters": [
+        {
+          "name": "date",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "after": {
+      "name": "format_date",
+      "parameters": [
+        {
+          "name": "date",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        },
+        {
+          "name": "timezone",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "added_parameter": {
+      "name": "timezone",
+      "kind": "positional_or_keyword",
+      "required": true,
+      "annotation_source": null
+    }
+  },
+  "validation": {
+    "valid": true,
+    "diagnostics": []
+  },
+  "coverage": {
+    "status": "complete",
+    "indexed_modules": 4,
+    "indexed_functions": 4,
+    "files_with_parse_errors": 0,
+    "ambiguous_modules": [],
+    "ambiguous_symbols": []
+  },
+  "summary": {
+    "direct_impact_count": 1,
+    "indirect_1hop_count": 1,
+    "indirect_2hop_count": 1,
+    "manual_review_count": 0,
+    "pre_existing_problem_count": 0,
+    "unresolved_call_count": 0
+  },
+  "direct_impacts": [
+    {
+      "caller_symbol_id": "report.report",
+      "target_symbol_id": "utils.format_date",
+      "file": "report.py",
+      "line": 5,
+      "column": 11,
+      "resolution_basis": "from_import",
+      "before_status": "compatible",
+      "after_status": "incompatible",
+      "before_reason": "当前调用的确定参数可绑定到该签名。",
+      "after_reason": "该签名的必填参数 timezone 未由当前调用提供。",
+      "effect": "direct_impact",
+      "rule_id": "required_parameter_added_breaks_call",
+      "reason": "修改前调用兼容；修改后该签名的必填参数 timezone 未由当前调用提供。",
+      "impact_type": "direct"
+    }
+  ],
+  "indirect_impacts": [
+    {
+      "impacted_symbol_id": "dashboard.dashboard",
+      "impact_type": "indirect_1hop",
+      "graph_distance": 2,
+      "certainty": "needs_review",
+      "reason": "该符号位于确定 Direct Impact 的上游调用路径中，建议检查；静态路径不保证运行时失败。",
+      "sources": [
+        {
+          "direct_call": {
+            "caller_symbol_id": "report.report",
+            "target_symbol_id": "utils.format_date",
+            "file": "report.py",
+            "line": 5,
+            "column": 11,
+            "resolution_basis": "from_import",
+            "before_status": "compatible",
+            "after_status": "incompatible",
+            "before_reason": "当前调用的确定参数可绑定到该签名。",
+            "after_reason": "该签名的必填参数 timezone 未由当前调用提供。",
+            "effect": "direct_impact"
+          },
+          "propagation_path": [
+            {
+              "caller_symbol_id": "dashboard.dashboard",
+              "callee_symbol_id": "report.report",
+              "file": "dashboard.py",
+              "line": 5,
+              "column": 11,
+              "resolution_basis": "from_import"
+            },
+            {
+              "caller_symbol_id": "report.report",
+              "callee_symbol_id": "utils.format_date",
+              "file": "report.py",
+              "line": 5,
+              "column": 11,
+              "resolution_basis": "from_import"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "impacted_symbol_id": "page.page",
+      "impact_type": "indirect_2hop",
+      "graph_distance": 3,
+      "certainty": "needs_review",
+      "reason": "该符号位于确定 Direct Impact 的上游调用路径中，建议检查；静态路径不保证运行时失败。",
+      "sources": [
+        {
+          "direct_call": {
+            "caller_symbol_id": "report.report",
+            "target_symbol_id": "utils.format_date",
+            "file": "report.py",
+            "line": 5,
+            "column": 11,
+            "resolution_basis": "from_import",
+            "before_status": "compatible",
+            "after_status": "incompatible",
+            "before_reason": "当前调用的确定参数可绑定到该签名。",
+            "after_reason": "该签名的必填参数 timezone 未由当前调用提供。",
+            "effect": "direct_impact"
+          },
+          "propagation_path": [
+            {
+              "caller_symbol_id": "page.page",
+              "callee_symbol_id": "dashboard.dashboard",
+              "file": "page.py",
+              "line": 5,
+              "column": 11,
+              "resolution_basis": "from_import"
+            },
+            {
+              "caller_symbol_id": "dashboard.dashboard",
+              "callee_symbol_id": "report.report",
+              "file": "dashboard.py",
+              "line": 5,
+              "column": 11,
+              "resolution_basis": "from_import"
+            },
+            {
+              "caller_symbol_id": "report.report",
+              "callee_symbol_id": "utils.format_date",
+              "file": "report.py",
+              "line": 5,
+              "column": 11,
+              "resolution_basis": "from_import"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "evidences": [
+    {
+      "impact_type": "direct",
+      "target_symbol": "utils.format_date",
+      "location": {
+        "file": "report.py",
+        "line": 5,
+        "column": 11,
+        "end_line": 5
+      },
+      "source_snippet": "    return format_date(date)",
+      "source_hash": "ab026de939a4246934d44df0092ae1a3ffb135e0e8c4521847b12a49f464f386",
+      "rule": "required_parameter_added_breaks_call",
+      "reason": "修改前调用兼容；修改后该签名的必填参数 timezone 未由当前调用提供。",
+      "propagation_path": [],
+      "call_expression": "format_date(date)",
+      "evidence_reference": "call:report.py:5:11",
+      "status": "available",
+      "diagnostics": []
+    },
+    {
+      "impact_type": "indirect_1hop",
+      "target_symbol": "utils.format_date",
+      "location": {
+        "file": "dashboard.py",
+        "line": 5,
+        "column": 11,
+        "end_line": 5
+      },
+      "source_snippet": "    return report(\"2026-10-01\")",
+      "source_hash": "d008b3f3a6eaf65739347e679d42f7f2d0c5a2a93b3946763f5b0aa1f4b523e9",
+      "rule": "resolved_upstream_call_path",
+      "reason": "该符号位于确定 Direct Impact 的上游调用路径中，建议检查；静态路径不保证运行时失败。",
+      "propagation_path": [
+        {
+          "symbols": [
+            "dashboard.dashboard",
+            "report.report",
+            "utils.format_date"
+          ],
+          "call_sites": [
+            {
+              "file": "dashboard.py",
+              "line": 5,
+              "column": 11,
+              "end_line": null
+            },
+            {
+              "file": "report.py",
+              "line": 5,
+              "column": 11,
+              "end_line": null
+            }
+          ],
+          "direct_evidence_reference": "call:report.py:5:11"
+        }
+      ],
+      "call_expression": "report(\"2026-10-01\")",
+      "evidence_reference": "call:report.py:5:11",
+      "status": "available",
+      "diagnostics": []
+    },
+    {
+      "impact_type": "indirect_2hop",
+      "target_symbol": "utils.format_date",
+      "location": {
+        "file": "page.py",
+        "line": 5,
+        "column": 11,
+        "end_line": 5
+      },
+      "source_snippet": "    return dashboard()",
+      "source_hash": "cb61960194c4139315a132bf7c6bce895f885f0f4d5febdf2e4314644d343d96",
+      "rule": "resolved_upstream_call_path",
+      "reason": "该符号位于确定 Direct Impact 的上游调用路径中，建议检查；静态路径不保证运行时失败。",
+      "propagation_path": [
+        {
+          "symbols": [
+            "page.page",
+            "dashboard.dashboard",
+            "report.report",
+            "utils.format_date"
+          ],
+          "call_sites": [
+            {
+              "file": "page.py",
+              "line": 5,
+              "column": 11,
+              "end_line": null
+            },
+            {
+              "file": "dashboard.py",
+              "line": 5,
+              "column": 11,
+              "end_line": null
+            },
+            {
+              "file": "report.py",
+              "line": 5,
+              "column": 11,
+              "end_line": null
+            }
+          ],
+          "direct_evidence_reference": "call:report.py:5:11"
+        }
+      ],
+      "call_expression": "dashboard()",
+      "evidence_reference": "call:report.py:5:11",
+      "status": "available",
+      "diagnostics": []
+    }
+  ],
+  "explanations": [
+    {
+      "evidence": {
+        "impact_type": "direct",
+        "target_symbol": "utils.format_date",
+        "location": {
+          "file": "report.py",
+          "line": 5,
+          "column": 11,
+          "end_line": 5
+        },
+        "source_snippet": "    return format_date(date)",
+        "source_hash": "ab026de939a4246934d44df0092ae1a3ffb135e0e8c4521847b12a49f464f386",
+        "rule": "required_parameter_added_breaks_call",
+        "reason": "修改前调用兼容；修改后该签名的必填参数 timezone 未由当前调用提供。",
+        "propagation_path": [],
+        "call_expression": "format_date(date)",
+        "evidence_reference": "call:report.py:5:11",
+        "status": "available",
+        "diagnostics": []
+      },
+      "explanation": {
+        "summary": "report.py:5 对 utils.format_date 的调用因本次变更已确定不兼容。",
+        "why_affected": "变更：utils.format_date 新增必填参数 timezone（positional_or_keyword）。源码：return format_date(date)。规则 required_parameter_added_breaks_call：修改前调用兼容；修改后该签名的必填参数 timezone 未由当前调用提供。",
+        "risk_level": "unknown",
+        "suggested_check": "检查 report.py:5 的调用参数，并在修改后运行相关测试。",
+        "confidence": 1.0
+      },
+      "diagnostics": []
+    },
+    {
+      "evidence": {
+        "impact_type": "indirect_1hop",
+        "target_symbol": "utils.format_date",
+        "location": {
+          "file": "dashboard.py",
+          "line": 5,
+          "column": 11,
+          "end_line": 5
+        },
+        "source_snippet": "    return report(\"2026-10-01\")",
+        "source_hash": "d008b3f3a6eaf65739347e679d42f7f2d0c5a2a93b3946763f5b0aa1f4b523e9",
+        "rule": "resolved_upstream_call_path",
+        "reason": "该符号位于确定 Direct Impact 的上游调用路径中，建议检查；静态路径不保证运行时失败。",
+        "propagation_path": [
+          {
+            "symbols": [
+              "dashboard.dashboard",
+              "report.report",
+              "utils.format_date"
+            ],
+            "call_sites": [
+              {
+                "file": "dashboard.py",
+                "line": 5,
+                "column": 11,
+                "end_line": null
+              },
+              {
+                "file": "report.py",
+                "line": 5,
+                "column": 11,
+                "end_line": null
+              }
+            ],
+            "direct_evidence_reference": "call:report.py:5:11"
+          }
+        ],
+        "call_expression": "report(\"2026-10-01\")",
+        "evidence_reference": "call:report.py:5:11",
+        "status": "available",
+        "diagnostics": []
+      },
+      "explanation": {
+        "summary": "dashboard.py:5 位于 utils.format_date 的上游调用路径，建议检查。",
+        "why_affected": "变更：utils.format_date 新增必填参数 timezone（positional_or_keyword）。源码：return report(\"2026-10-01\")。规则 resolved_upstream_call_path：该符号位于确定 Direct Impact 的上游调用路径中，建议检查；静态路径不保证运行时失败。 路径：dashboard.dashboard → report.report → utils.format_date。静态路径不保证运行时失败。",
+        "risk_level": "unknown",
+        "suggested_check": "沿上游路径检查 dashboard.py:5 的调用及相关测试。",
+        "confidence": 1.0
+      },
+      "diagnostics": []
+    },
+    {
+      "evidence": {
+        "impact_type": "indirect_2hop",
+        "target_symbol": "utils.format_date",
+        "location": {
+          "file": "page.py",
+          "line": 5,
+          "column": 11,
+          "end_line": 5
+        },
+        "source_snippet": "    return dashboard()",
+        "source_hash": "cb61960194c4139315a132bf7c6bce895f885f0f4d5febdf2e4314644d343d96",
+        "rule": "resolved_upstream_call_path",
+        "reason": "该符号位于确定 Direct Impact 的上游调用路径中，建议检查；静态路径不保证运行时失败。",
+        "propagation_path": [
+          {
+            "symbols": [
+              "page.page",
+              "dashboard.dashboard",
+              "report.report",
+              "utils.format_date"
+            ],
+            "call_sites": [
+              {
+                "file": "page.py",
+                "line": 5,
+                "column": 11,
+                "end_line": null
+              },
+              {
+                "file": "dashboard.py",
+                "line": 5,
+                "column": 11,
+                "end_line": null
+              },
+              {
+                "file": "report.py",
+                "line": 5,
+                "column": 11,
+                "end_line": null
+              }
+            ],
+            "direct_evidence_reference": "call:report.py:5:11"
+          }
+        ],
+        "call_expression": "dashboard()",
+        "evidence_reference": "call:report.py:5:11",
+        "status": "available",
+        "diagnostics": []
+      },
+      "explanation": {
+        "summary": "page.py:5 位于 utils.format_date 的上游调用路径，建议检查。",
+        "why_affected": "变更：utils.format_date 新增必填参数 timezone（positional_or_keyword）。源码：return dashboard()。规则 resolved_upstream_call_path：该符号位于确定 Direct Impact 的上游调用路径中，建议检查；静态路径不保证运行时失败。 路径：page.page → dashboard.dashboard → report.report → utils.format_date。静态路径不保证运行时失败。",
+        "risk_level": "unknown",
+        "suggested_check": "沿上游路径检查 page.py:5 的调用及相关测试。",
+        "confidence": 1.0
+      },
+      "diagnostics": []
+    }
+  ],
+  "manual_reviews": [],
+  "pre_existing_problems": [],
+  "diagnostics": {
+    "parse_errors": [],
+    "unresolved_calls": [],
+    "unresolved_imports": []
+  }
+}
