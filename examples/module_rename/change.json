@@ -1,0 +1,6 @@
+{
+  "change_domain": "module",
+  "change_type": "rename_module",
+  "target_module_id": "utils",
+  "new_module_name": "formatting"
+}

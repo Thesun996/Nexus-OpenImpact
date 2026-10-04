@@ -1,0 +1,168 @@
+{
+  "module_inventory": {
+    "analysis_scope": "project_root_static",
+    "modules": [
+      {
+        "module_id": "dashboard",
+        "file": "dashboard.py",
+        "source_hash": "2559ba1de2940c23be98ee49b94689003eb5313020ea315145a7d32c8d2d841a",
+        "parse_status": "ok",
+        "selectable": true,
+        "reason": null,
+        "kind": "module"
+      },
+      {
+        "module_id": "page",
+        "file": "page.py",
+        "source_hash": "1443bfa22054bc5ca244f822ab24983d89ea75c32737fe9e3264ca442b0b40db",
+        "parse_status": "ok",
+        "selectable": true,
+        "reason": null,
+        "kind": "module"
+      },
+      {
+        "module_id": "report",
+        "file": "report.py",
+        "source_hash": "ab026de939a4246934d44df0092ae1a3ffb135e0e8c4521847b12a49f464f386",
+        "parse_status": "ok",
+        "selectable": true,
+        "reason": null,
+        "kind": "module"
+      },
+      {
+        "module_id": "utils",
+        "file": "utils.py",
+        "source_hash": "8dbb9738baae44ce8a0499b92f22e11d4cd81259a492b91357126f601ece2298",
+        "parse_status": "ok",
+        "selectable": true,
+        "reason": null,
+        "kind": "module"
+      }
+    ],
+    "occupied_names": [
+      "change.json",
+      "dashboard",
+      "page",
+      "report",
+      "utils"
+    ]
+  },
+  "module_coverage": {
+    "status": "complete",
+    "analysis_scope": "project_root_static",
+    "python_files": 4,
+    "supported_modules": 4,
+    "message": "已覆盖项目根下受支持的静态导入；不模拟运行时路径、外部同名提供者或初始化执行。"
+  },
+  "module_diagnostics": {
+    "parse_errors": [],
+    "import_diagnostics": [],
+    "unsupported_modules": [],
+    "unresolved_imports": [],
+    "manual_review_imports": []
+  },
+  "project_name": "module_rename",
+  "project_fingerprint": "07d0d0d7059d4eeb961567d40c95de4f3a0b7f0739da57aab04cad503c5943a5",
+  "source_root": null,
+  "modules": [
+    {
+      "module": "dashboard",
+      "file": "dashboard.py",
+      "parse_status": "ok"
+    },
+    {
+      "module": "page",
+      "file": "page.py",
+      "parse_status": "ok"
+    },
+    {
+      "module": "report",
+      "file": "report.py",
+      "parse_status": "ok"
+    },
+    {
+      "module": "utils",
+      "file": "utils.py",
+      "parse_status": "ok"
+    }
+  ],
+  "symbols": [
+    {
+      "symbol_id": "dashboard.dashboard",
+      "module": "dashboard",
+      "file": "dashboard.py",
+      "name": "dashboard",
+      "line": 4,
+      "parameters": [
+        {
+          "name": "date",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ]
+    },
+    {
+      "symbol_id": "page.page",
+      "module": "page",
+      "file": "page.py",
+      "name": "page",
+      "line": 4,
+      "parameters": [
+        {
+          "name": "date",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ]
+    },
+    {
+      "symbol_id": "report.report",
+      "module": "report",
+      "file": "report.py",
+      "name": "report",
+      "line": 4,
+      "parameters": [
+        {
+          "name": "date",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ]
+    },
+    {
+      "symbol_id": "utils.format_date",
+      "module": "utils",
+      "file": "utils.py",
+      "name": "format_date",
+      "line": 1,
+      "parameters": [
+        {
+          "name": "date",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ]
+    }
+  ],
+  "coverage": {
+    "status": "complete",
+    "python_files": 4,
+    "indexed_modules": 4,
+    "indexed_functions": 4,
+    "files_with_parse_errors": 0
+  },
+  "diagnostics": {
+    "parse_errors": [],
+    "unresolved_imports": [],
+    "ambiguous_modules": [],
+    "ambiguous_symbols": []
+  }
+}

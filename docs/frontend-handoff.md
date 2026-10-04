@@ -378,3 +378,8 @@ Web MVP 准备核查（2026-10-03）运行这三个相关测试文件，实际�
 另在独立后端子进程完成真实 HTTP 核查：500 为 application/json，响应体完整 **87 字节**，error.code=internal_error；原 TCP 连接随后收到 **EOF**，后端进程及服务线程继续运行。新连接 health=200，Inspect → Validate → Analyze 均为 200；同一 ZIP 指纹校验正常，Direct / 1-hop / 2-hop 各为 1、coverage=complete，三组证据与解释对应；包括失败请求在内的 **4 个临时目录全部清理**。使用 rule 并阻止外部模型请求，没有真实 DeepSeek 调用。
 
 上述关闭行为针对进入全局异常处理器的未捕获异常；路由自行捕获并返回的 analysis_failed 等 500 不必具有相同连接行为。前端应按已有契约展示错误或网络失败，允许用户重新发起操作，不依赖同一 TCP 连接永久存在，也不以无条件重试掩盖错误。本次连接生命周期问题已定位并通过回归；React Origin / 代理与成员交付版本仍待确认，实际浏览器验收继续按清单执行。
+
+
+## V1.1 多领域页面接入
+
+目标选择页支持 Function / Module。模块使用独立候选、草稿与报告，保留原 ZIP / fingerprint / revision / AbortController。Module Report 按 domain、kind、version 分发，不能按函数报告解释导入统计。详见 [模块变更契约及真实响应](module-changes.md)。

@@ -50,7 +50,7 @@ export default function AppShell({ page, navigate, children }) {
               aria-current={page === item.page ? 'page' : undefined} href={`#${item.page}`}
               onClick={(event) => handleNavigation(event, item.page)}>
               <span className="oi-nav-number" aria-hidden="true">{index + 1}</span>
-              <span>{item.label}</span>
+              <span>{item.page === 'functions' && state.changeDomain === 'module' ? '选择模块' : item.label}</span>
             </a>
           ))}
           <MovingMarker containerRef={navRef} selector=".is-current" identity={page} className="oi-step-marker" />
@@ -82,7 +82,7 @@ export default function AppShell({ page, navigate, children }) {
         <div className={`oi-session-strip ${isDemo ? 'is-demo' : ''}`} role="status">
           <strong>{isDemo ? '演示记录' : '实际项目'}</strong>
           <span>{isDemo ? '固定样例，未请求真实分析接口。' : '原始 ZIP 保留在当前会话，刷新后需要重新选择。'}</span>
-          <span className="oi-session-scope">Python / 模块级函数 / 四种签名变更</span>
+          <span className="oi-session-scope">{state.changeDomain === 'module' ? 'Python / 根模块 / 静态导入变更' : 'Python / 模块级函数 / 四种签名变更'}</span>
         </div>
         <main id="oi-main" tabIndex={-1} className="content workflow-content oi-content">{children}</main>
       </section>

@@ -1,0 +1,767 @@
+{
+  "inspect": {
+    "module_inventory": {
+      "analysis_scope": "project_root_static",
+      "modules": [
+        {
+          "module_id": "dashboard",
+          "file": "dashboard.py",
+          "source_hash": "2559ba1de2940c23be98ee49b94689003eb5313020ea315145a7d32c8d2d841a",
+          "parse_status": "ok",
+          "selectable": true,
+          "reason": null,
+          "kind": "module"
+        },
+        {
+          "module_id": "page",
+          "file": "page.py",
+          "source_hash": "1443bfa22054bc5ca244f822ab24983d89ea75c32737fe9e3264ca442b0b40db",
+          "parse_status": "ok",
+          "selectable": true,
+          "reason": null,
+          "kind": "module"
+        },
+        {
+          "module_id": "report",
+          "file": "report.py",
+          "source_hash": "ab026de939a4246934d44df0092ae1a3ffb135e0e8c4521847b12a49f464f386",
+          "parse_status": "ok",
+          "selectable": true,
+          "reason": null,
+          "kind": "module"
+        },
+        {
+          "module_id": "utils",
+          "file": "utils.py",
+          "source_hash": "8dbb9738baae44ce8a0499b92f22e11d4cd81259a492b91357126f601ece2298",
+          "parse_status": "ok",
+          "selectable": true,
+          "reason": null,
+          "kind": "module"
+        }
+      ],
+      "occupied_names": [
+        "change.json",
+        "dashboard",
+        "page",
+        "report",
+        "utils"
+      ]
+    },
+    "module_coverage": {
+      "status": "complete",
+      "analysis_scope": "project_root_static",
+      "python_files": 4,
+      "supported_modules": 4,
+      "message": "已覆盖项目根下受支持的静态导入；不模拟运行时路径、外部同名提供者或初始化执行。"
+    },
+    "module_diagnostics": {
+      "parse_errors": [],
+      "import_diagnostics": [],
+      "unsupported_modules": [],
+      "unresolved_imports": [],
+      "manual_review_imports": []
+    },
+    "project_name": "module_rename",
+    "project_fingerprint": "07d0d0d7059d4eeb961567d40c95de4f3a0b7f0739da57aab04cad503c5943a5",
+    "source_root": null,
+    "modules": [
+      {
+        "module": "dashboard",
+        "file": "dashboard.py",
+        "parse_status": "ok"
+      },
+      {
+        "module": "page",
+        "file": "page.py",
+        "parse_status": "ok"
+      },
+      {
+        "module": "report",
+        "file": "report.py",
+        "parse_status": "ok"
+      },
+      {
+        "module": "utils",
+        "file": "utils.py",
+        "parse_status": "ok"
+      }
+    ],
+    "symbols": [
+      {
+        "symbol_id": "dashboard.dashboard",
+        "module": "dashboard",
+        "file": "dashboard.py",
+        "name": "dashboard",
+        "line": 4,
+        "parameters": [
+          {
+            "name": "date",
+            "kind": "positional_or_keyword",
+            "has_default": false,
+            "default_source": null,
+            "annotation_source": null
+          }
+        ]
+      },
+      {
+        "symbol_id": "page.page",
+        "module": "page",
+        "file": "page.py",
+        "name": "page",
+        "line": 4,
+        "parameters": [
+          {
+            "name": "date",
+            "kind": "positional_or_keyword",
+            "has_default": false,
+            "default_source": null,
+            "annotation_source": null
+          }
+        ]
+      },
+      {
+        "symbol_id": "report.report",
+        "module": "report",
+        "file": "report.py",
+        "name": "report",
+        "line": 4,
+        "parameters": [
+          {
+            "name": "date",
+            "kind": "positional_or_keyword",
+            "has_default": false,
+            "default_source": null,
+            "annotation_source": null
+          }
+        ]
+      },
+      {
+        "symbol_id": "utils.format_date",
+        "module": "utils",
+        "file": "utils.py",
+        "name": "format_date",
+        "line": 1,
+        "parameters": [
+          {
+            "name": "date",
+            "kind": "positional_or_keyword",
+            "has_default": false,
+            "default_source": null,
+            "annotation_source": null
+          }
+        ]
+      }
+    ],
+    "coverage": {
+      "status": "complete",
+      "python_files": 4,
+      "indexed_modules": 4,
+      "indexed_functions": 4,
+      "files_with_parse_errors": 0
+    },
+    "diagnostics": {
+      "parse_errors": [],
+      "unresolved_imports": [],
+      "ambiguous_modules": [],
+      "ambiguous_symbols": []
+    }
+  },
+  "validation": {
+    "change_domain": "module",
+    "project_name": "module_rename",
+    "project_fingerprint": "07d0d0d7059d4eeb961567d40c95de4f3a0b7f0739da57aab04cad503c5943a5",
+    "coverage": {
+      "status": "complete",
+      "analysis_scope": "project_root_static",
+      "python_files": 4,
+      "supported_modules": 4,
+      "message": "已覆盖项目根下受支持的静态导入；不模拟运行时路径、外部同名提供者或初始化执行。"
+    },
+    "change_spec": {
+      "change_domain": "module",
+      "change_type": "rename_module",
+      "target_module_id": "utils",
+      "operation": {
+        "new_module_name": "formatting",
+        "change_type": "rename_module"
+      },
+      "before": {
+        "module_id": "utils",
+        "file": "utils.py",
+        "source_hash": "8dbb9738baae44ce8a0499b92f22e11d4cd81259a492b91357126f601ece2298",
+        "parse_status": "ok",
+        "selectable": true,
+        "reason": null,
+        "kind": "module"
+      },
+      "after": {
+        "module_id": "formatting",
+        "file": "formatting.py"
+      },
+      "analysis_scope": "project_root_static",
+      "modifies_source": false
+    },
+    "validation": {
+      "valid": true,
+      "diagnostics": []
+    },
+    "diagnostics": {
+      "parse_errors": [],
+      "import_diagnostics": [],
+      "unsupported_modules": [],
+      "unresolved_imports": [],
+      "manual_review_imports": []
+    }
+  },
+  "report": {
+    "report_kind": "module_impact",
+    "schema_version": 1,
+    "change_domain": "module",
+    "change": {
+      "change_domain": "module",
+      "change_type": "rename_module",
+      "target_module_id": "utils",
+      "operation": {
+        "new_module_name": "formatting",
+        "change_type": "rename_module"
+      },
+      "before": {
+        "module_id": "utils",
+        "file": "utils.py",
+        "source_hash": "8dbb9738baae44ce8a0499b92f22e11d4cd81259a492b91357126f601ece2298",
+        "parse_status": "ok",
+        "selectable": true,
+        "reason": null,
+        "kind": "module"
+      },
+      "after": {
+        "module_id": "formatting",
+        "file": "formatting.py"
+      },
+      "analysis_scope": "project_root_static",
+      "modifies_source": false
+    },
+    "validation": {
+      "valid": true,
+      "diagnostics": []
+    },
+    "summary": {
+      "direct_import_count": 1,
+      "indirect_1hop_module_count": 1,
+      "indirect_2hop_module_count": 1,
+      "manual_review_count": 0,
+      "unresolved_import_count": 0
+    },
+    "counting_units": {
+      "direct": "import_reference",
+      "indirect": "unique_upstream_module"
+    },
+    "coverage": {
+      "status": "complete",
+      "analysis_scope": "project_root_static",
+      "python_files": 4,
+      "supported_modules": 4,
+      "message": "已覆盖项目根下受支持的静态导入；不模拟运行时路径、外部同名提供者或初始化执行。"
+    },
+    "diagnostics": {
+      "parse_errors": [],
+      "import_diagnostics": [],
+      "unsupported_modules": [],
+      "unresolved_imports": [],
+      "manual_review_imports": []
+    },
+    "import_assessments": [
+      {
+        "reference_id": "import:cc80b649fdc621c66619e046",
+        "before": {
+          "reference_id": "import:cc80b649fdc621c66619e046",
+          "source_module": "dashboard",
+          "location": {
+            "file": "dashboard.py",
+            "line": 1,
+            "column": 0,
+            "end_line": 1,
+            "end_column": 25,
+            "reference_id": "import:cc80b649fdc621c66619e046"
+          },
+          "import_type": "from_import",
+          "declared_module": "report",
+          "imported_name": "report",
+          "alias": null,
+          "level": 0,
+          "import_expression": "from report import report",
+          "scope": "top_level",
+          "status": "resolved_project",
+          "target_module_id": "report",
+          "reason": "unique_project_root_module"
+        },
+        "after": {
+          "reference_id": "import:cc80b649fdc621c66619e046",
+          "source_module": "dashboard",
+          "location": {
+            "file": "dashboard.py",
+            "line": 1,
+            "column": 0,
+            "end_line": 1,
+            "end_column": 25,
+            "reference_id": "import:cc80b649fdc621c66619e046"
+          },
+          "import_type": "from_import",
+          "declared_module": "report",
+          "imported_name": "report",
+          "alias": null,
+          "level": 0,
+          "import_expression": "from report import report",
+          "scope": "top_level",
+          "status": "resolved_project",
+          "target_module_id": "report",
+          "reason": "unique_project_root_module"
+        },
+        "effect": "no_impact",
+        "reason": "此导入仍绑定同一受支持的项目模块。"
+      },
+      {
+        "reference_id": "import:c4ab99d397f20dc4e1d757cb",
+        "before": {
+          "reference_id": "import:c4ab99d397f20dc4e1d757cb",
+          "source_module": "page",
+          "location": {
+            "file": "page.py",
+            "line": 1,
+            "column": 0,
+            "end_line": 1,
+            "end_column": 31,
+            "reference_id": "import:c4ab99d397f20dc4e1d757cb"
+          },
+          "import_type": "from_import",
+          "declared_module": "dashboard",
+          "imported_name": "dashboard",
+          "alias": null,
+          "level": 0,
+          "import_expression": "from dashboard import dashboard",
+          "scope": "top_level",
+          "status": "resolved_project",
+          "target_module_id": "dashboard",
+          "reason": "unique_project_root_module"
+        },
+        "after": {
+          "reference_id": "import:c4ab99d397f20dc4e1d757cb",
+          "source_module": "page",
+          "location": {
+            "file": "page.py",
+            "line": 1,
+            "column": 0,
+            "end_line": 1,
+            "end_column": 31,
+            "reference_id": "import:c4ab99d397f20dc4e1d757cb"
+          },
+          "import_type": "from_import",
+          "declared_module": "dashboard",
+          "imported_name": "dashboard",
+          "alias": null,
+          "level": 0,
+          "import_expression": "from dashboard import dashboard",
+          "scope": "top_level",
+          "status": "resolved_project",
+          "target_module_id": "dashboard",
+          "reason": "unique_project_root_module"
+        },
+        "effect": "no_impact",
+        "reason": "此导入仍绑定同一受支持的项目模块。"
+      },
+      {
+        "reference_id": "import:f364600db033a5eba757c5c7",
+        "before": {
+          "reference_id": "import:f364600db033a5eba757c5c7",
+          "source_module": "report",
+          "location": {
+            "file": "report.py",
+            "line": 1,
+            "column": 0,
+            "end_line": 1,
+            "end_column": 29,
+            "reference_id": "import:f364600db033a5eba757c5c7"
+          },
+          "import_type": "from_import",
+          "declared_module": "utils",
+          "imported_name": "format_date",
+          "alias": null,
+          "level": 0,
+          "import_expression": "from utils import format_date",
+          "scope": "top_level",
+          "status": "resolved_project",
+          "target_module_id": "utils",
+          "reason": "unique_project_root_module"
+        },
+        "after": {
+          "reference_id": "import:f364600db033a5eba757c5c7",
+          "source_module": "report",
+          "location": {
+            "file": "report.py",
+            "line": 1,
+            "column": 0,
+            "end_line": 1,
+            "end_column": 29,
+            "reference_id": "import:f364600db033a5eba757c5c7"
+          },
+          "import_type": "from_import",
+          "declared_module": "utils",
+          "imported_name": "format_date",
+          "alias": null,
+          "level": 0,
+          "import_expression": "from utils import format_date",
+          "scope": "top_level",
+          "status": "unresolved",
+          "target_module_id": null,
+          "reason": "module_not_in_project"
+        },
+        "effect": "direct_import_impact",
+        "reason": "此导入原来唯一绑定到项目模块 utils；拟重命名为 formatting 后，旧项目模块名称不再提供，原导入引用发生静态断裂。此结论限定项目根静态解析，不保证运行时失败。"
+      }
+    ],
+    "import_impacts": [
+      {
+        "finding_id": "module-direct:ec4de12f1c76:import:f364600db033a5eba757c5c7",
+        "impact_type": "direct_import",
+        "target_module_id": "utils",
+        "impacted_module_id": "report",
+        "reference_id": "import:f364600db033a5eba757c5c7",
+        "location": {
+          "file": "report.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 29,
+          "reference_id": "import:f364600db033a5eba757c5c7"
+        },
+        "before_resolution": {
+          "reference_id": "import:f364600db033a5eba757c5c7",
+          "source_module": "report",
+          "location": {
+            "file": "report.py",
+            "line": 1,
+            "column": 0,
+            "end_line": 1,
+            "end_column": 29,
+            "reference_id": "import:f364600db033a5eba757c5c7"
+          },
+          "import_type": "from_import",
+          "declared_module": "utils",
+          "imported_name": "format_date",
+          "alias": null,
+          "level": 0,
+          "import_expression": "from utils import format_date",
+          "scope": "top_level",
+          "status": "resolved_project",
+          "target_module_id": "utils",
+          "reason": "unique_project_root_module"
+        },
+        "after_resolution": {
+          "reference_id": "import:f364600db033a5eba757c5c7",
+          "source_module": "report",
+          "location": {
+            "file": "report.py",
+            "line": 1,
+            "column": 0,
+            "end_line": 1,
+            "end_column": 29,
+            "reference_id": "import:f364600db033a5eba757c5c7"
+          },
+          "import_type": "from_import",
+          "declared_module": "utils",
+          "imported_name": "format_date",
+          "alias": null,
+          "level": 0,
+          "import_expression": "from utils import format_date",
+          "scope": "top_level",
+          "status": "unresolved",
+          "target_module_id": null,
+          "reason": "module_not_in_project"
+        },
+        "certainty": "definite_project_reference_break",
+        "rule": "module_renamed_breaks_project_import",
+        "reason": "此导入原来唯一绑定到项目模块 utils；拟重命名为 formatting 后，旧项目模块名称不再提供，原导入引用发生静态断裂。此结论限定项目根静态解析，不保证运行时失败。"
+      }
+    ],
+    "module_indirect_impacts": [
+      {
+        "finding_id": "module-indirect:dashboard",
+        "impact_type": "indirect_1hop",
+        "impacted_module_id": "dashboard",
+        "target_module_id": "utils",
+        "hop": 1,
+        "graph_distance": 2,
+        "certainty": "needs_review",
+        "reason": "此模块位于确定导入引用影响的上游静态依赖路径中，建议检查；路径不保证运行时执行或失败。",
+        "source_direct_impacts": [
+          "module-direct:ec4de12f1c76:import:f364600db033a5eba757c5c7"
+        ],
+        "propagation_path": [
+          {
+            "modules": [
+              "dashboard",
+              "report",
+              "utils"
+            ],
+            "import_sites": [
+              {
+                "file": "dashboard.py",
+                "line": 1,
+                "column": 0,
+                "end_line": 1,
+                "end_column": 25,
+                "reference_id": "import:cc80b649fdc621c66619e046"
+              },
+              {
+                "file": "report.py",
+                "line": 1,
+                "column": 0,
+                "end_line": 1,
+                "end_column": 29,
+                "reference_id": "import:f364600db033a5eba757c5c7"
+              }
+            ],
+            "source_direct_impact": "module-direct:ec4de12f1c76:import:f364600db033a5eba757c5c7"
+          }
+        ]
+      },
+      {
+        "finding_id": "module-indirect:page",
+        "impact_type": "indirect_2hop",
+        "impacted_module_id": "page",
+        "target_module_id": "utils",
+        "hop": 2,
+        "graph_distance": 3,
+        "certainty": "needs_review",
+        "reason": "此模块位于确定导入引用影响的上游静态依赖路径中，建议检查；路径不保证运行时执行或失败。",
+        "source_direct_impacts": [
+          "module-direct:ec4de12f1c76:import:f364600db033a5eba757c5c7"
+        ],
+        "propagation_path": [
+          {
+            "modules": [
+              "page",
+              "dashboard",
+              "report",
+              "utils"
+            ],
+            "import_sites": [
+              {
+                "file": "page.py",
+                "line": 1,
+                "column": 0,
+                "end_line": 1,
+                "end_column": 31,
+                "reference_id": "import:c4ab99d397f20dc4e1d757cb"
+              },
+              {
+                "file": "dashboard.py",
+                "line": 1,
+                "column": 0,
+                "end_line": 1,
+                "end_column": 25,
+                "reference_id": "import:cc80b649fdc621c66619e046"
+              },
+              {
+                "file": "report.py",
+                "line": 1,
+                "column": 0,
+                "end_line": 1,
+                "end_column": 29,
+                "reference_id": "import:f364600db033a5eba757c5c7"
+              }
+            ],
+            "source_direct_impact": "module-direct:ec4de12f1c76:import:f364600db033a5eba757c5c7"
+          }
+        ]
+      }
+    ],
+    "evidences": [
+      {
+        "evidence_reference": "module-direct:ec4de12f1c76:import:f364600db033a5eba757c5c7",
+        "impact_type": "direct_import",
+        "target_module_id": "utils",
+        "location": {
+          "file": "report.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 29,
+          "reference_id": "import:f364600db033a5eba757c5c7"
+        },
+        "source_snippet": "from utils import format_date",
+        "source_hash": "ab026de939a4246934d44df0092ae1a3ffb135e0e8c4521847b12a49f464f386",
+        "import_expression": "from utils import format_date",
+        "rule": "module_renamed_breaks_project_import",
+        "reason": "此导入原来唯一绑定到项目模块 utils；拟重命名为 formatting 后，旧项目模块名称不再提供，原导入引用发生静态断裂。此结论限定项目根静态解析，不保证运行时失败。",
+        "propagation_path": [
+          {
+            "modules": [
+              "report",
+              "utils"
+            ],
+            "import_sites": [
+              {
+                "file": "report.py",
+                "line": 1,
+                "column": 0,
+                "end_line": 1,
+                "end_column": 29,
+                "reference_id": "import:f364600db033a5eba757c5c7"
+              }
+            ],
+            "source_direct_impact": "module-direct:ec4de12f1c76:import:f364600db033a5eba757c5c7"
+          }
+        ],
+        "status": "available",
+        "diagnostics": []
+      },
+      {
+        "evidence_reference": "module-indirect:dashboard",
+        "impact_type": "indirect_1hop",
+        "target_module_id": "utils",
+        "location": {
+          "file": "dashboard.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 25,
+          "reference_id": "import:cc80b649fdc621c66619e046"
+        },
+        "source_snippet": "from report import report",
+        "source_hash": "2559ba1de2940c23be98ee49b94689003eb5313020ea315145a7d32c8d2d841a",
+        "import_expression": "from report import report",
+        "rule": "resolved_upstream_module_path",
+        "reason": "此模块位于确定导入引用影响的上游静态依赖路径中，建议检查；路径不保证运行时执行或失败。",
+        "propagation_path": [
+          {
+            "modules": [
+              "dashboard",
+              "report",
+              "utils"
+            ],
+            "import_sites": [
+              {
+                "file": "dashboard.py",
+                "line": 1,
+                "column": 0,
+                "end_line": 1,
+                "end_column": 25,
+                "reference_id": "import:cc80b649fdc621c66619e046"
+              },
+              {
+                "file": "report.py",
+                "line": 1,
+                "column": 0,
+                "end_line": 1,
+                "end_column": 29,
+                "reference_id": "import:f364600db033a5eba757c5c7"
+              }
+            ],
+            "source_direct_impact": "module-direct:ec4de12f1c76:import:f364600db033a5eba757c5c7"
+          }
+        ],
+        "status": "available",
+        "diagnostics": []
+      },
+      {
+        "evidence_reference": "module-indirect:page",
+        "impact_type": "indirect_2hop",
+        "target_module_id": "utils",
+        "location": {
+          "file": "page.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 31,
+          "reference_id": "import:c4ab99d397f20dc4e1d757cb"
+        },
+        "source_snippet": "from dashboard import dashboard",
+        "source_hash": "1443bfa22054bc5ca244f822ab24983d89ea75c32737fe9e3264ca442b0b40db",
+        "import_expression": "from dashboard import dashboard",
+        "rule": "resolved_upstream_module_path",
+        "reason": "此模块位于确定导入引用影响的上游静态依赖路径中，建议检查；路径不保证运行时执行或失败。",
+        "propagation_path": [
+          {
+            "modules": [
+              "page",
+              "dashboard",
+              "report",
+              "utils"
+            ],
+            "import_sites": [
+              {
+                "file": "page.py",
+                "line": 1,
+                "column": 0,
+                "end_line": 1,
+                "end_column": 31,
+                "reference_id": "import:c4ab99d397f20dc4e1d757cb"
+              },
+              {
+                "file": "dashboard.py",
+                "line": 1,
+                "column": 0,
+                "end_line": 1,
+                "end_column": 25,
+                "reference_id": "import:cc80b649fdc621c66619e046"
+              },
+              {
+                "file": "report.py",
+                "line": 1,
+                "column": 0,
+                "end_line": 1,
+                "end_column": 29,
+                "reference_id": "import:f364600db033a5eba757c5c7"
+              }
+            ],
+            "source_direct_impact": "module-direct:ec4de12f1c76:import:f364600db033a5eba757c5c7"
+          }
+        ],
+        "status": "available",
+        "diagnostics": []
+      }
+    ],
+    "explanations": [
+      {
+        "evidence_reference": "module-direct:ec4de12f1c76:import:f364600db033a5eba757c5c7",
+        "provider": "rule",
+        "status": "available",
+        "explanation": {
+          "summary": "report.py:1 的项目内导入引用因拟定模块变更发生静态断裂。",
+          "why_affected": "此导入原来唯一绑定到项目模块 utils；拟重命名为 formatting 后，旧项目模块名称不再提供，原导入引用发生静态断裂。此结论限定项目根静态解析，不保证运行时失败。 源码：from utils import format_date。依赖路径：report → utils。",
+          "risk_level": "unknown",
+          "suggested_check": "核对 report.py:1 的模块引用及兼容安排，在实际改动后自行执行相关测试。",
+          "confidence": 1.0
+        }
+      },
+      {
+        "evidence_reference": "module-indirect:dashboard",
+        "provider": "rule",
+        "status": "available",
+        "explanation": {
+          "summary": "dashboard.py:1 位于 utils 的上游模块依赖路径，建议检查。",
+          "why_affected": "此模块位于确定导入引用影响的上游静态依赖路径中，建议检查；路径不保证运行时执行或失败。 源码：from report import report。依赖路径：dashboard → report → utils。",
+          "risk_level": "unknown",
+          "suggested_check": "核对 dashboard.py:1 的模块引用及兼容安排，在实际改动后自行执行相关测试。",
+          "confidence": 1.0
+        }
+      },
+      {
+        "evidence_reference": "module-indirect:page",
+        "provider": "rule",
+        "status": "available",
+        "explanation": {
+          "summary": "page.py:1 位于 utils 的上游模块依赖路径，建议检查。",
+          "why_affected": "此模块位于确定导入引用影响的上游静态依赖路径中，建议检查；路径不保证运行时执行或失败。 源码：from dashboard import dashboard。依赖路径：page → dashboard → report → utils。",
+          "risk_level": "unknown",
+          "suggested_check": "核对 page.py:1 的模块引用及兼容安排，在实际改动后自行执行相关测试。",
+          "confidence": 1.0
+        }
+      }
+    ],
+    "project_fingerprint": "07d0d0d7059d4eeb961567d40c95de4f3a0b7f0739da57aab04cad503c5943a5",
+    "project_name": "module_rename"
+  }
+}

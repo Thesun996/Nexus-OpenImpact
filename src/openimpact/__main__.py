@@ -8,6 +8,13 @@ from pathlib import Path
 from openimpact.analysis.change_file import ChangeFileError, load_change_spec
 from openimpact.analysis.pipeline import analyze_project
 from openimpact.analysis.report import build_report, render_chinese_report
+from openimpact.analysis.change_domain import read_cli_domain
+from openimpact.analysis.module_change import ModuleChangeError, build_module_change
+from openimpact.analysis.module_facts import ModuleInventory
+from openimpact.analysis.module_pipeline import analyze_module_project
+from openimpact.analysis.module_report import build_module_report, render_module_report
+from openimpact.analysis.symbol_index import SymbolIndex
+from openimpact.api_change import ChangeConfigError
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -21,9 +28,17 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
+        domain, config = read_cli_domain(args.change)
+        if domain == "module":
+            index = SymbolIndex(args.project_path).build()
+            inventory = ModuleInventory.from_index(index)
+            spec = build_module_change(inventory, config)
+            report = build_module_report(analyze_module_project(index, spec, inventory))
+            print(json.dumps(report, ensure_ascii=False, indent=2) if args.format == "json" else render_module_report(report))
+            return 0
         spec = load_change_spec(args.change)
         run = analyze_project(args.project_path, spec)
-    except (ChangeFileError, OSError) as error:
+    except (ChangeFileError, ChangeConfigError, ModuleChangeError, OSError, UnicodeError) as error:
         print(f"OpenImpact 错误：{error}", file=sys.stderr)
         return 2
 

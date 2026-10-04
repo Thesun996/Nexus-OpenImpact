@@ -1,0 +1,47 @@
+{
+  "change_domain": "module",
+  "project_name": "module_rename",
+  "project_fingerprint": "07d0d0d7059d4eeb961567d40c95de4f3a0b7f0739da57aab04cad503c5943a5",
+  "coverage": {
+    "status": "complete",
+    "analysis_scope": "project_root_static",
+    "python_files": 4,
+    "supported_modules": 4,
+    "message": "已覆盖项目根下受支持的静态导入；不模拟运行时路径、外部同名提供者或初始化执行。"
+  },
+  "change_spec": {
+    "change_domain": "module",
+    "change_type": "rename_module",
+    "target_module_id": "utils",
+    "operation": {
+      "new_module_name": "formatting",
+      "change_type": "rename_module"
+    },
+    "before": {
+      "module_id": "utils",
+      "file": "utils.py",
+      "source_hash": "8dbb9738baae44ce8a0499b92f22e11d4cd81259a492b91357126f601ece2298",
+      "parse_status": "ok",
+      "selectable": true,
+      "reason": null,
+      "kind": "module"
+    },
+    "after": {
+      "module_id": "formatting",
+      "file": "formatting.py"
+    },
+    "analysis_scope": "project_root_static",
+    "modifies_source": false
+  },
+  "validation": {
+    "valid": true,
+    "diagnostics": []
+  },
+  "diagnostics": {
+    "parse_errors": [],
+    "import_diagnostics": [],
+    "unsupported_modules": [],
+    "unresolved_imports": [],
+    "manual_review_imports": []
+  }
+}

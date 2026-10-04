@@ -53,6 +53,7 @@ class SymbolIndex:
         self.symbols: dict[str, Symbol] = {}
         self.bindings: dict[str, dict[str, ImportBinding]] = {}
         self.parsed_modules: dict[str, ParsedModule] = {}
+        self.parsed_files: dict[Path, ParsedModule] = {}
         self.parse_diagnostics: dict[Path, tuple[ParseDiagnostic, ...]] = {}
         self.ambiguous_modules: set[str] = set()
         self.ambiguous_symbols: set[str] = set()
@@ -62,6 +63,7 @@ class SymbolIndex:
         self.symbols.clear()
         self.bindings.clear()
         self.parsed_modules.clear()
+        self.parsed_files.clear()
         self.parse_diagnostics.clear()
         self.ambiguous_modules.clear()
         self.ambiguous_symbols.clear()
@@ -73,6 +75,7 @@ class SymbolIndex:
             paths_by_module[module].append(relative_path)
             parsed = ASTParser(self.scanner.project_path / relative_path).parse()
             parsed_by_path[relative_path] = parsed
+            self.parsed_files[relative_path] = parsed
             if parsed.diagnostics:
                 self.parse_diagnostics[relative_path] = parsed.diagnostics
 

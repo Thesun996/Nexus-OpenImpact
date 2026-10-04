@@ -12,6 +12,7 @@ from openimpact.analysis.models import (
     ParseDiagnostic,
     ParsedModule,
 )
+from openimpact.analysis.module_syntax import collect_module_imports
 
 
 def _parameters(arguments: ast.arguments) -> tuple[Parameter, ...]:
@@ -250,10 +251,13 @@ class ASTParser:
                                               ast.Import, ast.ImportFrom))
             ]
         )
+        module_imports, module_diagnostics = collect_module_imports(tree, source)
         return ParsedModule(
             path=self.path,
             functions=tuple(functions),
             imports=tuple(sorted(imports, key=lambda item: item.lineno)),
             calls=tuple(sorted(collector.calls, key=lambda item: (item.lineno, item.col_offset))),
             module_rebindings=module_rebindings,
+            module_imports=module_imports,
+            module_diagnostics=module_diagnostics,
         )

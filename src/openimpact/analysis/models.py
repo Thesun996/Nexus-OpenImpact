@@ -84,6 +84,31 @@ class ParseDiagnostic:
 
 
 @dataclass(frozen=True)
+class ModuleImportSyntax:
+    import_type: str
+    module: str | None
+    imported_name: str | None
+    alias: str | None
+    level: int
+    line: int
+    column: int
+    end_line: int
+    end_column: int
+    statement_ordinal: int
+    alias_ordinal: int
+    scope: str
+    source_text: str
+
+
+@dataclass(frozen=True)
+class ModuleSyntaxDiagnostic:
+    code: str
+    message: str
+    line: int
+    column: int
+
+
+@dataclass(frozen=True)
 class ParsedModule:
     path: Path
     functions: tuple[FunctionDefinition, ...]
@@ -91,3 +116,5 @@ class ParsedModule:
     calls: tuple[FunctionCall, ...]
     diagnostics: tuple[ParseDiagnostic, ...] = ()
     module_rebindings: frozenset[str] = frozenset()
+    module_imports: tuple[ModuleImportSyntax, ...] = ()
+    module_diagnostics: tuple[ModuleSyntaxDiagnostic, ...] = ()

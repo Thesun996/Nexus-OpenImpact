@@ -1,4 +1,66 @@
 {
+  "module_inventory": {
+    "analysis_scope": "project_root_static",
+    "modules": [
+      {
+        "module_id": "dashboard",
+        "file": "dashboard.py",
+        "source_hash": "d008b3f3a6eaf65739347e679d42f7f2d0c5a2a93b3946763f5b0aa1f4b523e9",
+        "parse_status": "ok",
+        "selectable": true,
+        "reason": null,
+        "kind": "module"
+      },
+      {
+        "module_id": "page",
+        "file": "page.py",
+        "source_hash": "cb61960194c4139315a132bf7c6bce895f885f0f4d5febdf2e4314644d343d96",
+        "parse_status": "ok",
+        "selectable": true,
+        "reason": null,
+        "kind": "module"
+      },
+      {
+        "module_id": "report",
+        "file": "report.py",
+        "source_hash": "ab026de939a4246934d44df0092ae1a3ffb135e0e8c4521847b12a49f464f386",
+        "parse_status": "ok",
+        "selectable": true,
+        "reason": null,
+        "kind": "module"
+      },
+      {
+        "module_id": "utils",
+        "file": "utils.py",
+        "source_hash": "239cb26dbe95cc794f0159dd9dc5f5ad0a33aa1544222a00a31d9f040ad5aa39",
+        "parse_status": "ok",
+        "selectable": true,
+        "reason": null,
+        "kind": "module"
+      }
+    ],
+    "occupied_names": [
+      "change.json",
+      "dashboard",
+      "page",
+      "report",
+      "utils"
+    ]
+  },
+  "module_coverage": {
+    "status": "complete",
+    "analysis_scope": "project_root_static",
+    "python_files": 4,
+    "supported_modules": 4,
+    "message": "已覆盖项目根下受支持的静态导入；不模拟运行时路径、外部同名提供者或初始化执行。"
+  },
+  "module_diagnostics": {
+    "parse_errors": [],
+    "import_diagnostics": [],
+    "unsupported_modules": [],
+    "unresolved_imports": [],
+    "manual_review_imports": []
+  },
   "project_name": "signature_change",
   "project_fingerprint": "9ab9885be3f7e7f5285a6e976ed02dc57e25bac055d0ecaa8701fca94f276d9e",
   "source_root": "signature_change",

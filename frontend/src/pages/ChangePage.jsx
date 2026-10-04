@@ -1,3 +1,4 @@
+import ModuleChangeView from './ModuleChangeView.jsx';
 import { useWorkflow } from '../state/WorkflowContext.jsx';
 import { getSelectedSymbol } from '../state/workflow.js';
 import { CHANGE_TYPES, describeChange, getParameterChoices, previewSignature } from '../state/changeDraft.js';
@@ -45,7 +46,11 @@ function draftSummary(change, definition) {
   return `+ ${operation.parameterName || '待填写参数'} · 必填`;
 }
 
-export function ChangeView({ state, onSelectChangeType, onUpdateChange, onValidate, onAnalyze, navigate }) {
+export function ChangeView(props) {
+  return props.state.changeDomain === 'module' ? <ModuleChangeView {...props} /> : <FunctionChangeView {...props} />;
+}
+
+function FunctionChangeView({ state, onSelectChangeType, onUpdateChange, onValidate, onAnalyze, navigate }) {
   const selected = getSelectedSymbol(state);
   const validation = state.validation;
   const valid = validation?.validation?.valid === true;

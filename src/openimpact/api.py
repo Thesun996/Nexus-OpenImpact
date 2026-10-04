@@ -1,6 +1,7 @@
 """HTTP access to the fixed demo and bounded ZIP-based project services."""
 
 import hashlib
+import json
 import logging
 import re
 from collections import deque
@@ -13,6 +14,11 @@ from starlette.concurrency import run_in_threadpool
 
 from openimpact.analysis.change_file import ChangeFileError, load_change_spec
 from openimpact.analysis.change_spec import ChangeSpec, validate_change_spec
+from openimpact.analysis.change_domain import parse_domain_config
+from openimpact.analysis.module_change import ModuleChangeSpec, ModuleChangeError, build_module_change
+from openimpact.analysis.module_facts import ModuleInventory
+from openimpact.analysis.module_pipeline import analyze_module_project
+from openimpact.analysis.module_report import build_module_report
 from openimpact.analysis.pipeline import analyze_project
 from openimpact.analysis.report import build_report
 from openimpact.analysis.symbol_index import SymbolIndex
@@ -94,13 +100,15 @@ async def _read_zip(file: UploadFile) -> bytes:
 def _validation_response(
     report: dict, spec, valid: bool, diagnostics: list[dict], status: int
 ) -> JSONResponse:
+    module = isinstance(spec, ModuleChangeSpec) or report.get("change_domain") == "module"
     return JSONResponse(status_code=status, content={
+        **({"change_domain": "module"} if module else {}),
         "project_name": report["project_name"],
         "project_fingerprint": report["project_fingerprint"],
-        "coverage": report["coverage"],
+        "coverage": report["module_coverage"] if module else report["coverage"],
         "change_spec": spec.to_dict(include_operation=False) if spec is not None else None,
         "validation": {"valid": valid, "diagnostics": diagnostics},
-        "diagnostics": report["diagnostics"],
+        "diagnostics": report["module_diagnostics"] if module else report["diagnostics"],
     })
 
 
@@ -129,11 +137,18 @@ def _fingerprint_error(data: bytes, expected_fingerprint: str | None) -> JSONRes
 
 def _validated_spec(
     index: SymbolIndex, report: dict, change: str
-) -> ChangeSpec | JSONResponse:
+) -> ChangeSpec | ModuleChangeSpec | JSONResponse:
     try:
-        config = parse_change_config(change)
+        domain, config = parse_domain_config(change)
+        if domain == "module":
+            report["change_domain"] = "module"
+            inventory = ModuleInventory.from_index(index, tuple(report["module_inventory"]["occupied_names"]))
+            return build_module_change(inventory, config)
+        # Explicit function domain is additive; the legacy builder stays authoritative.
+        config.pop("change_domain", None)
+        config = parse_change_config(json.dumps(config))
         spec = build_change_spec(index, config)
-    except ChangeConfigError as error:
+    except (ChangeConfigError, ModuleChangeError) as error:
         return _validation_response(report, None, False, [
             {"code": error.code, "message": str(error)}
         ], 422)
@@ -172,6 +187,12 @@ def _analyze_zip(
         if isinstance(spec, JSONResponse):
             return spec
         try:
+            if isinstance(spec, ModuleChangeSpec):
+                inventory = ModuleInventory.from_index(index, tuple(inspect_report["module_inventory"]["occupied_names"]))
+                report = build_module_report(analyze_module_project(index, spec, inventory))
+                report["project_fingerprint"] = inspect_report["project_fingerprint"]
+                report["project_name"] = inspect_report["project_name"]
+                return JSONResponse(content=report)
             report = build_report(analyze_project(index.scanner.project_path, spec))
             if not report["validation"]["valid"]:
                 raise RuntimeError("Validated ChangeSpec failed against the same project snapshot")

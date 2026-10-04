@@ -1,5 +1,7 @@
 import { ApiError, toWorkflowError } from '../api/client.js'
-import { buildChangePayload, getSelectedSymbol, isSupportedDemoChange } from './workflow.js'
+import { buildChangePayload, getSelectedTarget, isSupportedDemoChange } from './workflow.js'
+
+import { matchesModuleIntent, moduleIdentity } from './moduleDraft.js'
 
 // One active business request per session. Cancellation saves client work;
 // identity + revision checks also protect against a transport ignoring abort.
@@ -85,6 +87,8 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
 
   const actions = {
     selectFile: (file) => changeState({ type: 'FILE_SELECTED', file }),
+    selectDomain: (domain) => changeState({ type: 'DOMAIN_SELECTED', domain }),
+    selectModule: (id) => changeState({ type: 'MODULE_SELECTED', id }),
     selectSymbol: (id) => changeState({ type: 'SYMBOL_SELECTED', id }),
     selectChangeType: (changeType) => changeState({ type: 'CHANGE_TYPE_SELECTED', changeType }),
     updateChange: (change) => changeState({ type: 'CHANGE_UPDATED', change }),
@@ -126,17 +130,24 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
     async validateChange() {
       if (active) return false
       const current = getState()
-      if (!getSelectedSymbol(current) || !current.file || !current.projectFingerprint) return localFailure('validate', 'inspection_required', '请先读取当前 ZIP 并选择目标函数。')
+      if (!getSelectedTarget(current) || !current.file || !current.projectFingerprint) return localFailure('validate', 'inspection_required', '请先读取当前 ZIP 并选择分析目标。')
       if (current.mode === 'demo') {
         if (!isSupportedDemoChange(current)) return localFailure('validate', 'demo_configuration_unavailable', '演示仅提供 utils.format_date 新增 timezone 普通必填参数的保存响应。其他配置请使用实际项目模式。')
         dispatch({ type: 'VALIDATION_RECEIVED', validation: structuredClone(demo.validation), revision: current.revision,
           validatedChange: { revision: current.revision, payload: buildChangePayload(current) } })
         return true
       }
+      if (current.changeDomain === 'module' && current.change.changeType === 'remove_module' && current.change.operation.confirmed !== true)
+        return localFailure('validate', 'confirmation_required', '请确认仅分析拟定的模块删除，不修改项目文件。')
       const change = buildChangePayload(current)
       return run('validate', (signal) => client.validate(current.file, change, current.projectFingerprint, { signal }), (validation, revision) => {
         checkFingerprint(validation, current.projectFingerprint)
-        if (validation.validation?.valid !== true || !matchesIntent(validation.change_spec, change)
+        if (current.changeDomain === 'module') {
+          if (validation.validation?.valid !== true || validation.change_domain !== 'module'
+            || !matchesModuleIntent(validation.change_spec, change)
+            || !moduleIdentity(validation.change_spec.before)
+            || moduleIdentity(validation.change_spec.before) !== moduleIdentity(getSelectedTarget(current))) invalidResponse()
+        } else if (validation.validation?.valid !== true || !matchesIntent(validation.change_spec, change)
           || !signatureIdentity(validation.change_spec.before) || !signatureIdentity(validation.change_spec.after)) invalidResponse()
         dispatch({ type: 'VALIDATION_RECEIVED', validation, revision,
           validatedChange: { revision, payload: structuredClone(change) } })
@@ -155,7 +166,14 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
       }
       const change = structuredClone(current.validatedChange.payload)
       return run('analyze', (signal) => client.analyze(current.file, change, current.projectFingerprint, { signal }), (report, revision) => {
-        if (!matchesIntent(report.change, change) || report.validation?.valid !== true
+        if (current.changeDomain === 'module') {
+          checkFingerprint(report, current.projectFingerprint)
+          if (report.change_domain !== 'module' || report.report_kind !== 'module_impact' || report.schema_version !== 1
+            || !matchesModuleIntent(report.change, change) || report.validation?.valid !== true
+            || moduleIdentity(report.change.before) !== moduleIdentity(current.validation.change_spec.before)
+            || JSON.stringify(report.change.after) !== JSON.stringify(current.validation.change_spec.after)
+            || !report.summary || !Array.isArray(report.import_impacts) || !Array.isArray(report.module_indirect_impacts)) invalidResponse()
+        } else if (!matchesIntent(report.change, change) || report.validation?.valid !== true
           || signatureIdentity(report.change.before) !== signatureIdentity(current.validation.change_spec.before)
           || signatureIdentity(report.change.after) !== signatureIdentity(current.validation.change_spec.after)
           || !report.summary || !Array.isArray(report.direct_impacts) || !Array.isArray(report.indirect_impacts)) invalidResponse()

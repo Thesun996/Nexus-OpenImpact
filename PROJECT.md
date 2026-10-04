@@ -621,3 +621,8 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | 2026-10-01 | Phase 2.3：简化 HTTP 变更配置、源签名读取、ChangeSpec 构建与 Core Validator 校验；复用 ZIP 安全导入与指纹核对 | 完整 pytest 143 passed、1 skipped；真实 HTTP 成功 200、指纹不符 409、无效 ZIP 400；待审核，未提交 Git |
 | 2026-10-01 | Phase 2.4：上传 ZIP 的完整影响分析 API、相对路径报告与 partial coverage 提示；复用已冻结 Core 能力 | 完整 pytest 151 passed、1 skipped；真实 HTTP Demo Direct / 1-hop / 2-hop 各 1、coverage complete，指纹不符 409、无效 ZIP 400；待审核，未提交 Git |
 | 2026-10-01 | Phase 2.5：三步 HTTP 工作流、安全输出核查、接口契约与前端交接样例 | 完整 pytest 155 passed、1 skipped；真实 HTTP 三步均 200，Direct / 1-hop / 2-hop 各 1、coverage complete，改 ZIP 后旧指纹 409；CLI 中文 / JSON 与固定 Demo API 通过；待审核，未提交 Git |
+
+
+## V1.1 当前实现补充
+
+在四种函数签名变更基础上，新增根目录普通模块重命名与拟定删除的静态导入影响分析。Function 核心与报告 v1 保留；Module 有独立事实、虚拟布局、依赖图、证据和领域报告 v1，详见 [模块能力边界](docs/module-changes.md)。上游传播只建议检查，complete 仅限定 project_root_static；包、相对/条件/动态机制保守诊断。没有真实文件改动、外部模型判断或独立模块 Benchmark 准确率。

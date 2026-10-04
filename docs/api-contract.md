@@ -310,3 +310,8 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" -F "change=<change.
 普通 ZIP/输入错误和 HTTP 500 使用 `{"error":{"code":"...","message":"..."}}`；ChangeSpec 配置或校验错误使用 422 的 `validation.valid=false` 与 `validation.diagnostics[]`；FastAPI 对缺字段等框架级错误使用 `{"detail": ...}`。前端需按响应形状和状态码分支处理，不能假设所有非 200 响应都有相同结构。
 
 Phase 3.4 稳定性验收记录见 [backend-stability-audit.md](backend-stability-audit.md)。公开路径与 JSON 字段名保持不变；异常响应不会拼接内部异常文本或堆栈。
+
+
+## V1.1 模块领域追加契约
+
+原 Function 请求与报告保持 v1。Inspect 追加 module_inventory / module_coverage / module_diagnostics；显式 module 请求沿用当前三个业务端点，输出独立 Module Report v1。详见 [模块变更契约](module-changes.md)。

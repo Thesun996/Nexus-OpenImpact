@@ -1,10 +1,12 @@
+import DomainSelector from '../components/workflow/DomainSelector.jsx';
+import ModuleSelectView from './ModuleSelectView.jsx';
 import { useState } from 'react';
 import { useWorkflow } from '../state/WorkflowContext.jsx';
 import { getSelectedSymbol } from '../state/workflow.js';
 import { CoverageNotice, EmptyWorkflow, ErrorNotice } from './PageParts.jsx';
 import { ProjectDiagnostics, ProjectOverview, SignatureText, WorkflowNotes } from '../components/workflow/WorkflowParts.jsx';
 
-export function FunctionSelectView({ state, query, onQueryChange, onSelect, onReset, navigate }) {
+export function FunctionSelectView({ state, query, onQueryChange, onSelect, onSelectDomain, onReset, navigate }) {
   const busy = Object.values(state.loading).some(Boolean);
   const selected = getSelectedSymbol(state);
   const inspect = state.inspect;
@@ -12,6 +14,7 @@ export function FunctionSelectView({ state, query, onQueryChange, onSelect, onRe
   const visible = symbols.filter((symbol) => `${symbol.symbol_id} ${symbol.file}`.toLowerCase().includes(query.toLowerCase()));
   return <div className="oi-workflow-page oi-functions-page">
     <section className="page-heading"><div><h1>选择分析函数</h1><p>用完整 Symbol 确认目标，再核对它的文件与原始签名。</p></div><div className="heading-actions"><button className="ghost-action" type="button" onClick={onReset}>重新开始</button></div></section>
+    <DomainSelector domain="function" mode={state.mode} onSelect={onSelectDomain} />
     <WorkflowNotes current={2} mode={state.mode} /><ErrorNotice error={state.error} />
     {!inspect ? <EmptyWorkflow title={state.loading.inspect ? '正在读取项目' : '尚未读取项目'} message={state.loading.inspect ? '正在上传当前 ZIP 并获取函数列表，请等待请求结束。' : '请返回上传页选择 ZIP 并读取项目，或明确打开演示项目。当前没有可选择的函数。'} navigate={navigate} /> : <>
       <CoverageNotice coverage={inspect.coverage} /><ProjectOverview inspect={inspect} file={state.file} fingerprint={state.projectFingerprint} mode={state.mode} />
@@ -35,5 +38,6 @@ export function FunctionSelectView({ state, query, onQueryChange, onSelect, onRe
 export default function FunctionSelectPage({ navigate }) {
   const { state, actions } = useWorkflow();
   const [query, setQuery] = useState('');
-  return <FunctionSelectView state={state} query={query} onQueryChange={setQuery} onSelect={actions.selectSymbol} onReset={() => { actions.reset(); navigate('upload'); }} navigate={navigate} />;
+  const View = state.changeDomain === 'module' ? ModuleSelectView : FunctionSelectView;
+  return <View state={state} query={query} onQueryChange={setQuery} onSelect={state.changeDomain === 'module' ? actions.selectModule : actions.selectSymbol} onSelectDomain={actions.selectDomain} onReset={() => { actions.reset(); navigate('upload'); }} navigate={navigate} />;
 }

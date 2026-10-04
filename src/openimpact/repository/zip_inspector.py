@@ -12,6 +12,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from openimpact.analysis.symbol_index import SymbolIndex
+from openimpact.analysis.module_facts import ModuleInventory
+from openimpact.analysis.import_resolver import resolve_imports
+from openimpact.analysis.module_report import module_coverage, module_diagnostics
 from openimpact.repository.scanner import RepositoryScanner
 
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
@@ -172,7 +175,7 @@ def _extract_python(
 
 def _result(
     index: SymbolIndex, filename: str | None, fingerprint: str,
-    stripped_root: str | None, source_count: int,
+    stripped_root: str | None, source_count: int, occupied_names: tuple[str, ...] = (),
 ) -> dict:
     def safe_message(kind: str, message: str) -> str:
         if kind == "read_error":
@@ -209,7 +212,12 @@ def _result(
     ]
     partial = bool(parse_errors or unresolved_imports or index.ambiguous_modules
                    or index.ambiguous_symbols)
+    inventory = ModuleInventory.from_index(index, occupied_names)
+    references = resolve_imports(index, inventory)
     return {
+        "module_inventory": inventory.to_dict(),
+        "module_coverage": module_coverage(index, inventory, references),
+        "module_diagnostics": module_diagnostics(index, inventory, references),
         "project_name": _project_name(filename, stripped_root),
         "project_fingerprint": fingerprint,
         "source_root": stripped_root,
@@ -255,7 +263,17 @@ def indexed_python_zip(data: bytes, filename: str | None = None):
             except (zipfile.BadZipFile, EOFError, RuntimeError, NotImplementedError, zlib.error) as error:
                 _reject("invalid_zip", f"ZIP 文件损坏或无法解压：{error}")
             index = SymbolIndex(project_root).build()
-            yield index, _result(index, filename, fingerprint, stripped_root, len(sources))
+            # Preserve all validated root names, including unextracted directories
+            # and non-Python entries, for virtual rename collision checks.
+            occupied = set()
+            for _, parts in entries:
+                if stripped_root and parts[0] != stripped_root:
+                    continue
+                relative = parts[1:] if stripped_root else parts
+                if relative:
+                    name = relative[0]
+                    occupied.add(Path(name).stem if name.casefold().endswith(".py") else name)
+            yield index, _result(index, filename, fingerprint, stripped_root, len(sources), tuple(occupied))
 
 
 def inspect_python_zip(data: bytes, filename: str | None = None) -> dict:

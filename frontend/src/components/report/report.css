@@ -188,3 +188,21 @@
   .oi-report *, .oi-report-process { transition: none; animation: none; scroll-behavior: auto; }
   .oi-stat-tooltip:not([hidden]) { animation: none; }
 }
+
+/* Independent module units share the established Tracework reading hierarchy. */
+.oi-domain-selector .oi-change-type-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.oi-delete-confirm { display: flex !important; flex-direction: row !important; align-items: flex-start; gap: 12px; }
+.oi-delete-confirm input { width: 20px; height: 20px; flex: 0 0 20px; }
+.oi-module-counts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-block: 1px solid var(--oi-rule); margin-block: 24px; }
+.oi-module-counts > div { display: flex; flex-direction: column; gap: 6px; padding: 16px; border-right: 1px solid var(--oi-rule); }
+.oi-module-counts b { font-size: 28px; font-variant-numeric: tabular-nums; }
+.oi-module-path ol { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; list-style: none; }
+.oi-module-path li, .oi-module-path small, .oi-module-report code { overflow-wrap: anywhere; min-width: 0; }
+.oi-module-report .oi-code-reading code { overflow-wrap: normal; }
+.oi-module-report .oi-impact-index > .oi-symbol-row { grid-template-columns: minmax(0, 1fr); width: 100%; text-align: left; }
+.oi-module-report .oi-evidence-panel { min-width: 0; }
+@media (max-width: 767px) {
+  .oi-domain-selector .oi-change-type-options { grid-template-columns: 1fr; }
+  .oi-module-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .oi-module-counts > div:last-child { grid-column: 1 / -1; }
+}

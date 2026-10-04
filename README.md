@@ -208,3 +208,8 @@ print(graph.unresolved_calls)
 CLI 的 `text` 格式为中文终端报告，`json` 格式包含 `change`、`validation`、`coverage`、`summary`、Direct / Indirect 结果与 `diagnostics`。`change.json` 使用显式的 `before`、`after` 参数数组及 `added_parameter`；每个参数至少提供 `name`、`kind`、`has_default`。无效输入返回非零退出码；部分 Python 文件无法解析时，仍输出其余可分析结果，并标记 `coverage.status=partial`。
 
 测试推荐、完整源码片段证据、LLM、源码哈希与资源限额尚未实现。
+
+
+## V1.1 本地模块变更
+
+新增 rename_module / remove_module，限定项目根目录普通 .py 与明确顶层静态导入。Web 目标页切换模块领域后，继续使用 Inspect → Validate → Analyze。只分析拟定变更，不修改源码。参考 [范围、启动与契约](docs/module-changes.md)。
