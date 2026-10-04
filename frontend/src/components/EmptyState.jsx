@@ -1,7 +1,7 @@
 export default function EmptyState({ title, description, actionLabel, onAction }) {
   return (
-    <section className="detail-card empty-state-card">
-      <div className="empty-state-icon" aria-hidden="true">◇</div>
+    <section className="detail-card empty-state-card oi-empty-state">
+      <div className="empty-state-icon" aria-hidden="true">∅</div>
       <h2>{title}</h2>
       <p>{description}</p>
       {actionLabel && onAction && (

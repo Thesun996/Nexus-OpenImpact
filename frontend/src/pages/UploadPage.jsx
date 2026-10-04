@@ -1,74 +1,42 @@
 import { useState } from 'react';
 import { useWorkflow } from '../state/WorkflowContext.jsx';
-import { ErrorNotice, ModeNotice, WorkflowSteps } from './PageParts.jsx';
+import { CoverageNotice, ErrorNotice } from './PageParts.jsx';
+import { ProjectDiagnostics, ProjectOverview, WorkflowNotes } from '../components/workflow/WorkflowParts.jsx';
+
+export function UploadView({ state, dragging, onDragOver, onDragLeave, onDrop, onFileChange, onInspect, onOpenDemo, navigate }) {
+  const busy = Object.values(state.loading).some(Boolean);
+  const isDemo = state.mode === 'demo';
+  const failed = state.error?.stage === 'inspect';
+  const phase = state.loading.inspect ? 'loading' : state.inspect ? 'ready' : failed ? 'failed' : state.file ? 'selected' : 'unselected';
+  const status = phase === 'loading' ? '正在上传 ZIP 并读取项目…' : phase === 'ready' ? isDemo ? '演示样例已就绪' : '项目已读取'
+    : phase === 'failed' ? '读取未完成，请检查错误后重试' : phase === 'selected' ? '文件已保留，尚未读取' : '等待选择 ZIP';
+  return <div className="oi-workflow-page oi-upload-page">
+    <section className="page-heading"><div><h1>上传 Python ZIP</h1><p>从一份真实源码开始，追踪一次小改动的影响。</p></div><div className="heading-actions"><span>最大 5 MiB · .zip</span></div></section>
+    <WorkflowNotes current={1} mode={state.mode} /><ErrorNotice error={state.error} /><CoverageNotice coverage={state.inspect?.coverage} />
+    <section className="oi-upload-workspace">
+      <article className="oi-upload-surface" aria-label="项目 ZIP" aria-busy={state.loading.inspect}>
+        <header><h2>选择项目文件</h2><p role="status" data-upload-state={phase} className={`oi-upload-status is-${phase}`}>{status}</p></header>
+        <label className={`oi-zip-dropzone${dragging ? ' is-dragging' : ''}`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+          <input type="file" accept=".zip,application/zip,application/x-zip-compressed" aria-label="选择 Python 项目 ZIP" onChange={onFileChange} />
+          <span className="oi-zip-mark" aria-hidden="true">.zip</span><strong>{state.file ? '选择另一份 ZIP' : '选择 ZIP 文件'}</strong><span>拖放到这里，或点击选择</span>
+        </label>
+        <dl className="oi-file-facts"><div><dt>当前文件</dt><dd>{state.file?.name || '未选择文件'}</dd></div><div><dt>文件大小</dt><dd>{state.file ? `${(state.file.size / 1024).toFixed(1)} KB` : '—'}</dd></div></dl>
+        <p className="oi-file-lifecycle">{isDemo ? '选择新的 ZIP 将退出演示。' : '原始 ZIP 在页面间保留，刷新后需重新选择。'} 更换 ZIP 会清除原项目的选择、校验和报告。</p>
+        <footer className="oi-upload-actions"><span>{state.inspect ? '可继续选择函数，或重新读取这份文件。' : '选择文件后，再读取项目中的模块级函数。'}</span>{isDemo ? <button className="primary-action" type="button" onClick={() => navigate('functions')}>查看演示函数</button> : <button className="primary-action" type="button" onClick={onInspect} disabled={!state.file || busy}>{state.loading.inspect ? '正在读取项目…' : state.inspect ? '重新读取项目' : '读取真实项目'}</button>}</footer>
+        {state.inspect && <div className="oi-upload-result"><ProjectOverview inspect={state.inspect} file={state.file} fingerprint={state.projectFingerprint} mode={state.mode} /><button className="ghost-action" type="button" onClick={() => navigate('functions')} disabled={busy}>继续选择函数</button><ProjectDiagnostics diagnostics={state.inspect.diagnostics} coverage={state.inspect.coverage} /></div>}
+      </article>
+      <aside className="oi-upload-context" aria-label="支持范围与独立演示"><section><h2>这次可以分析什么</h2><p>Python 模块级函数，新增一个必填参数。</p><p>源码只用于静态分析；上传代码不会执行，也不会被自动修改。</p></section><section className="oi-demo-entry"><h2>先了解分析结果</h2><p>独立演示使用 signature_change 的固定接口样例，与实际上传项目分开。</p><button className="ghost-action" type="button" onClick={onOpenDemo} disabled={busy}>打开演示项目</button></section></aside>
+    </section>
+  </div>;
+}
 
 export default function UploadPage({ navigate }) {
   const { state, actions } = useWorkflow();
   const [dragging, setDragging] = useState(false);
-  const busy = Object.values(state.loading).some(Boolean);
-  const isDemo = state.mode === 'demo';
-  const readStatus = isDemo ? '演示样例已就绪 · 保存的接口响应'
-    : state.loading.inspect ? '正在上传 ZIP 并读取项目…'
-      : state.inspect ? `读取完成 · ${state.inspect.symbols?.length ?? 0} 个函数`
-        : state.file ? '文件已保留，等待 Inspect' : '等待选择 ZIP';
-
-  async function inspectProject() {
-    if (await actions.inspectProject()) navigate('functions');
-  }
-
-  async function openDemo() {
-    if (await actions.loadDemo()) navigate('functions');
-  }
-
-  function handleDrop(event) {
-    event.preventDefault();
-    setDragging(false);
-    const file = event.dataTransfer.files?.[0];
-    if (file) actions.selectFile(file);
-  }
-
-  return (
-    <>
-      <section className="page-heading">
-        <div><h1>上传 Python ZIP</h1><p>准备一个小型 Python 项目。OpenImpact 只读取源码做静态分析。</p></div>
-        <div className="heading-actions"><span>ZIP 上限 5 MiB</span><span className="mock-pill">{isDemo ? '独立演示模式' : 'Backend v1 · 真实 ZIP 分析'}</span></div>
-      </section>
-      <WorkflowSteps current={1} />
-      <ModeNotice mode={state.mode} /><ErrorNotice error={state.error} />
-      <section className="upload-grid">
-        <article className="detail-card upload-card">
-          <header><div className="detail-title"><b>▣</b> 选择 ZIP</div><mark className={`tag ${state.inspect ? 'low' : 'medium'}`}>{state.loading.inspect ? '读取中' : state.inspect ? isDemo ? '演示样例已就绪' : '项目已读取' : state.file ? '文件已保留，尚未读取' : '等待选择'}</mark></header>
-          <label
-            className={`upload-dropzone${dragging ? ' dragging' : ''}${state.file ? ' selected' : ''}`}
-            onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={handleDrop}
-          >
-            <input type="file" accept=".zip,application/zip,application/x-zip-compressed" aria-label="选择 Python 项目 ZIP"
-              onChange={(event) => { const file = event.target.files?.[0]; if (file) actions.selectFile(file); event.target.value = ''; }} />
-            <span className="upload-icon">▤</span><strong>选择 ZIP 文件</strong><small>拖放 ZIP 到这里，或点击选择文件</small>
-          </label>
-          <section className="upload-meta">
-            <div><span>当前文件</span><b>{state.file?.name || '未选择文件'}</b></div>
-            <div><span>文件大小</span><b>{state.file ? `${(state.file.size / 1024).toFixed(1)} KB` : '—'}</b></div>
-            <div><span>读取状态</span><b>{readStatus}</b></div>
-            <div><span>项目指纹</span><b style={{ overflowWrap: 'anywhere' }}>{state.projectFingerprint || 'Inspect 后生成 SHA-256'}</b></div>
-            <div><span>文件生命周期</span><b>跨页面保留；刷新后需要重新选择</b></div>
-          </section>
-          <footer className="upload-actions"><span>{isDemo ? '演示样例与用户上传项目独立。选择新的 ZIP 将退出演示。' : 'Inspect、Validate、Analyze 使用同一原始 ZIP；重新选择文件将清除旧结果。'}</span>{isDemo ? <button className="primary-action" type="button" onClick={() => navigate('functions')}>查看演示函数</button> : <button className="primary-action" type="button" onClick={inspectProject} disabled={!state.file || busy}>{state.loading.inspect ? '正在读取项目…' : state.inspect ? '重新读取项目' : '读取真实项目'}</button>}</footer>
-        </article>
-        <aside className="detail-column upload-side-column">
-          <article className="detail-card">
-            <header><div className="detail-title"><b>✓</b> 第一版边界</div></header>
-            <section className="info-list upload-boundary-list"><div><span>语言</span><b>Python</b></div><div><span>范围</span><b>模块级函数</b></div><div><span>变更</span><b>新增必填参数</b></div><div><span>判断</span><b>后端静态分析</b></div></section>
-          </article>
-          <article className="detail-card upload-note-card">
-            <header><div className="detail-title"><b>▤</b> 独立演示项目</div><mark className="tag change">演示</mark></header>
-            <p>使用仓库 signature_change 的脱敏接口样例预览页面。仅固定的 utils.format_date + timezone 变更可展示样例报告。</p>
-            <div className="empty-state-actions"><button className="primary-action" type="button" onClick={openDemo} disabled={busy}>打开演示项目</button></div>
-          </article>
-        </aside>
-      </section>
-    </>
-  );
+  async function inspectProject() { if (await actions.inspectProject()) navigate('functions'); }
+  async function openDemo() { if (await actions.loadDemo()) navigate('functions'); }
+  function handleDrop(event) { event.preventDefault(); setDragging(false); const file = event.dataTransfer.files?.[0]; if (file) actions.selectFile(file); }
+  return <UploadView state={state} dragging={dragging} navigate={navigate} onInspect={inspectProject} onOpenDemo={openDemo}
+    onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}
+    onFileChange={(event) => { const file = event.target.files?.[0]; if (file) actions.selectFile(file); event.target.value = ''; }} />;
 }

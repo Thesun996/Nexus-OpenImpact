@@ -1,0 +1,63 @@
+/* Change → Trace → Evidence. Default content stays visible; feedback is factual. */
+:root { scrollbar-gutter: stable; }
+.oi-page-stack { position: relative; min-width: 0; }
+.oi-motion-page { min-width: 0; }
+.oi-motion-page[data-page-active='false'] { pointer-events: none; }
+
+.oi-rail-nav, .oi-impact-groups { position: relative; }
+.oi-moving-marker { position: absolute; inset: 0 auto auto 0; pointer-events: none; transform-origin: top left; z-index: 1; }
+.oi-moving-marker::before { content: ''; position: absolute; inset: 0 auto 0 0; width: var(--oi-selection); background: var(--oi-trace); }
+.oi-moving-marker.is-direct::before { background: var(--oi-change); }
+.oi-nav-item.is-current::before { content: none; }
+.oi-impact-row.is-selected, .oi-impact-row.is-direct.is-selected { border-left-color: transparent; }
+.oi-impact-row, .oi-symbol-row { transition: background-color var(--oi-motion-feedback), border-color var(--oi-motion-feedback); }
+
+.primary-action, .ghost-action { transition: background-color var(--oi-motion-feedback), border-color var(--oi-motion-feedback), transform var(--oi-motion-feedback) var(--oi-ease-arrive); }
+.primary-action:active:not(:disabled), .ghost-action:active:not(:disabled) { transform: translateY(1px); }
+.oi-zip-dropzone { transition: border-color var(--oi-motion-feedback), background-color var(--oi-motion-feedback); }
+.oi-zip-mark { transition: transform var(--oi-motion-feedback) var(--oi-ease-arrive); }
+.oi-zip-dropzone.is-dragging .oi-zip-mark { transform: translateY(-4px) rotate(-3deg); }
+.oi-change-form input { transition: border-color var(--oi-motion-feedback), background-color var(--oi-motion-feedback); }
+.oi-change-form input:not(:placeholder-shown) { border-color: var(--oi-change); }
+.oi-validation-status.is-valid { animation: oi-confirm var(--oi-motion-trace) var(--oi-ease-arrive); }
+@keyframes oi-confirm { from { background-color: var(--oi-trace-soft); } to { background-color: transparent; } }
+
+/* Only actual busy controls: no invented progress and no offscreen autoplay. */
+:is(.oi-upload-actions, .oi-change-form, .oi-change-actions) .primary-action:disabled {
+  position: relative;
+}
+:is(.oi-upload-surface, .oi-change-result, .oi-change-form)[aria-busy='true'] .primary-action:disabled::after {
+  content: ''; width: .65rem; height: .65rem; border: 2px solid currentColor; border-right-color: transparent;
+  border-radius: 50%; display: inline-block; margin-left: var(--oi-space-2); vertical-align: middle;
+  animation: oi-wait 800ms linear infinite;
+}
+@keyframes oi-wait { to { transform: rotate(1turn); } }
+
+/* All node names/edges remain readable during the one-shot reverse emphasis. */
+.oi-trace-point { animation: oi-trace-point var(--oi-motion-trace) var(--oi-ease-arrive) both; animation-delay: calc(var(--oi-trace-order) * var(--oi-motion-trace-step)); }
+.oi-trace-step:not(:last-child)::after { animation: oi-trace-link var(--oi-motion-trace) var(--oi-ease-arrive) both; animation-delay: calc(var(--oi-trace-order) * var(--oi-motion-trace-step)); }
+@keyframes oi-trace-point { from { transform: scale(.7); opacity: .6; } 45% { transform: scale(1.35); opacity: 1; } to { transform: scale(1); opacity: 1; } }
+@keyframes oi-trace-link { from { opacity: .4; } to { opacity: 1; } }
+/* Replace the complete Evidence/Explanation pair atomically; no outgoing copy. */
+.oi-selected-evidence .oi-reading-panes { animation: oi-evidence-settle var(--oi-motion-reading) var(--oi-ease-arrive); }
+/* The page owns movement; the reading pair only changes opacity. */
+@keyframes oi-evidence-settle { from { opacity: .85; } to { opacity: 1; } }
+.oi-code-reading { animation: oi-source-mark var(--oi-motion-evidence) var(--oi-ease-arrive); }
+@keyframes oi-source-mark { from { background-color: var(--oi-trace-soft); } to { background-color: var(--oi-soft); } }
+/* Missing evidence and diagnostics never wait for a reveal. */
+.oi-reading-panes:has(.oi-report-unavailable) { animation: none; }
+@media (max-width: 1023px) {
+  .oi-step-marker::before { inset: auto 0 0; width: auto; height: var(--oi-selection); }
+}
+@media (max-width: 600px) {
+  :root { --oi-motion-travel: 3px; --oi-motion-trace-step: 35ms; }
+  .oi-selected-evidence .oi-reading-panes { animation-name: oi-evidence-mobile; }
+  @keyframes oi-evidence-mobile { from { opacity: .9; } to { opacity: 1; } }
+}
+@media (prefers-reduced-motion: reduce) {
+  .oi-trace-point, .oi-trace-step:not(:last-child)::after, .oi-selected-evidence .oi-reading-panes,
+  .oi-code-reading, .oi-validation-status.is-valid { animation: none; }
+  :is(.oi-upload-surface, .oi-change-result, .oi-change-form)[aria-busy='true'] .primary-action:disabled::after { animation: none; border-style: dotted; }
+  .oi-zip-dropzone.is-dragging .oi-zip-mark, .primary-action:active:not(:disabled), .ghost-action:active:not(:disabled) { transform: none; }
+  .oi-zip-mark, .primary-action, .ghost-action, .oi-zip-dropzone, .oi-change-form input, .oi-impact-row, .oi-symbol-row { transition: none; }
+}
