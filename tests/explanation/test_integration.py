@@ -106,6 +106,9 @@ def test_cli_and_demo_api_keep_old_fields_and_add_explanations(monkeypatch):
         response = client.post("/api/v1/demo/analyze")
     assert response.status_code == 200
     api = response.json()
+    assert api["project_path"] == "."
+    cli["project_path"] = "."
+    assert api == cli
     for report in (cli, api):
         assert report["summary"]["direct_impact_count"] == 1
         assert len(report["direct_impacts"]) == 1

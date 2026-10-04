@@ -24,6 +24,7 @@ class APIContractTests(unittest.TestCase):
     def test_demo_analyze_returns_exact_core_json_report(self):
         expected = build_report(analyze_project(_DEMO_DIR, load_change_spec(_DEMO_CHANGE)))
         expected_json = json.loads(json.dumps(expected, ensure_ascii=False))
+        expected_json["project_path"] = "."
         with TestClient(app) as client:
             response = client.post("/api/v1/demo/analyze")
         self.assertEqual(response.status_code, 200)

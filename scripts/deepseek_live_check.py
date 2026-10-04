@@ -20,9 +20,13 @@ import httpx
 import uvicorn
 
 from openimpact.api import app
+from openimpact.analysis.change_file import load_change_spec
+from openimpact.analysis.pipeline import analyze_project
 from openimpact.explanation import provider as provider_module
 from openimpact.explanation.deepseek import DeepSeekProvider
+from openimpact.explanation.models import ExplanationInput
 from openimpact.repository import zip_inspector
+from openimpact.reporting.evidence import EvidenceBuilder
 
 ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "examples" / "signature_change"
@@ -129,21 +133,58 @@ def quality_screen(input_data: dict, result: dict) -> list[str]:
 def run_check(timeout_seconds: float = 20.0) -> dict:
     records = []
     temporary_paths = []
+    authentication_blocked = False
     original_factory = provider_module.create_explanation_provider
     original_directory = zip_inspector.TemporaryDirectory
 
     class RecordingProvider(DeepSeekProvider):
+        phase = "workflow"
+
         def explain(self, input):
-            result = super().explain(input)
+            nonlocal authentication_blocked
+            started = time.perf_counter()
+            network_attempted = bool(self._api_key) and not authentication_blocked
+            if authentication_blocked:
+                result = self._fallback(input, "authentication_blocked")
+            else:
+                result = super().explain(input)
+            elapsed = time.perf_counter() - started
+            if self.last_call.http_status == 401:
+                authentication_blocked = True
             input_data, result_data = input.to_dict(), result.to_dict()
             records.append({
+                "phase": self.phase,
                 "impact_type": input.impact_type,
+                "network_attempted": network_attempted,
+                "elapsed_seconds": round(elapsed, 3),
                 "call": asdict(self.last_call),
                 "input": input_data,
                 "result": result_data,
                 "quality_flags": quality_screen(input_data, result_data),
             })
             return result
+
+    # One short, real evidence request gates all subsequent model requests.
+    # Building facts here uses the existing Core and does not generate a report.
+    run = analyze_project(DEMO, load_change_spec(DEMO / "change.json"))
+    evidence = EvidenceBuilder(DEMO).build(run.direct.findings[0])
+    preflight = RecordingProvider(timeout_seconds=timeout_seconds)
+    preflight.phase = "preflight"
+    preflight.explain(ExplanationInput.from_evidence(
+        evidence, "utils.format_date 新增必填参数 timezone"
+    ))
+    if preflight.last_call.status != "model_success":
+        return {
+            "transport": "real_deepseek_https_preflight",
+            "workflow_skipped": True,
+            "stop_reason": preflight.last_call.reason_code,
+            "static_fields_equal": None,
+            "temporary_directories_cleaned": True,
+            "temporary_directory_count": 0,
+            "model_calls": records,
+            "real_model_success": False,
+            "quality_screening": "not_assessed_no_model_result",
+        }
 
     def observed_factory(mode=None):
         provider = original_factory(mode)
@@ -168,16 +209,18 @@ def run_check(timeout_seconds: float = 20.0) -> dict:
     static_fields = ("direct_impacts", "indirect_impacts", "evidences", "coverage",
                      "diagnostics", "summary", "change", "validation")
     same = {name: rule[name] == deepseek[name] for name in static_fields}
-    all_model_success = len(records) == 3 and all(
+    all_model_success = len(records) == 4 and all(
         item["call"]["status"] == "model_success" for item in records
     )
     return {
         "transport": "real_loopback_http_and_real_deepseek_https",
+        "workflow_skipped": False,
         "rule_workflow": rule_flow,
         "deepseek_workflow": deepseek_flow,
         "static_fields_equal": same,
         "temporary_directories_cleaned": len(temporary_paths) == 6
         and all(not path.exists() for path in temporary_paths),
+        "temporary_directory_count": len(temporary_paths),
         "model_calls": records,
         "real_model_success": all_model_success,
         "quality_screening": "automatic_flags_require_human_review",
@@ -187,7 +230,7 @@ def run_check(timeout_seconds: float = 20.0) -> dict:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="固定 Demo 的真实 DeepSeek 联调；最多 3 次模型调用")
+    parser = argparse.ArgumentParser(description="先发一次预检；通过后验证完整链路，最多 4 次模型调用")
     parser.add_argument("--prompt-key", action="store_true", help="在终端隐藏输入 Key，仅保存在进程内")
     parser.add_argument("--output", type=Path, default=ROOT / ".local" / "deepseek-live-check")
     args = parser.parse_args()
@@ -201,16 +244,22 @@ def main() -> int:
         return 2
     args.output.mkdir(parents=True, exist_ok=True)
     serialized = json.dumps(result, ensure_ascii=False, indent=2)
-    if key:
-        serialized = serialized.replace(key, "<redacted>")
+    for secret in (key, key.strip()):
+        if secret:
+            serialized = serialized.replace(secret, "<redacted>")
     (args.output / "result.json").write_text(serialized + "\n", encoding="utf-8")
     print("真实模型成功:", result["real_model_success"])
-    print("静态分析数据一致:", all(result["static_fields_equal"].values()))
+    same = result["static_fields_equal"]
+    print("静态分析数据一致:", all(same.values()) if same is not None else "未执行完整链路")
+    if result["workflow_skipped"]:
+        print("预检失败，已停止后续模型请求:", result["stop_reason"])
+        if result["stop_reason"] == "http_401":
+            print("外部服务认证失败；请在本机核对或更换 Key 后重新运行。")
     print("临时目录清理:", result["temporary_directories_cleaned"])
     print("调用状态:", [(item["impact_type"], item["call"]["status"],
                          item["call"]["reason_code"]) for item in result["model_calls"]])
     print("脱敏结果:", args.output / "result.json")
-    success = (result["real_model_success"] and all(result["static_fields_equal"].values())
+    success = (result["real_model_success"] and same is not None and all(same.values())
                and result["temporary_directories_cleaned"]
                and not any(item["quality_flags"] for item in result["model_calls"]))
     return 0 if success else 1
