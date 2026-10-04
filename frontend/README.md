@@ -2,18 +2,25 @@
 
 React + Vite 前端。Phase 4.2 Step 3 完善动态报告与 Web MVP 验收，默认实际项目模式使用用户选择的 ZIP，执行 Inspect → Validate → Analyze。只有主动点击“打开演示项目”才使用保存的样例响应。
 
-先在原后端工程启动 rule 模式服务：
+以下命令从本仓库根目录开始，该目录包含 `src/openimpact/` 和 `frontend/`。先按[根 README](../README.md)创建 Python 虚拟环境并完成 editable install；启动后端时使用已激活的该环境。
+
+在 Windows PowerShell 中启动 rule 模式服务：
 
 ```powershell
-cd E:\编译\2026人工智能算法精英赛新赛道\Nexus-OpenImpact
 $env:OPENIMPACT_LLM_PROVIDER = 'rule'
-.\.venv\Scripts\python.exe -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
+python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
 ```
 
-另开终端启动前端：
+Linux/macOS 在仓库根目录执行 `source .venv/bin/activate` 后启动：
 
-```powershell
-cd E:\编译\2026人工智能算法精英赛新赛道\Nexus-OpenImpact-frontend\frontend
+```sh
+OPENIMPACT_LLM_PROVIDER=rule python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
+```
+
+另开终端，从同一仓库根目录进入 `frontend/` 并启动前端。以下命令适用于 PowerShell 和 Linux/macOS shell：
+
+```sh
+cd frontend
 npm install
 npm run dev
 ```
