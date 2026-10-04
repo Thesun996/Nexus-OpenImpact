@@ -16,6 +16,7 @@ from openimpact.analysis.change_spec import (
     ChangeSpec,
     ChangeType,
     FunctionSignature,
+    MakeParameterRequiredOperation,
     RemoveParameterOperation,
     RenameParameterOperation,
     operation_from_dict,
@@ -56,13 +57,14 @@ def operation_data(**extra):
 
 def test_only_the_approved_operations_are_registered():
     assert list(ChangeType) == [ChangeType.ADD_REQUIRED_PARAMETER, ChangeType.REMOVE_PARAMETER,
-                                ChangeType.RENAME_PARAMETER]
+                                ChangeType.RENAME_PARAMETER, ChangeType.MAKE_PARAMETER_REQUIRED]
     operation = operation_from_dict(operation_data())
     assert type(operation) is AddRequiredParameterOperation
     assert operation.change_type is ChangeType.ADD_REQUIRED_PARAMETER
     assert type(operation_from_dict({"change_type": "remove_parameter", "parameter_name": "b"})) is RemoveParameterOperation
     assert type(operation_from_dict({"change_type": "rename_parameter", "parameter_name": "b",
                                     "new_parameter_name": "c"})) is RenameParameterOperation
+    assert type(operation_from_dict({"change_type": "make_parameter_required", "parameter_name": "b"})) is MakeParameterRequiredOperation
 
 
 @pytest.mark.parametrize("kind", ["positional_only", "positional_or_keyword", "keyword_only"])

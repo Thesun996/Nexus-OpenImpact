@@ -28,6 +28,16 @@ def parse_change_config(source: str) -> dict[str, Any]:
     if not isinstance(target, str) or not target:
         raise ChangeConfigError("invalid_change_config", "target_symbol_id 必须是非空字符串。")
     change_type = config.get("change_type", ChangeType.ADD_REQUIRED_PARAMETER.value)
+    if change_type == ChangeType.MAKE_PARAMETER_REQUIRED:
+        if set(config) != {"target_symbol_id", "change_type", "parameter_name"}:
+            raise ChangeConfigError(
+                "invalid_change_config", "必填化配置仅需 target_symbol_id、change_type 和 parameter_name。"
+            )
+        try:
+            operation_from_dict({"change_type": change_type, "parameter_name": config["parameter_name"]})
+        except ChangeOperationError as error:
+            raise ChangeConfigError(error.code, str(error)) from error
+        return config
     if change_type == ChangeType.RENAME_PARAMETER:
         if set(config) != {"target_symbol_id", "change_type", "parameter_name", "new_parameter_name"}:
             raise ChangeConfigError(
@@ -74,7 +84,7 @@ def build_change_spec(index: SymbolIndex, config: dict[str, Any]) -> ChangeSpec:
         if change_type == ChangeType.RENAME_PARAMETER:
             payload = {"change_type": change_type, "parameter_name": config["parameter_name"],
                        "new_parameter_name": config["new_parameter_name"]}
-        elif change_type == ChangeType.REMOVE_PARAMETER:
+        elif change_type in (ChangeType.REMOVE_PARAMETER, ChangeType.MAKE_PARAMETER_REQUIRED):
             payload = {"change_type": change_type, "parameter_name": config["parameter_name"]}
         else:
             payload = {

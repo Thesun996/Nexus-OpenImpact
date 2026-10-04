@@ -1,0 +1,39 @@
+{
+  "change_type": "make_parameter_required",
+  "target_symbol_id": "utils.connect",
+  "before": {
+    "name": "connect",
+    "parameters": [
+      {
+        "name": "address",
+        "kind": "positional_or_keyword",
+        "has_default": false
+      },
+      {
+        "name": "timeout",
+        "kind": "positional_or_keyword",
+        "has_default": true,
+        "default_source": "30"
+      }
+    ]
+  },
+  "after": {
+    "name": "connect",
+    "parameters": [
+      {
+        "name": "address",
+        "kind": "positional_or_keyword",
+        "has_default": false
+      },
+      {
+        "name": "timeout",
+        "kind": "positional_or_keyword",
+        "has_default": false
+      }
+    ]
+  },
+  "operation": {
+    "change_type": "make_parameter_required",
+    "parameter_name": "timeout"
+  }
+}

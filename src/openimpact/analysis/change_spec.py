@@ -16,6 +16,7 @@ class ChangeType(str, Enum):
     ADD_REQUIRED_PARAMETER = "add_required_parameter"
     REMOVE_PARAMETER = "remove_parameter"
     RENAME_PARAMETER = "rename_parameter"
+    MAKE_PARAMETER_REQUIRED = "make_parameter_required"
 
 
 AddedParameterKind = Literal["positional_only", "positional_or_keyword", "keyword_only"]
@@ -355,12 +356,104 @@ class RenameParameterOperation:
         return cls(data["parameter_name"], data["new_parameter_name"])
 
 
+@dataclass(frozen=True)
+class MakeParameterRequiredOperation:
+    parameter_name: str
+    change_type: Literal[ChangeType.MAKE_PARAMETER_REQUIRED] = field(
+        default=ChangeType.MAKE_PARAMETER_REQUIRED, init=False
+    )
+    direct_rule_id: ClassVar[str] = "parameter_became_required_breaks_call"
+
+    def __post_init__(self) -> None:
+        if not _valid_identifier(self.parameter_name):
+            raise ChangeOperationError(
+                "invalid_operation_payload", "parameter_name 必须是合法的 Python 参数名。"
+            )
+        object.__setattr__(self, "parameter_name", normalize("NFKC", self.parameter_name))
+        if not _valid_identifier(self.parameter_name):
+            raise ChangeOperationError("invalid_operation_payload", "归一化后的参数名不能是 Python 关键字。")
+
+    @property
+    def legacy_added_parameter(self) -> None:
+        return None
+
+    def _parameter_position(self, before: FunctionSignature) -> int:
+        position = next((i for i, parameter in enumerate(before.parameters)
+                         if parameter.name == self.parameter_name), None)
+        if position is None:
+            raise ChangeOperationError("parameter_not_found", "目标函数中没有指定的参数。")
+        parameter = before.parameters[position]
+        if parameter.kind not in ("positional_only", "positional_or_keyword", "keyword_only"):
+            raise ChangeOperationError("unsupported_parameter_kind", "当前不支持对 *args 或 **kwargs 移除默认值。")
+        if not parameter.has_default:
+            raise ChangeOperationError("parameter_already_required", "指定参数当前没有默认值，已经是必填参数。")
+        return position
+
+    def build_after(self, before: FunctionSignature) -> FunctionSignature:
+        position = self._parameter_position(before)
+        # has_default is authoritative: a literal default of None is represented
+        # by has_default=True and default_source="None" in the source model.
+        required = replace(before.parameters[position], has_default=False, default_source=None)
+        after = replace(before, parameters=(
+            before.parameters[:position] + (required,) + before.parameters[position + 1:]
+        ))
+        if not _signature_is_valid(after):
+            raise ChangeOperationError(
+                "invalid_after_signature", "移除默认值后签名不符合 Python 参数规则；不会重排或同时修改其他参数。"
+            )
+        return after
+
+    def validate_delta(
+        self, before: FunctionSignature, after: FunctionSignature
+    ) -> ChangeDiagnostic | None:
+        try:
+            position = self._parameter_position(before)
+        except ChangeOperationError as error:
+            return ChangeDiagnostic(error.code, str(error))
+        expected_parameters = (
+            before.parameters[:position]
+            + (replace(before.parameters[position], has_default=False, default_source=None),)
+            + before.parameters[position + 1:]
+        )
+        if after != replace(before, parameters=expected_parameters):
+            return ChangeDiagnostic(
+                "operation_signature_mismatch",
+                "目标签名必须只移除指定参数的默认值，名称、顺序、类型、注解及其他签名信息保持不变。",
+            )
+        if not _signature_is_valid(after):
+            return ChangeDiagnostic("invalid_after_signature", "移除默认值后签名不符合 Python 参数规则。")
+        return None
+
+    def describe(self, target_symbol_id: str) -> str:
+        return f"{target_symbol_id} 参数 {self.parameter_name} 从可选变为必填（移除原有默认值）"
+
+    def evidence_reason(self, target_symbol_id: str, reason: str) -> str:
+        return f"{self.describe(target_symbol_id)}。{reason}"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"change_type": self.change_type.value, "parameter_name": self.parameter_name}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "MakeParameterRequiredOperation":
+        if data.get("change_type") != ChangeType.MAKE_PARAMETER_REQUIRED:
+            raise ChangeOperationError("unsupported_change_type", "operation 类型与参数模型不一致。")
+        if set(data) != {"change_type", "parameter_name"}:
+            raise ChangeOperationError(
+                "invalid_operation_payload", "必填化操作仅接受 change_type 和 parameter_name。"
+            )
+        return cls(data["parameter_name"])
+
+
 # Extend this union and read-only registry only for approved concrete operations.
-ChangeOperation: TypeAlias = AddRequiredParameterOperation | RemoveParameterOperation | RenameParameterOperation
+ChangeOperation: TypeAlias = (
+    AddRequiredParameterOperation | RemoveParameterOperation
+    | RenameParameterOperation | MakeParameterRequiredOperation
+)
 _OPERATION_TYPES = MappingProxyType({
     ChangeType.ADD_REQUIRED_PARAMETER: AddRequiredParameterOperation,
     ChangeType.REMOVE_PARAMETER: RemoveParameterOperation,
     ChangeType.RENAME_PARAMETER: RenameParameterOperation,
+    ChangeType.MAKE_PARAMETER_REQUIRED: MakeParameterRequiredOperation,
 })
 
 

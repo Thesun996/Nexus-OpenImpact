@@ -118,11 +118,11 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" http://127.0.0.1:80
 | `change` JSON 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `target_symbol_id` | string | 是 | inspect `symbols[].symbol_id` 中的模块级函数 |
-| `change_type` | string 枚举 | 否 | 缺省为 `add_required_parameter`；也支持显式 `remove_parameter`、`rename_parameter` |
+| `change_type` | string 枚举 | 否 | 缺省为 `add_required_parameter`；也支持显式 `remove_parameter`、`rename_parameter`、`make_parameter_required` |
 | `added_parameter.name` | string | 新增时必填 | 新增参数名；合法性由 Core Validator 判断 |
 | `added_parameter.kind` | string 枚举 | 新增时必填 | `positional_only`、`positional_or_keyword` 或 `keyword_only` |
 | `insert_before` | string | 否 | 仅用于新增；目标函数中已有参数名，新增参数插在其前面 |
-| `parameter_name` | string | 删除或重命名时必填 | 待删除或重命名的现有参数名；各类型的 kind 边界见下文 |
+| `parameter_name` | string | 删除、重命名或必填化时必填 | 目标现有参数名；各类型的 kind 边界见下文 |
 | `new_parameter_name` | string | 重命名时必填 | 合法 Python identifier、非 keyword，与旧名不同且不与其他参数重名 |
 
 ```json
@@ -179,6 +179,40 @@ Phase 6.3 通过同一 validate / analyze 接口支持重命名：
 重命名返回 `change_type="rename_parameter"`、`added_parameter=null`，统一 `operation={"change_type":"rename_parameter","parameter_name":"timeout","new_parameter_name":"delay"}`；validate 的 change_spec 与 analyze 的 change 保持一致。schema_version=1。纯位置调用通常仍兼容，旧 keyword 调用是否不兼容以 before / after 绑定为准（例如 **kwargs 定义可能接收旧 keyword）。展开实参继续 manual_review，不作为确定传播种子。
 
 重命名 Evidence 的 rule 为 `parameter_renamed_breaks_keyword_call`，reason 说明旧名 → 新名及实际绑定失败，代码片段、源码哈希和路径仍来自真实项目。Explanation 仅解释证据。当前不检查函数体内部旧参数名引用、positional-only 内部引用风险、reflection / inspect.signature、docstring、type comment 或 external string references，也不修改用户源码。
+
+Phase 6.4 通过同一 validate / analyze 接口支持移除已有参数默认值：
+
+```json
+{
+  "change_type": "make_parameter_required",
+  "target_symbol_id": "utils.connect",
+  "parameter_name": "timeout"
+}
+```
+
+该 JSON 必须且仅包含这三个字段，不接受 added_parameter、new_parameter_name、insert_before 或 default。服务从本次快照读取 before，确认目标参数有默认值且属于 `positional_only` / `positional_or_keyword` / `keyword_only`，只清除其默认值；参数名、顺序、kind、注解、其他参数和函数元信息保持不变。参数名与 Python AST 一致按 NFKC 规范化。
+
+当前无默认值表示为 `has_default=false, default_source=null`。源码 `timeout=None` 的 before 为 `has_default=true, default_source="None"`，仍然是可选参数；False、0、空字符串同样不能按真假值误认为没有默认值。默认值只读取语法文本，不执行表达式。
+
+构造 after 时复用共享签名合法性检查，再由现有 ChangeSpec Validator 检查源码一致性和唯一差异。`f(a=1, b=2)` 只移除 b 默认值会返回 invalid_after_signature，不调整 a、不重排；keyword-only 参数不受位置参数默认顺序约束。
+
+| 移除默认值错误 | HTTP 状态 | `validation.diagnostics[].code` |
+| --- | --- | --- |
+| 参数不存在 | 422 | `parameter_not_found` |
+| 参数当前没有默认值，已为必填 | 422 | `parameter_already_required` |
+| *args / **kwargs 不支持 | 422 | `unsupported_parameter_kind` |
+| after 参数顺序等语法非法 | 422 | `invalid_after_signature` |
+| 目标 Symbol 不存在 | 422 | `target_not_found` |
+| 缺字段或混入其他类型字段 | 422 | `invalid_change_config` |
+| 参数名格式非法 | 422 | `invalid_operation_payload` |
+
+上述 422 仍返回 change_spec=null、validation.valid=false 和明确 diagnostics，未进入影响分析，临时目录仍清理。指纹不一致仍在解压与分析前返回 HTTP 409 `error.code="fingerprint_mismatch"`。原 ZIP 限制、multipart 字段、路径和上传生命周期均不变。
+
+成功返回 `change_type="make_parameter_required"`、`added_parameter=null`、`operation={"change_type":"make_parameter_required","parameter_name":"timeout"}`，validate 的 change_spec 与 analyze 的 change 保持一致；schema_version=1。缺省 change_type 继续为 add_required_parameter，旧 add/remove/rename 请求及响应保持原行为。
+
+只有 before compatible → after incompatible 才产生 Direct；显式提供值的调用通常仍兼容，展开实参保持 manual_review。确定 Direct 使用 `parameter_became_required_breaks_call`，Evidence reason 说明已有默认值被移除、当前调用缺少必填参数以及 before/after 状态；源码位置、哈希和传播路径继续来自真实项目。Explanation 只解释证据，不能决定影响。
+
+本阶段不分析函数体业务逻辑、默认值本身变化的行为差异、reflection / inspect.signature、docstring 或 external configuration，不实现 make_parameter_optional。
 
 PowerShell 示例（先准备好 `project.zip` 和仅含上述 JSON 的 `change.json`）：
 

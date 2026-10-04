@@ -1,6 +1,6 @@
-# Phase 6.1–6.3：Change Type 架构
+# Phase 6.1–6.4：Change Type 架构
 
-Phase 6.1 建立 Operation 架构；Phase 6.2 注册 `remove_parameter`；Phase 6.3 注册 `rename_parameter`。当前正式支持新增必填参数、删除一个普通参数、重命名一个可按关键字传入的参数。三种变化共用 before / after 兼容性判断和有限反向传播。
+Phase 6.1 建立 Operation 架构；Phase 6.2 注册 `remove_parameter`；Phase 6.3 注册 `rename_parameter`；Phase 6.4 注册 `make_parameter_required`。当前正式支持新增必填参数、删除一个普通参数、重命名一个可按关键字传入的参数，以及移除已有参数默认值。四种变化共用 before / after 兼容性判断和有限反向传播。
 
 ## 原实现影响面
 
@@ -15,7 +15,7 @@ Phase 6.1 建立 Operation 架构；Phase 6.2 注册 `remove_parameter`；Phase 
 
 ## 模型与职责
 
-`ChangeType` 为字符串 Enum，目前有 `ADD_REQUIRED_PARAMETER`、`REMOVE_PARAMETER` 和 `RENAME_PARAMETER`。`ChangeOperation` 是三个具体载荷模型的类型联合；类型到载荷解码器的映射只读。后续批准新的类型后，将其加入 Enum、类型联合和映射即可，无需插件系统或可变注册器。
+`ChangeType` 为字符串 Enum，目前有 `ADD_REQUIRED_PARAMETER`、`REMOVE_PARAMETER`、`RENAME_PARAMETER` 和 `MAKE_PARAMETER_REQUIRED`。`ChangeOperation` 是四个具体载荷模型的类型联合；类型到载荷解码器的映射只读。后续批准新的类型后，将其加入 Enum、类型联合和映射即可，无需插件系统或可变注册器。
 
 `AddRequiredParameterOperation` 为不可变 dataclass：
 
@@ -73,13 +73,13 @@ Operation JSON：
 
 旧 CLI change.json、旧 ChangeSpec 五参数构造接口以及旧简化 HTTP 请求仍可使用。旧构造自动生成对应的新增参数 Operation；不支持的旧 change_type 仍由 Validator 返回明确诊断。
 
-HTTP 响应与 CLI JSON Report 使用 `to_dict(include_operation=False)`。对于新增类型，继续保留 `change_type`、`target_symbol_id`、`before`、`after`、`added_parameter` 五个原字段，省略 operation，旧 JSON 不变。删除与重命名类型的 added_parameter 为 null，operation 必须保留，即使 include_operation=False 也不能丢失变更意图。schema_version 仍为 1，原新增 Demo 与前端请求没有修改。
+HTTP 响应与 CLI JSON Report 使用 `to_dict(include_operation=False)`。对于新增类型，继续保留 `change_type`、`target_symbol_id`、`before`、`after`、`added_parameter` 五个原字段，省略 operation，旧 JSON 不变。删除、重命名和移除默认值类型的 added_parameter 为 null，operation 必须保留，即使 include_operation=False 也不能丢失变更意图。schema_version 仍为 1，原新增 Demo 与前端请求没有修改。
 
 HTTP 的 `change_type` 可选，缺省仍为 `add_required_parameter`。其余 multipart 字段、ZIP 重传、指纹核对、临时目录清理和错误响应流程继续使用原实现。
 
 ## 架构验收
 
-新增测试覆盖三种 Operation 和 ChangeSpec 的 JSON 往返、载荷拒绝、旧字段冲突、canonical signature 判定、源码不变，以及旧 / 显式新增类型 HTTP 请求的完整响应一致性。删除测试还覆盖位置 / 关键字 / 混合调用、可选参数、仅关键字 / 仅位置参数、既有问题、兼容性改善、展开参数、多个 Direct 种子、循环、去重、真实源码 Evidence、规则解释、CLI 和 HTTP。重命名回归还覆盖名称合法性、仅 name 改动、keyword / positional 两个完整链 Demo，以及真实 TCP HTTP 和失败清理。现有回归继续运行。
+测试覆盖四种 Operation 和 ChangeSpec 的 JSON 往返、载荷拒绝、旧字段冲突、canonical signature 判定、源码不变，以及旧 / 显式新增类型 HTTP 请求的完整响应一致性。删除测试还覆盖位置 / 关键字 / 混合调用、可选参数、仅关键字 / 仅位置参数、既有问题、兼容性改善、展开参数、多个 Direct 种子、循环、去重、真实源码 Evidence、规则解释、CLI 和 HTTP。重命名回归还覆盖名称合法性、仅 name 改动、keyword / positional 两个完整链 Demo，以及真实 TCP HTTP 和失败清理。移除默认值测试重点覆盖默认值存在性、非法位置参数顺序、None / False / 0 / 空字符串、混合参数种类及显式传参零影响，现有回归继续运行。
 
 ## 删除参数的 CLI 与 HTTP
 
@@ -147,6 +147,54 @@ python -m openimpact analyze examples/parameter_rename_positional --change examp
 
 确定 Direct 使用规则 `parameter_renamed_breaks_keyword_call`，原因保留实际 before / after 绑定诊断。报告层通过 Operation 的 `evidence_reason()` 给 Evidence 补充 `timeout → delay` 语义；原 add/remove 返回原 reason，完整旧报告保持不变。EvidenceBuilder 的文件、行号、片段、哈希及传播路径不变；Explanation 输入只读取当前 Evidence 与 Operation 描述，rule 模式无需模型请求。
 
+## 移除默认值：Phase 6.4
+
+`MakeParameterRequiredOperation(parameter_name)` 为不可变 dataclass，discriminator 固定为 `make_parameter_required`。参数必须存在、kind 为 `positional_only` / `positional_or_keyword` / `keyword_only` 且当前有默认值；拒绝 `var_positional` / `var_keyword`。名称按 Python NFKC 规则规范化。`build_after()` 仅清除指定参数默认值，保留其名称、顺序、kind、annotation，保留全部其他参数与函数元信息；随后复用共享签名合法性检查。`validate_delta()` 精确检查唯一变化是该默认值移除，不在分析时重新生成 after。
+
+当前模型的无默认值表示为 `has_default=False, default_source=None`，有无默认值由 has_default 判断。
+
+| 源码状态 | has_default | default_source |
+| --- | --- | --- |
+| timeout=None | true | 字符串 `"None"` |
+| timeout=False | true | 字符串 `"False"` |
+| timeout=0 | true | 字符串 `"0"` |
+| timeout="" | true | 字符串 `"''"`（AST 规范文本） |
+| timeout，无默认值 | false | null |
+
+默认值表达式只作为语法文本保存和比较，不执行、不求值。原来有默认值但省略传参的调用会从 compatible 变为 incompatible；显式提供值的调用继续兼容。该变化只收紧同一签名的必填条件，在当前模型内不会产生 incompatible → compatible；共享引擎的 compatibility_improved 分类和旧类型的对应测试保留。
+
+签名顺序示例：
+
+| before / 操作 | 结果 |
+| --- | --- |
+| f(a=1, b=2)，只移除 b 默认值 | 拒绝 invalid_after_signature；不会生成 f(a=1, b) 或改动 a |
+| f(a=1, /, b=2)，只移除 b 默认值 | 拒绝 invalid_after_signature；位置参数默认顺序跨越 / 检查 |
+| f(a=1, b=2)，只移除 a 默认值 | 合法 f(a, b=2) |
+| f(a=1, *, timeout=30)，移除 timeout 默认值 | 合法 f(a=1, *, timeout)；keyword-only 不受位置参数默认顺序约束 |
+
+同一 validate / analyze API 接受：
+
+```json
+{
+  "change_type": "make_parameter_required",
+  "target_symbol_id": "utils.connect",
+  "parameter_name": "timeout"
+}
+```
+
+该配置仅接受这三个字段，不允许 added_parameter、new_parameter_name、insert_before 或 default。参数不存在 / 已必填 / kind 不支持 / after 非法分别为 HTTP 422 `parameter_not_found` / `parameter_already_required` / `unsupported_parameter_kind` / `invalid_after_signature`。指纹不一致仍为 409。HTTP 请求与临时快照生命周期不变。
+
+CLI 使用包含 before、after 和 operation 的完整 ChangeSpec：
+
+```powershell
+python -m openimpact analyze examples/parameter_required_missing --change examples/parameter_required_missing/change.json --format json
+python -m openimpact analyze examples/parameter_required_explicit --change examples/parameter_required_explicit/change.json --format json
+```
+
+两者均为 `page → dashboard → report → utils.connect`，计划将 connect(address, timeout=30) 改为 connect(address, timeout)。missing Demo 的真实调用省略 timeout，预期 1 / 1 / 1、complete；explicit Demo 的真实调用为 connect(address, timeout=10)，预期 0 / 0 / 0、complete。零影响的 Evidence / Explanation 为空。
+
+确定 Direct 规则为 `parameter_became_required_breaks_call`。Operation 的 evidence_reason 补充“参数从可选变为必填，移除原有默认值”；实际原因继续包含修改前兼容、修改后缺少该必填参数。报告的 before 保存原默认值语法文本；文件、位置、源码片段、哈希与路径由原 EvidenceBuilder 提供。Explanation 只解释这些事实，不决定影响。report.py、EvidenceBuilder 和 Provider 本轮无需修改；schema_version=1，added_parameter=null，operation 完整表达 intent。
+
 ## 当前能力边界
 
 删除参数并不自动等于调用不兼容。`f(a, b=2)` 的 `f(1)` 可以继续兼容；若保留 `*args` / `**kwargs` 定义，原有显式实参也可能仍合法。含展开实参的调用继续 manual_review，未解析调用继续 unresolved，不成为确定传播种子。
@@ -157,4 +205,4 @@ Phase 6.1 的主要补齐点为：公开序列化需要保留新类型的 operat
 
 参数重命名分析不修改源码、不检查函数体内部旧参数名引用，也不评估 positional-only 重命名的内部引用风险。reflection / inspect.signature、docstring、type comment 和 external string references 均不在本轮范围内。纯位置调用的 No Impact 仅表示没有新增调用绑定不兼容，不能据此保证函数体或整个程序安全。
 
-后续候选可考虑移除已有参数默认值（可选变必填），它可继续复用 canonical signature 兼容性判断。本轮仅注册三种已批准 Operation，未实现第四种类型。
+移除默认值同样仅分析调用签名兼容性，不分析函数体业务逻辑、默认值本身变化导致的行为差异、reflection / inspect.signature、docstring 或 external configuration。含展开实参的调用仍为 manual_review，不猜测、不作为确定传播种子。当前只注册四种已批准 Operation，未实现 make_parameter_optional。
