@@ -30,7 +30,7 @@ export function CoverageNotice({ coverage }) {
   if (coverage?.status !== 'partial') return null;
   return (
     <section className="state-message" role="alert">
-      <b>partial：分析范围不完整。</b> {coverage.message || '部分源码或调用未解析，当前结果只覆盖能够确认的代码。零条影响也不表示整个项目确定无影响。'}
+      <b>partial：分析范围不完整。</b> {coverage.message || '部分源码或调用未解析，当前结果只覆盖能够确认的代码。'} 零条影响也不表示整个项目确定无影响；已经确定的影响仍可查看。
     </section>
   );
 }
@@ -45,7 +45,7 @@ export function DiagnosticsList({ diagnostics }) {
     const detail = typeof entry === 'object' && entry !== null ? entry : { message: String(entry) };
     return (
       <div className="diagnostic-item" key={`${category}-${index}`}>
-        <b>{detail.code || detail.kind || category}{detail.file ? ` · ${detail.file}${detail.line ? `:${detail.line}` : ''}` : ''}</b>
+        <b>{detail.code || detail.kind || category}{detail.file ? ` · ${detail.file}${detail.line != null ? `:${detail.line}` : ''}${detail.column != null ? `:${detail.column}` : ''}` : ''}</b>
         <span>{detail.message || detail.reason || JSON.stringify(detail)}</span>
       </div>
     );

@@ -14,5 +14,9 @@ button, input, select, textarea { font: inherit; }
 .empty-state p { color: var(--muted); line-height: 1.8; }
 .workflow-error { color: #991b1b; background: var(--red-soft); border: 1px solid #fecaca; border-radius: 10px; padding: 12px 16px; }
 .diagnostic-list { padding-left: 20px; color: var(--muted); overflow-wrap: anywhere; }
+/* Keep report metadata separate from parameter names and individual call sites. */
+.change-summary-card b small,
+.evidence-card .info-list small,
+.evidence-meta-card .info-list small { display: block; margin: 4px 0 0; color: #64748b; font-weight: 400; }
 @media (max-width: 700px) { .mode-banner { margin: 12px 14px 0; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
