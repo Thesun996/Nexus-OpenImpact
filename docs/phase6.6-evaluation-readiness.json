@@ -1,0 +1,81 @@
+{
+  "readiness_record_version": 1,
+  "date": "2026-10-04",
+  "evaluation_status": "awaiting_member_b_deliverables",
+  "scope": "Visible repository and fetched refs; no independent benchmark run",
+  "baseline": {
+    "branch": "integration/multi-change-web",
+    "commit": "1cd8480a7e37049956060556b912abe963f89486",
+    "origin_main_commit": "3a5a582ddcef8bd48ec06a584bf6b16ef820e448",
+    "provider": "rule"
+  },
+  "independent_benchmark": {
+    "planned_case_count": 28,
+    "visible_delivered_case_count": 0,
+    "verified_human_ground_truth_case_count": 0,
+    "evaluated_case_count": 0,
+    "ground_truth_sha256": null,
+    "runner_status": "not_found_in_visible_repository",
+    "metrics": {
+      "direct_precision": null,
+      "direct_recall": null,
+      "direct_f1": null,
+      "direct_tp": null,
+      "direct_fp": null,
+      "direct_fn": null,
+      "indirect_symbol_precision": null,
+      "indirect_symbol_recall": null,
+      "indirect_path_correctness": null,
+      "indirect_source_pair_recall": null,
+      "coverage_classification_accuracy": null,
+      "mean_analysis_ms": null
+    },
+    "by_change_type": {
+      "add_required_parameter": {"planned": 7, "visible_delivered": 0, "verified_labels": 0, "evaluated": 0, "metrics": null},
+      "remove_parameter": {"planned": 7, "visible_delivered": 0, "verified_labels": 0, "evaluated": 0, "metrics": null},
+      "rename_parameter": {"planned": 7, "visible_delivered": 0, "verified_labels": 0, "evaluated": 0, "metrics": null},
+      "make_parameter_required": {"planned": 7, "visible_delivered": 0, "verified_labels": 0, "evaluated": 0, "metrics": null}
+    },
+    "boundary_classification_distribution": null,
+    "false_positives": null,
+    "false_negatives": null,
+    "incorrect_propagation_paths": null,
+    "new_confirmed_core_defects": null
+  },
+  "regression": {
+    "purpose": "Existing production regression only; not independent Ground Truth",
+    "python_version": "3.12.0",
+    "pytest_version": "9.1.1",
+    "pytest": {"passed": 597, "skipped": 1, "warnings": 1, "elapsed_seconds": 39.14, "exit_code": 0},
+    "demos": [
+      {"name": "signature_change", "change_type": "add_required_parameter", "direct": 1, "indirect_1hop": 1, "indirect_2hop": 1, "coverage": "complete", "cli_elapsed_ms": 261.04},
+      {"name": "parameter_removal", "change_type": "remove_parameter", "direct": 1, "indirect_1hop": 1, "indirect_2hop": 1, "coverage": "complete", "cli_elapsed_ms": 271.41},
+      {"name": "parameter_rename_keyword", "change_type": "rename_parameter", "direct": 1, "indirect_1hop": 1, "indirect_2hop": 1, "coverage": "complete", "cli_elapsed_ms": 256.78},
+      {"name": "parameter_rename_positional", "change_type": "rename_parameter", "direct": 0, "indirect_1hop": 0, "indirect_2hop": 0, "coverage": "complete", "cli_elapsed_ms": 261.25},
+      {"name": "parameter_required_missing", "change_type": "make_parameter_required", "direct": 1, "indirect_1hop": 1, "indirect_2hop": 1, "coverage": "complete", "cli_elapsed_ms": 265.36},
+      {"name": "parameter_required_explicit", "change_type": "make_parameter_required", "direct": 0, "indirect_1hop": 0, "indirect_2hop": 0, "coverage": "complete", "cli_elapsed_ms": 268.88}
+    ],
+    "all_demo_exit_codes_zero": true,
+    "all_demo_validation_valid": true,
+    "all_demo_source_snapshots_unchanged": true,
+    "all_demo_manual_review_counts_zero": true,
+    "all_demo_pre_existing_counts_zero": true,
+    "all_demo_unresolved_call_counts_zero": true,
+    "mean_single_cli_observation_ms": 264.12,
+    "timing_note": "Single CLI observations include process startup and reporting; not benchmark mean Core analysis time",
+    "raw_artifacts_directory": ".local/phase6.6"
+  },
+  "phase_6_7_benchmark_gate_ready": false,
+  "missing_deliverables": [
+    "Member B branch/commit or local delivery location",
+    "Independent cases and input snapshots",
+    "Human annotations and review/provenance records",
+    "Versioned full ChangeSpecs and manifest hashes",
+    "Evaluation Runner and metric scripts",
+    "Reproducible per-case comparisons and aggregate results"
+  ],
+  "production_code_modified": false,
+  "real_model_calls": false,
+  "git_commit_created": false,
+  "git_push_or_main_merge": false
+}
