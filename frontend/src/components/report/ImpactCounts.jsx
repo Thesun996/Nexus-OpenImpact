@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 const groups = [
   { title: '确定影响', className: 'is-confirmed', metrics: [
-    { title: '直接影响', key: 'direct_impact_count', unit: '调用点', help: '这些调用原本符合函数参数要求，修改后不再符合。可查看源码证据，确认缺少的必填参数。' },
+    { title: '直接影响', key: 'direct_impact_count', unit: '调用点', help: '修改前兼容、修改后出现确定性调用不兼容的位置。系统只统计本次变更新引入的问题。' },
   ] },
   { title: '影响传播', metrics: [
     { title: '1 层间接影响', key: 'indirect_1hop_count', unit: '上游函数', help: '这些函数调用了存在直接影响的函数，建议进一步检查。这表示一层上游调用关系，不代表一定会运行失败。' },

@@ -14,15 +14,18 @@ export function ProjectOverview({ inspect, file, fingerprint, mode }) {
   </section>;
 }
 
-// Presentation only: reuse the original formatter, never insert or reorder
-// parameters. Highlight the actual name without coloring annotation text.
-export function SignatureText({ definition, addedParameterName }) {
-  const parameter = definition?.parameters?.find(item => item.name === addedParameterName);
+// Presentation only: reuse the formatter and highlight a parameter's own name,
+// leaving unrelated annotation/default text and the source definition intact.
+export function SignatureText({ definition, addedParameterName, highlightParameterName, removedParameterName }) {
+  const highlightedName = removedParameterName || highlightParameterName || addedParameterName;
+  const parameter = definition?.parameters?.find(item => item.name === highlightedName);
   if (!parameter) return <code className="oi-signature-text">{formatSignature(definition)}</code>;
   const marker = '\u0000'; // This delimiter cannot occur in Python source.
   const display = { ...definition, parameters: definition.parameters.map(item => item === parameter ? { ...item, name: marker } : item) };
   const [before, after] = formatSignature(display).split(marker);
-  return <code className="oi-signature-text">{before}<mark className="oi-added-parameter">{parameter.name}</mark>{after}</code>;
+  return <code className="oi-signature-text">{before}{removedParameterName
+    ? <del className="oi-removed-parameter">{parameter.name}</del>
+    : <mark className="oi-added-parameter">{parameter.name}</mark>}{after}</code>;
 }
 
 export function diagnosticCount(diagnostics) {

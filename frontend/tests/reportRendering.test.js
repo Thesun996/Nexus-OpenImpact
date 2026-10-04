@@ -11,6 +11,8 @@ let server
 let ReportResults
 let ErrorNotice
 let ImpactCounts
+let ChangeOverview
+const changeSpecs = JSON.parse(readFileSync(new URL('./fixtures/change-specs.json', import.meta.url)))
 
 before(async () => {
   // Reuse the project's Vite JSX transform; no browser/testing dependency or
@@ -25,6 +27,7 @@ before(async () => {
   })
   const module = await server.ssrLoadModule('/src/pages/ReportPage.jsx')
   ReportResults = module.ReportResults
+  ChangeOverview = module.ChangeOverview
   ErrorNotice = (await server.ssrLoadModule('/src/pages/PageParts.jsx')).ErrorNotice
   ImpactCounts = (await server.ssrLoadModule('/src/components/report/ImpactCounts.jsx')).default
 })
@@ -52,12 +55,36 @@ test('each help button has its own description and indirect help avoids claiming
   assert.deepEqual(buttons.slice(0, 5).map((match) => match[1]), ['直接影响', '1 层间接影响', '2 层间接影响', '人工检查', '未解析调用'])
   assert.equal(new Set(buttons.map((match) => match[2])).size, 10, 'multiple reports must not share description IDs')
   const tooltips = [...html.matchAll(/<span id="([^"]+)" class="oi-stat-tooltip" role="tooltip" hidden="">([^<]+)<\/span>/g)]
+  assert.ok(tooltips[0][2].includes('修改前兼容、修改后出现确定性调用不兼容'))
+  assert.ok(tooltips[0][2].includes('只统计本次变更新引入的问题'))
+  assert.ok(!tooltips[0][2].includes('缺少的必填参数'))
   assert.deepEqual(buttons.map((match) => match[2]), tooltips.map((match) => match[1]))
   for (const index of [1, 2]) {
     assert.ok(tooltips[index][2].includes('建议进一步检查'))
     assert.ok(tooltips[index][2].includes('不代表一定会运行失败'))
   }
 })
+
+for (const [name, expected] of [
+  ['signature_change', '新增必填参数 timezone'],
+  ['parameter_removal', '删除参数 timezone'],
+  ['parameter_rename_keyword', 'timeout → delay'],
+  ['parameter_required_missing', 'timeout=30 → timeout'],
+]) {
+  test(`Change Overview uses actual operation and signatures: ${name}`, () => {
+    const change = changeSpecs[name]
+    const original = JSON.stringify(change)
+    const html = renderToStaticMarkup(createElement(ChangeOverview, { change }))
+    assert.ok(html.includes(expected))
+    assert.ok(html.includes(change.target_symbol_id))
+    if (name !== 'signature_change') {
+      assert.equal(change.added_parameter, null)
+      assert.ok(!html.includes('新增必填参数'))
+    }
+    assert.ok(html.includes('后端已校验'))
+    assert.equal(JSON.stringify(change), original)
+  })
+}
 
 test('missing statistics remain unavailable while actual zero stays zero', () => {
   const html = renderToStaticMarkup(createElement(ImpactCounts, { summary: { direct_impact_count: 0 } }))

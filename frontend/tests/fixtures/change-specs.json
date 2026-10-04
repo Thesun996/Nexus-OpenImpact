@@ -1,0 +1,297 @@
+{
+  "signature_change": {
+    "change_type": "add_required_parameter",
+    "target_symbol_id": "utils.format_date",
+    "before": {
+      "name": "format_date",
+      "parameters": [
+        {
+          "name": "date",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "after": {
+      "name": "format_date",
+      "parameters": [
+        {
+          "name": "date",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        },
+        {
+          "name": "timezone",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "added_parameter": {
+      "name": "timezone",
+      "kind": "positional_or_keyword",
+      "required": true,
+      "annotation_source": null
+    }
+  },
+  "parameter_removal": {
+    "change_type": "remove_parameter",
+    "target_symbol_id": "utils.format_date",
+    "before": {
+      "name": "format_date",
+      "parameters": [
+        {
+          "name": "date",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        },
+        {
+          "name": "timezone",
+          "kind": "positional_or_keyword",
+          "has_default": true,
+          "default_source": "'UTC'",
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "after": {
+      "name": "format_date",
+      "parameters": [
+        {
+          "name": "date",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "added_parameter": null,
+    "operation": {
+      "change_type": "remove_parameter",
+      "parameter_name": "timezone"
+    }
+  },
+  "parameter_rename_keyword": {
+    "change_type": "rename_parameter",
+    "target_symbol_id": "utils.f",
+    "before": {
+      "name": "f",
+      "parameters": [
+        {
+          "name": "a",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        },
+        {
+          "name": "timeout",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "after": {
+      "name": "f",
+      "parameters": [
+        {
+          "name": "a",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        },
+        {
+          "name": "delay",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "added_parameter": null,
+    "operation": {
+      "change_type": "rename_parameter",
+      "parameter_name": "timeout",
+      "new_parameter_name": "delay"
+    }
+  },
+  "parameter_rename_positional": {
+    "change_type": "rename_parameter",
+    "target_symbol_id": "utils.f",
+    "before": {
+      "name": "f",
+      "parameters": [
+        {
+          "name": "a",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        },
+        {
+          "name": "timeout",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "after": {
+      "name": "f",
+      "parameters": [
+        {
+          "name": "a",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        },
+        {
+          "name": "delay",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "added_parameter": null,
+    "operation": {
+      "change_type": "rename_parameter",
+      "parameter_name": "timeout",
+      "new_parameter_name": "delay"
+    }
+  },
+  "parameter_required_missing": {
+    "change_type": "make_parameter_required",
+    "target_symbol_id": "utils.connect",
+    "before": {
+      "name": "connect",
+      "parameters": [
+        {
+          "name": "address",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        },
+        {
+          "name": "timeout",
+          "kind": "positional_or_keyword",
+          "has_default": true,
+          "default_source": "30",
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "after": {
+      "name": "connect",
+      "parameters": [
+        {
+          "name": "address",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        },
+        {
+          "name": "timeout",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "added_parameter": null,
+    "operation": {
+      "change_type": "make_parameter_required",
+      "parameter_name": "timeout"
+    }
+  },
+  "parameter_required_explicit": {
+    "change_type": "make_parameter_required",
+    "target_symbol_id": "utils.connect",
+    "before": {
+      "name": "connect",
+      "parameters": [
+        {
+          "name": "address",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        },
+        {
+          "name": "timeout",
+          "kind": "positional_or_keyword",
+          "has_default": true,
+          "default_source": "30",
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "after": {
+      "name": "connect",
+      "parameters": [
+        {
+          "name": "address",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        },
+        {
+          "name": "timeout",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "added_parameter": null,
+    "operation": {
+      "change_type": "make_parameter_required",
+      "parameter_name": "timeout"
+    }
+  }
+}

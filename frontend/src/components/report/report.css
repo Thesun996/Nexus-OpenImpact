@@ -9,7 +9,7 @@
 .oi-change-target, .oi-change-parameter { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--oi-space-2) var(--oi-space-3); min-width: 0; }
 .oi-change-target > span, .oi-change-parameter > span { font-size: var(--oi-text-sm); color: var(--oi-muted); }
 .oi-change-target > b { font-family: var(--oi-font-code); font-weight: 500; overflow-wrap: anywhere; }
-.oi-change-parameter > code { color: var(--oi-change); }
+.oi-change-parameter > code { color: var(--oi-change); overflow-wrap: anywhere; }
 .oi-change-parameter > small { flex-basis: 100%; color: var(--oi-muted); font-size: var(--oi-text-xs); }
 .oi-planned-signatures { display: grid; gap: var(--oi-space-2); grid-column: 1 / -1; }
 .oi-planned-signatures > div { display: flex; align-items: baseline; gap: var(--oi-space-4); }

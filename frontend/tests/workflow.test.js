@@ -22,6 +22,30 @@ test('initial project and refresh have no implicit demo or report', () => {
   const state = createInitialState()
   assert.equal(state.mode, 'project')
   for (const field of ['file', 'inspect', 'projectFingerprint', 'selectedSymbolId', 'validation', 'report']) assert.equal(state[field], null)
+  assert.deepEqual(state.change, { changeType: 'add_required_parameter', operation: { parameterName: '', kind: 'positional_or_keyword', insertBefore: '' } })
+})
+
+test('type switching clears operation-specific fields and all old results but retains the project', () => {
+  let state = completedDemo()
+  const oldRevision = state.revision
+  state = reduce(state, { type: 'CHANGE_TYPE_SELECTED', changeType: 'rename_parameter' })
+  assert.deepEqual(state.change, { changeType: 'rename_parameter', operation: { parameterName: '', newParameterName: '' } })
+  assert.equal(state.file, file)
+  assert.equal(state.projectFingerprint, inspect.project_fingerprint)
+  for (const field of ['validation', 'validatedChange', 'report']) assert.equal(state[field], null)
+  assert.ok(state.revision > oldRevision)
+  state = reduce(state, { type: 'CHANGE_UPDATED', change: { parameterName: 'date', newParameterName: 'day', kind: 'keyword_only', insertBefore: 'date' } })
+  assert.deepEqual(state.change.operation, { parameterName: 'date', newParameterName: 'day' })
+  state = reduce(state, { type: 'CHANGE_TYPE_SELECTED', changeType: 'remove_parameter' })
+  assert.deepEqual(state.change.operation, { parameterName: '' })
+})
+
+test('selecting another symbol clears parameter names that belong to the previous signature', () => {
+  let state = reduce(demo(), { type: 'CHANGE_TYPE_SELECTED', changeType: 'rename_parameter' })
+  state = reduce(state, { type: 'CHANGE_UPDATED', change: { parameterName: 'date', newParameterName: 'day' } })
+  state = reduce(state, { type: 'SYMBOL_SELECTED', id: 'page.page' })
+  assert.equal(state.change.changeType, 'rename_parameter')
+  assert.deepEqual(state.change.operation, { parameterName: '', newParameterName: '' })
 })
 
 test('selecting a real ZIP leaves analysis unset and retains the original File', () => {
@@ -53,7 +77,7 @@ test('changing Symbol invalidates the old validation and report', () => {
 })
 
 test('changing parameter configuration invalidates old report while retaining ZIP', () => {
-  const state = reduce(completedDemo(), { type: 'CHANGE_UPDATED', change: { parameterKind: 'keyword_only' } })
+  const state = reduce(completedDemo(), { type: 'CHANGE_UPDATED', change: { kind: 'keyword_only' } })
   assert.equal(state.file, file)
   assert.equal(state.validation, null)
   assert.equal(state.report, null)
@@ -64,7 +88,7 @@ test('only the exact explicitly opened demo configuration can use saved response
   assert.equal(isSupportedDemoChange(createInitialState()), false)
   const state = demo()
   assert.equal(isSupportedDemoChange(state), true)
-  for (const change of [{ parameterName: 'zone' }, { parameterKind: 'positional_only' }, { insertBefore: 'date' }]) {
+  for (const change of [{ parameterName: 'zone' }, { kind: 'positional_only' }, { insertBefore: 'date' }]) {
     assert.equal(isSupportedDemoChange(reduce(state, { type: 'CHANGE_UPDATED', change })), false)
   }
 })
@@ -93,9 +117,9 @@ test('an unknown or absent Symbol is never silently replaced by demo target', ()
 })
 
 test('simplified change payload preserves kinds and optional insert_before without constructing signatures', () => {
-  assert.deepEqual(buildChangePayload(demo()), { target_symbol_id: 'utils.format_date', added_parameter: { name: 'timezone', kind: 'positional_or_keyword' } })
-  const state = reduce(demo(), { type: 'CHANGE_UPDATED', change: { parameterKind: 'positional_only', insertBefore: 'date' } })
-  assert.deepEqual(buildChangePayload(state), { target_symbol_id: 'utils.format_date', added_parameter: { name: 'timezone', kind: 'positional_only' }, insert_before: 'date' })
+  assert.deepEqual(buildChangePayload(demo()), { change_type: 'add_required_parameter', target_symbol_id: 'utils.format_date', added_parameter: { name: 'timezone', kind: 'positional_or_keyword' } })
+  const state = reduce(demo(), { type: 'CHANGE_UPDATED', change: { kind: 'positional_only', insertBefore: 'date' } })
+  assert.deepEqual(buildChangePayload(state), { change_type: 'add_required_parameter', target_symbol_id: 'utils.format_date', added_parameter: { name: 'timezone', kind: 'positional_only' }, insert_before: 'date' })
 })
 
 test('signature display handles empty, positional-only, defaults, keyword-only, and variadics', () => {

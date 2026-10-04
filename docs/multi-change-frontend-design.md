@@ -1,6 +1,6 @@
 # Phase 6.5 Step 1：四种 Signature Change 的前端接入设计
 
-状态：设计与影响面审计完成，等待负责人审核。本文未实现 React 接入，也未合并分支。
+状态：Step 1 设计已审核；Step 2A 集成基线已建立；Step 2B 已实现，等待负责人审核。下文保留初次审计的历史基线，末尾记录当前实施与验收。
 
 ## 1. 审计依据与当前基线
 
@@ -66,7 +66,7 @@
 ```text
 ChangeDraft =
   { changeType: "add_required_parameter",
-    operation: { parameterName, parameterKind, insertBefore } }
+    operation: { parameterName, kind, insertBefore } }
   | { changeType: "remove_parameter",
       operation: { parameterName } }
   | { changeType: "rename_parameter",
@@ -82,7 +82,7 @@ ChangeDraft =
   "changeType": "add_required_parameter",
   "operation": {
     "parameterName": "",
-    "parameterKind": "positional_or_keyword",
+    "kind": "positional_or_keyword",
     "insertBefore": ""
   }
 }
@@ -326,3 +326,98 @@ Step 2 完成后运行集成工作树中的完整 pytest、`npm run check`、`np
 实现允许的状态改动仅服务统一 Change Draft 与失效规则；原始 ZIP、fingerprint、AbortController / revision、Inspect / Validate / Analyze 协议和 Evidence 对应机制继续使用现有能力。历史 UI 改版的状态保护边界继续保留，不借本次接入重写这些能力。
 
 本轮唯一新增文件为本文。React、多类型浏览器实现、分支整合均等待 Step 2 审核。
+
+## Step 2B 实施与验收记录
+
+2026-10-04，实施基线为 `integration/multi-change-web@7802f41`。本轮没有重新合并 feature，也没有 commit、push 或合并 main。
+
+### 修改文件
+
+| 范围 | 文件 |
+|---|---|
+| 草稿与请求保护 | `frontend/src/state/changeDraft.js`（新增）、`workflow.js`、`actions.js` |
+| 配置页与签名展示 | `frontend/src/pages/ChangePage.jsx`、`frontend/src/components/workflow/WorkflowParts.jsx`、`workflow-pages.css` |
+| 报告展示 | `frontend/src/pages/ReportPage.jsx`、`frontend/src/components/report/ImpactCounts.jsx`、`report.css` |
+| 支持范围文字 | `frontend/src/pages/UploadPage.jsx`、`frontend/src/components/AppShell.jsx`（仅文案） |
+| 自动测试 | `frontend/tests/changeDraft.test.js`（新增）、`actions.test.js`、`workflow.test.js`、`workflowRendering.test.js`、`reportRendering.test.js`、`fixtures/change-specs.json`（新增） |
+| 文档 | `frontend/README.md`、本文 |
+
+共 19 个文件。测试用 ChangeSpec fixture 提取自六个现有 CLI Demo 的真实 Core 输出，只保留结构化 change，不包含本机绝对路径或运行时项目报告。
+
+### 草稿与请求
+
+实际结构：
+
+```js
+state.change = { changeType, operation }
+// add: { parameterName, kind, insertBefore }
+// remove / make required: { parameterName }
+// rename: { parameterName, newParameterName }
+```
+
+采用最新 Step 2B 要求的 `kind` 字段。字段白名单避免上一个类型的字段进入新 payload。新增参数输入、现有参数选择及四项 radio 共用一个配置页。
+
+删除支持三种普通参数；重命名支持普通位置或关键字参数、仅关键字参数；改为必填仅允许 `has_default === true` 的普通参数。禁用项保留真实名称与原因。None、False、0、空字符串在真实浏览器中均可选择。
+
+四种 multipart 的 change 内容分别为：
+
+```json
+[
+  {"change_type":"add_required_parameter","target_symbol_id":"utils.format_date","added_parameter":{"name":"timezone","kind":"positional_or_keyword"}},
+  {"change_type":"remove_parameter","target_symbol_id":"utils.format_date","parameter_name":"timezone"},
+  {"change_type":"rename_parameter","target_symbol_id":"utils.f","parameter_name":"timeout","new_parameter_name":"delay"},
+  {"change_type":"make_parameter_required","target_symbol_id":"utils.connect","parameter_name":"timeout"}
+]
+```
+
+add 的非空插入位置仍通过已有 `insert_before` 提交。原始 File 与 Inspect fingerprint 复用原 API Client，浏览器自行生成 multipart boundary。endpoint、schema_version 和公开响应字段保持原样。
+
+所有草稿更新继续经过原取消入口：AbortController 取消旧请求，revision 与 request identity 拒绝晚返响应，清空旧 Validate、Analyze、Report。成功 Validate 额外保存前端本地 `validatedChange={revision,payload}` 快照；Analyze 核对当前配置后重复提交该准确 payload。响应 operation、目标及 canonical Before/After 也会核对。Unicode 名称接受 Core 的 NFKC 规范化。导航本身不改变草稿或触发业务 API。
+
+### 签名与报告
+
+候选签名持续标为待校验，不自动修复 Python 参数顺序；不合法草稿不能开启 Analyze。只有后端成功响应展示已确认 Before/After。删除展示旧参数，rename 展示 old → new，make-required 的 Before 保留参数名称和真实默认值、After 仅默认值消失。
+
+Report Change Overview 读取真实 operation，保留旧 add 无 operation 的兼容方式；非 add 的 `added_parameter=null` 正常。Evidence/Explanation 同序及元数据匹配未修改。Direct Tooltip 已通用化为“修改前兼容、修改后出现确定性调用不兼容的位置。系统只统计本次变更新引入的问题。”另外四项帮助文案、五项统计来源均未变化。
+
+### 真实浏览器结果
+
+使用集成环境 editable install 的 rule 后端，通过隔离验收用 Vite /api 代理。验收 Origin 为 `http://127.0.0.1:5175`，代理目标 `http://127.0.0.1:8001`。生产开发配置仍是 5173 → 8000；验收配置与材料只在忽略目录 `.local/step2b/`。
+
+每个案例均实际选取对应 ZIP、Inspect、选择函数、填写操作、Validate、Analyze、阅读报告；服务访问日志证实六组业务请求成功。
+
+| 案例 | Demo | Direct / 1-hop / 2-hop | Coverage |
+|---|---|---|---|
+| A 新增必填参数 | signature_change | 1 / 1 / 1 | complete |
+| B 删除参数 | parameter_removal | 1 / 1 / 1 | complete |
+| C keyword rename | parameter_rename_keyword | 1 / 1 / 1 | complete |
+| D 改为必填，省略参数 | parameter_required_missing | 1 / 1 / 1 | complete |
+| E positional rename | parameter_rename_positional | 0 / 0 / 0 | complete |
+| F 改为必填，显式传参 | parameter_required_explicit | 0 / 0 / 0 | complete |
+
+A → B → C → D → E → F 连续运行，各报告的规则、源码、解释与 operation 对应本次上传。E/F 没有源码片段、解释或选中记录残留。四类型快速切换后参数重置、Analyze 禁用，报告入口显示“没有当前项目的报告”；浏览导航后仍保留原 File 和有效校验。
+
+额外真实边界 ZIP：SyntaxError 导致 partial；重命名与已有参数冲突收到 422 `parameter_name_conflict`；移除默认值导致非法顺序收到 422 `invalid_after_signature`，均未开启分析。有效 keyword-only 必填化得到 0/0/0、manual_review=1、unresolved=1，partial 与诊断在手机端可读。409、不可用证据/解释、对应关系冲突及晚返请求继续由自动回归覆盖；没有将这些状态冒充此次真实故障注入结果。
+
+1440、768、390px 配置页实测无页面横向溢出，手机可操作类型与参数。原 Motion 未修改。受控 reduced-motion 验收使用忽略目录的偏好模拟配置，未更改系统设置：390px 下仅一个页面实例、opacity=1、transform=none，快速导航保留有效校验。
+
+### 测试与保护范围
+
+| 检查 | Step 2A | Step 2B |
+|---|---|---|
+| Backend 完整 pytest | 597 passed、1 skipped | 597 passed、1 skipped，7 subtests passed，42.41s |
+| Frontend check | 97 passed | 141 passed、0 failed，新增 44 项 |
+| 显式生产 build | PASS | PASS，458 modules |
+| git diff --check | PASS | PASS |
+
+Backend 仍有一项现有 Starlette/httpx 弃用提示。未新增依赖；JS gzip 从基线 117.76 kB 到 120.80 kB。
+
+未修改 API Client、WorkflowContext、reportData、Motion、Core、AST、Call Graph、Direct/Indirect、EvidenceBuilder、DeepSeek 或 API 路由。原 97 项测试未删除；合法更新草稿形状和允许待校验预览的断言，同时保留不能 Analyze 的保护。
+
+开发验收中遇到 Vite 预构建缓存失效，隔离验收缓存后恢复；未修改生产配置。修改共享草稿模块触发开发热更新时捕获过一次 Context 引用错误与会话重置。稳定源码的全新浏览器会话随后重新完成六个案例，结果均符合预期，控制台 error=0。此开发热更新边界记为非阻塞；修改共享模块后应刷新并重新选择 ZIP。本轮按保护范围保持 Context 不变。
+
+### 交付结论与边界
+
+本地 Multi Change Type Web MVP 达到本轮交付标准，等待负责人审核。候选预览不承担完整 Python 名称或签名合法性判断，后端 Validate 继续作为最终依据。独立保存的演示仍仅支持固定 add 案例，其他类型使用真实 ZIP。刷新仍不持久化项目；Indirect 仍仅建议检查，中文辅助解释不标记为真实模型调用成功。
+
+当前未发现阻塞缺陷；本轮不引入第五种变更或函数体引用分析。截图、浏览器可见数据记录与检查日志保存在本机 `.local/step2b/`，不纳入提交。

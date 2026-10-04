@@ -249,7 +249,7 @@ input::placeholder { color: var(--oi-muted); }
   .oi-topbar { padding: var(--oi-space-4); align-items: flex-start; gap: var(--oi-space-3); }
   .oi-wordmark strong { font-size: var(--oi-text-count); }
   .oi-project-context { grid-template-columns: 1fr; text-align: right; }
-  .oi-file-name { grid-column: 1; }
+  .oi-file-name { grid-column: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
   .oi-top-actions { width: 100%; justify-content: space-between; }
   .oi-session-strip { padding: var(--oi-space-3) var(--oi-space-4); gap: var(--oi-space-1) var(--oi-space-2); }
   .oi-session-strip > span:not(.oi-session-scope) { flex: 1; }

@@ -1,11 +1,13 @@
+import { createChangeDraft, updateChangeDraft, buildDraftPayload } from './changeDraft.js'
+
 export const DEMO_FINGERPRINT = 'db0a82348a94853526f7d79a2f58926994596a3ab1b7c639e6474673d32be1b3'
 
 export function createInitialState(revision = 0) {
   return {
     mode: 'project', file: null, inspect: null, projectFingerprint: null,
     selectedSymbolId: null,
-    change: { parameterName: '', parameterKind: 'positional_or_keyword', insertBefore: '' },
-    validation: null, report: null,
+    change: createChangeDraft(),
+    validation: null, validatedChange: null, report: null,
     loading: { inspect: false, validate: false, analyze: false }, error: null, revision,
     health: { status: 'idle', version: null, message: null },
   }
@@ -31,23 +33,25 @@ export function workflowReducer(state, action) {
         ...createInitialState(state.revision + 1), mode: 'demo', file: action.file,
         inspect: action.inspect, projectFingerprint: action.inspect.project_fingerprint,
         selectedSymbolId: 'utils.format_date',
-        change: { parameterName: 'timezone', parameterKind: 'positional_or_keyword', insertBefore: '' },
+        change: updateChangeDraft(createChangeDraft(), { parameterName: 'timezone' }),
         health: state.health,
       }
     case 'INSPECT_RECEIVED':
-      return { ...state, inspect: action.inspect, projectFingerprint: action.inspect.project_fingerprint, selectedSymbolId: null, validation: null, report: null, loading: { ...state.loading, inspect: false }, error: null }
+      return { ...state, inspect: action.inspect, projectFingerprint: action.inspect.project_fingerprint, selectedSymbolId: null, validation: null, validatedChange: null, report: null, loading: { ...state.loading, inspect: false }, error: null }
     case 'SYMBOL_SELECTED':
       return {
         ...state, selectedSymbolId: state.inspect?.symbols?.some((s) => s.symbol_id === action.id) ? action.id : null,
-        change: { ...state.change, insertBefore: '' },
-        validation: null, report: null, error: null, loading: createInitialState().loading, revision: state.revision + 1,
+        change: createChangeDraft(state.change.changeType),
+        validation: null, validatedChange: null, report: null, error: null, loading: createInitialState().loading, revision: state.revision + 1,
       }
+    case 'CHANGE_TYPE_SELECTED':
+      return { ...state, change: createChangeDraft(action.changeType), validation: null, validatedChange: null, report: null, error: null, loading: createInitialState().loading, revision: state.revision + 1 }
     case 'CHANGE_UPDATED':
-      return { ...state, change: { ...state.change, ...action.change }, validation: null, report: null, error: null, loading: createInitialState().loading, revision: state.revision + 1 }
+      return { ...state, change: updateChangeDraft(state.change, action.change), validation: null, validatedChange: null, report: null, error: null, loading: createInitialState().loading, revision: state.revision + 1 }
     case 'REQUEST_START': {
       const cleared = action.stage === 'inspect'
-        ? { inspect: null, projectFingerprint: null, selectedSymbolId: null, change: createInitialState().change, validation: null, report: null }
-        : action.stage === 'validate' ? { validation: null, report: null } : { report: null }
+        ? { inspect: null, projectFingerprint: null, selectedSymbolId: null, change: createInitialState().change, validation: null, validatedChange: null, report: null }
+        : action.stage === 'validate' ? { validation: null, validatedChange: null, report: null } : { report: null }
       return { ...state, ...cleared, loading: { ...state.loading, [action.stage]: true }, error: null }
     }
     case 'REQUEST_FAILED':
@@ -55,7 +59,7 @@ export function workflowReducer(state, action) {
     case 'FINGERPRINT_MISMATCH':
       return { ...createInitialState(state.revision + 1), file: state.file, health: state.health, error: action.error }
     case 'VALIDATION_RECEIVED':
-      return { ...state, validation: action.validation, report: null, loading: { ...state.loading, validate: false }, error: null }
+      return { ...state, validation: action.validation, validatedChange: action.validatedChange || null, report: null, loading: { ...state.loading, validate: false }, error: null }
     case 'REPORT_RECEIVED':
       return { ...state, report: action.report, loading: { ...state.loading, analyze: false }, error: null }
     case 'RESET':
@@ -76,18 +80,15 @@ export function getSelectedSymbol(state) {
 }
 
 export function buildChangePayload(state) {
-  return {
-    target_symbol_id: state.selectedSymbolId,
-    added_parameter: { name: state.change.parameterName, kind: state.change.parameterKind },
-    ...(state.change.insertBefore ? { insert_before: state.change.insertBefore } : {}),
-  }
+  return buildDraftPayload(state.selectedSymbolId, state.change)
 }
 
 export function isSupportedDemoChange(state) {
   return state.mode === 'demo' && state.projectFingerprint === DEMO_FINGERPRINT
     && state.selectedSymbolId === 'utils.format_date'
-    && state.change.parameterName === 'timezone'
-    && state.change.parameterKind === 'positional_or_keyword' && !state.change.insertBefore
+    && state.change.changeType === 'add_required_parameter'
+    && state.change.operation.parameterName === 'timezone'
+    && state.change.operation.kind === 'positional_or_keyword' && !state.change.operation.insertBefore
 }
 
 // Display the structured signature only; insertion/validation stays in Core.

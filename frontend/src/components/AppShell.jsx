@@ -14,6 +14,7 @@ export default function AppShell({ page, navigate, children }) {
   const navRef = useRef(null)
   const isDemo = state.mode === 'demo'
   const projectName = state.inspect?.project_name || '尚未读取项目'
+  const fileName = state.file?.name || (isDemo ? '固定 signature_change 样例' : '等待选择原始 ZIP')
   const healthStatus = state.health?.status || 'idle'
   const healthLabel = healthStatus === 'ok' ? '后端已连接'
     : healthStatus === 'checking' ? '正在检查连接'
@@ -64,7 +65,7 @@ export default function AppShell({ page, navigate, children }) {
           <div className="oi-project-context">
             <span className="oi-context-label">{state.inspect ? '当前项目' : state.file ? '已选择 ZIP' : '本地工作台'}</span>
             <strong>{projectName}</strong>
-            <span className="oi-file-name">{state.file?.name || (isDemo ? '固定 signature_change 样例' : '等待选择原始 ZIP')}</span>
+            <span className="oi-file-name" title={fileName}>{fileName}</span>
           </div>
           <div className="oi-top-actions">
             <button className={`oi-connection ${healthStatus === 'ok' ? 'is-connected' : healthStatus === 'error' ? 'is-error' : ''}`}
@@ -81,7 +82,7 @@ export default function AppShell({ page, navigate, children }) {
         <div className={`oi-session-strip ${isDemo ? 'is-demo' : ''}`} role="status">
           <strong>{isDemo ? '演示记录' : '实际项目'}</strong>
           <span>{isDemo ? '固定样例，未请求真实分析接口。' : '原始 ZIP 保留在当前会话，刷新后需要重新选择。'}</span>
-          <span className="oi-session-scope">Python / 模块级函数 / 新增必填参数</span>
+          <span className="oi-session-scope">Python / 模块级函数 / 四种签名变更</span>
         </div>
         <main id="oi-main" tabIndex={-1} className="content workflow-content oi-content">{children}</main>
       </section>

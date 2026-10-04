@@ -61,9 +61,32 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
     }
   }
 
+  // Compare declared intent only. Core remains the authority for signature validity.
+  function matchesIntent(spec, change) {
+    if (!spec || spec.target_symbol_id !== change.target_symbol_id || spec.change_type !== change.change_type) return false
+    const operation = spec.operation
+    if (operation && operation.change_type !== change.change_type) return false
+    const name = (value) => typeof value === 'string' ? value.normalize('NFKC') : value
+    if (change.change_type === 'add_required_parameter') {
+      const added = operation?.added_parameter || spec.added_parameter
+      return name(added?.name) === name(change.added_parameter.name) && added?.kind === change.added_parameter.kind
+        && (!operation || (operation.insert_before || null) === (change.insert_before || null))
+    }
+    return operation?.change_type === change.change_type && name(operation.parameter_name) === name(change.parameter_name)
+      && (change.change_type !== 'rename_parameter' || name(operation.new_parameter_name) === name(change.new_parameter_name))
+  }
+
+  function signatureIdentity(signature) {
+    if (!signature || !Array.isArray(signature.parameters)) return null
+    return JSON.stringify([signature.name, signature.is_async === true, signature.return_annotation_source ?? null,
+      signature.parameters.map((parameter) => [parameter.name, parameter.kind, parameter.has_default === true,
+        parameter.default_source ?? null, parameter.annotation_source ?? null])])
+  }
+
   const actions = {
     selectFile: (file) => changeState({ type: 'FILE_SELECTED', file }),
     selectSymbol: (id) => changeState({ type: 'SYMBOL_SELECTED', id }),
+    selectChangeType: (changeType) => changeState({ type: 'CHANGE_TYPE_SELECTED', changeType }),
     updateChange: (change) => changeState({ type: 'CHANGE_UPDATED', change }),
     reset: () => changeState({ type: 'RESET' }),
     async checkHealth() {
@@ -106,28 +129,35 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
       if (!getSelectedSymbol(current) || !current.file || !current.projectFingerprint) return localFailure('validate', 'inspection_required', '请先读取当前 ZIP 并选择目标函数。')
       if (current.mode === 'demo') {
         if (!isSupportedDemoChange(current)) return localFailure('validate', 'demo_configuration_unavailable', '演示仅提供 utils.format_date 新增 timezone 普通必填参数的保存响应。其他配置请使用实际项目模式。')
-        dispatch({ type: 'VALIDATION_RECEIVED', validation: structuredClone(demo.validation), revision: current.revision })
+        dispatch({ type: 'VALIDATION_RECEIVED', validation: structuredClone(demo.validation), revision: current.revision,
+          validatedChange: { revision: current.revision, payload: buildChangePayload(current) } })
         return true
       }
       const change = buildChangePayload(current)
       return run('validate', (signal) => client.validate(current.file, change, current.projectFingerprint, { signal }), (validation, revision) => {
         checkFingerprint(validation, current.projectFingerprint)
-        if (validation.validation?.valid !== true || validation.change_spec?.target_symbol_id !== current.selectedSymbolId) invalidResponse()
-        dispatch({ type: 'VALIDATION_RECEIVED', validation, revision })
+        if (validation.validation?.valid !== true || !matchesIntent(validation.change_spec, change)
+          || !signatureIdentity(validation.change_spec.before) || !signatureIdentity(validation.change_spec.after)) invalidResponse()
+        dispatch({ type: 'VALIDATION_RECEIVED', validation, revision,
+          validatedChange: { revision, payload: structuredClone(change) } })
       })
     },
     async analyzeProject() {
       if (active) return false
       const current = getState()
       if (current.validation?.validation?.valid !== true || !current.file || !current.projectFingerprint) return localFailure('analyze', 'validation_required', '请先校验当前目标与变更配置。')
+      if (current.validatedChange?.revision !== current.revision
+        || JSON.stringify(current.validatedChange.payload) !== JSON.stringify(buildChangePayload(current))) return localFailure('analyze', 'validation_required', '当前配置已变化，请重新校验变更。')
       if (current.mode === 'demo') {
         if (!isSupportedDemoChange(current)) return localFailure('analyze', 'validation_required', '请先校验固定演示配置。')
         dispatch({ type: 'REPORT_RECEIVED', report: structuredClone(demo.report), revision: current.revision })
         return true
       }
-      const change = buildChangePayload(current)
+      const change = structuredClone(current.validatedChange.payload)
       return run('analyze', (signal) => client.analyze(current.file, change, current.projectFingerprint, { signal }), (report, revision) => {
-        if (report.change?.target_symbol_id !== current.selectedSymbolId || report.validation?.valid !== true
+        if (!matchesIntent(report.change, change) || report.validation?.valid !== true
+          || signatureIdentity(report.change.before) !== signatureIdentity(current.validation.change_spec.before)
+          || signatureIdentity(report.change.after) !== signatureIdentity(current.validation.change_spec.after)
           || !report.summary || !Array.isArray(report.direct_impacts) || !Array.isArray(report.indirect_impacts)) invalidResponse()
         dispatch({ type: 'REPORT_RECEIVED', report, revision })
       })

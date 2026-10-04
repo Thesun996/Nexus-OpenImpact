@@ -25,7 +25,7 @@ export function UploadView({ state, dragging, onDragOver, onDragLeave, onDrop, o
         <footer className="oi-upload-actions"><span>{state.inspect ? '可继续选择函数，或重新读取这份文件。' : '选择文件后，再读取项目中的模块级函数。'}</span>{isDemo ? <button className="primary-action" type="button" onClick={() => navigate('functions')}>查看演示函数</button> : <button className="primary-action" type="button" onClick={onInspect} disabled={!state.file || busy}>{state.loading.inspect ? '正在读取项目…' : state.inspect ? '重新读取项目' : '读取真实项目'}</button>}</footer>
         {state.inspect && <div className="oi-upload-result"><ProjectOverview inspect={state.inspect} file={state.file} fingerprint={state.projectFingerprint} mode={state.mode} /><button className="ghost-action" type="button" onClick={() => navigate('functions')} disabled={busy}>继续选择函数</button><ProjectDiagnostics diagnostics={state.inspect.diagnostics} coverage={state.inspect.coverage} /></div>}
       </article>
-      <aside className="oi-upload-context" aria-label="支持范围与独立演示"><section><h2>这次可以分析什么</h2><p>Python 模块级函数，新增一个必填参数。</p><p>源码只用于静态分析；上传代码不会执行，也不会被自动修改。</p></section><section className="oi-demo-entry"><h2>先了解分析结果</h2><p>独立演示使用 signature_change 的固定接口样例，与实际上传项目分开。</p><button className="ghost-action" type="button" onClick={onOpenDemo} disabled={busy}>打开演示项目</button></section></aside>
+      <aside className="oi-upload-context" aria-label="支持范围与独立演示"><section><h2>这次可以分析什么</h2><p>Python 模块级函数：新增、删除、重命名参数，或将可选参数改为必填。</p><p>源码只用于静态分析；上传代码不会执行，也不会被自动修改。</p></section><section className="oi-demo-entry"><h2>先了解分析结果</h2><p>独立演示使用 signature_change 的固定接口样例，与实际上传项目分开。</p><button className="ghost-action" type="button" onClick={onOpenDemo} disabled={busy}>打开演示项目</button></section></aside>
     </section>
   </div>;
 }

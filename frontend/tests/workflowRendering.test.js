@@ -6,6 +6,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createServer } from 'vite'
 import { createInitialState, workflowReducer } from '../src/state/workflow.js'
+import { createChangeDraft } from '../src/state/changeDraft.js'
 
 let server, UploadView, FunctionSelectView, ChangeView, SignatureText, WorkflowProvider
 const inspect = JSON.parse(readFileSync(new URL('../src/demo/fixtures/inspect.json', import.meta.url), 'utf8'))
@@ -26,14 +27,14 @@ after(async () => { await server?.close() })
 function project() {
   return { ...createInitialState(), file: new File(['zip'], 'chosen-project.zip'), inspect: structuredClone(inspect),
     projectFingerprint: inspect.project_fingerprint, selectedSymbolId: 'utils.format_date',
-    change: { parameterName: 'timezone', parameterKind: 'positional_or_keyword', insertBefore: '' } }
+    change: { changeType: 'add_required_parameter', operation: { parameterName: 'timezone', kind: 'positional_or_keyword', insertBefore: '' } } }
 }
 function render(View, state, extras = {}) {
   // The existing shared stepper reads Context. Use its real Provider without
   // changing that contract; server rendering does not run its health effect.
   return renderToStaticMarkup(createElement(WorkflowProvider, null, createElement(View, { state, navigate: noop, onInspect: noop, onOpenDemo: noop,
     onFileChange: noop, onDragOver: noop, onDragLeave: noop, onDrop: noop, onSelect: noop,
-    onReset: noop, query: '', onQueryChange: noop, onUpdateChange: noop, onValidate: noop, onAnalyze: noop, ...extras })))
+    onReset: noop, query: '', onQueryChange: noop, onSelectChangeType: noop, onUpdateChange: noop, onValidate: noop, onAnalyze: noop, ...extras })))
 }
 
 test('upload distinguishes no file, selected file and active Inspect without implying success', () => {
@@ -105,24 +106,26 @@ test('empty project and search with no matches have separate recovery actions', 
   assert.ok(!html.includes('清空搜索'))
 })
 
-test('unvalidated no-argument change stays a draft without inventing a target signature', () => {
+test('unvalidated no-argument candidate is labelled as a draft and cannot enable Analyze', () => {
   const state = project()
   state.selectedSymbolId = 'page.page'
-  state.change.parameterName = 'zone'
+  state.change.operation.parameterName = 'zone'
   const html = render(ChangeView, state)
   assert.ok(html.includes('page()'))
   assert.ok(html.includes('参数草稿'))
   assert.ok(html.includes('zone'))
-  assert.ok(html.includes('修改后签名待后端校验'))
+  assert.ok(html.includes('草稿修改后 · 待校验'))
+  assert.ok(html.includes('候选签名尚未通过校验'))
   assert.ok(!html.includes('page(, zone)'))
-  assert.ok(!html.includes('page(zone)'))
+  assert.ok(html.includes('page(<mark class="oi-added-parameter">zone</mark>)'))
+  assert.ok(!html.includes('后端校验通过'))
   assert.match(html, /<button[^>]*disabled=""[^>]*>开始分析<\/button>/)
 })
 
 test('valid result renders only the backend signature and marks its added parameter', () => {
   const state = project()
   state.selectedSymbolId = 'page.page'
-  state.change.parameterName = 'zone'
+  state.change.operation.parameterName = 'zone'
   state.validation = structuredClone(validated)
   const signature = { name: 'page', parameters: [], is_async: false }
   state.validation.change_spec.before = signature
@@ -171,4 +174,119 @@ test('parameter highlighting cannot mark unrelated annotation text or mutate the
   const html = renderToStaticMarkup(createElement(SignatureText, { definition, addedParameterName: 'zone' }))
   assert.ok(html.includes('zone(a: zone, /, *, <mark class="oi-added-parameter">zone</mark>)'))
   assert.equal(JSON.stringify(definition), snapshot)
+})
+
+test('all four operation types are explicit accessible choices with one current selection', () => {
+  const html = render(ChangeView, project())
+  for (const label of ['新增必填参数', '删除参数', '重命名参数', '可选参数改为必填']) {
+    assert.match(html, new RegExp(`<input(?=[^>]*name="change-type")(?=[^>]*aria-label="${label}")[^>]*>`))
+  }
+  assert.equal((html.match(/name="change-type"[^>]*checked=""/g) || []).length, 1)
+  assert.ok(!html.includes('name="operation-parameter"'))
+})
+
+function parameterProject(type, parameters, operation = {}) {
+  const state = project()
+  state.change = { ...createChangeDraft(type), operation: { ...createChangeDraft(type).operation, ...operation } }
+  state.inspect.symbols = [{ symbol_id: 'utils.format_date', file: 'utils.py', line: 1, name: 'f', parameters }]
+  return state
+}
+
+const mixedParameters = [
+  { name: 'a', kind: 'positional_only', has_default: false },
+  { name: 'timeout', kind: 'positional_or_keyword', has_default: true, default_source: '30' },
+  { name: 'args', kind: 'var_positional', has_default: false },
+  { name: 'mode', kind: 'keyword_only', has_default: true, default_source: 'None' },
+  { name: 'kwargs', kind: 'var_keyword', has_default: false },
+]
+
+test('remove keeps unsupported variable parameters visible and marks only the removed name', () => {
+  const state = parameterProject('remove_parameter', mixedParameters, { parameterName: 'timeout' })
+  const html = render(ChangeView, state)
+  assert.match(html, /aria-label="选择参数 args"[^>]*disabled=""/)
+  assert.match(html, /aria-label="选择参数 kwargs"[^>]*disabled=""/)
+  assert.ok(html.includes('当前版本暂不支持删除可变位置参数'))
+  assert.ok(html.includes('当前版本暂不支持删除可变关键字参数'))
+  assert.ok(html.includes('<del class="oi-removed-parameter">timeout</del>=30'))
+  assert.ok(html.includes('− timeout'))
+  assert.ok(html.includes('草稿修改后 · 待校验'))
+  assert.match(html, /<button[^>]*disabled=""[^>]*>开始分析<\/button>/)
+})
+
+test('rename exposes positional-only restriction and displays old-to-new draft without invented legality', () => {
+  const state = parameterProject('rename_parameter', mixedParameters, { parameterName: 'timeout', newParameterName: 'delay' })
+  const html = render(ChangeView, state)
+  assert.match(html, /aria-label="选择参数 a"[^>]*disabled=""/)
+  assert.ok(html.includes('当前版本暂不支持重命名仅位置参数'))
+  assert.ok(html.includes('新参数名'))
+  assert.ok(html.includes('timeout → delay'))
+  assert.ok(html.includes('<mark class="oi-added-parameter">delay</mark>=30'))
+  assert.ok(!html.includes('后端校验通过'))
+})
+
+test('make-required offers every falsey default and leaves required parameters disabled with reasons', () => {
+  const defaults = ['None', 'False', '0', '""']
+  const state = parameterProject('make_parameter_required', [
+    { name: 'required', kind: 'positional_or_keyword', has_default: false },
+    ...defaults.map((default_source, index) => ({ name: `p${index}`, kind: 'keyword_only', has_default: true, default_source })),
+  ], { parameterName: 'p0' })
+  const html = render(ChangeView, state)
+  assert.match(html, /aria-label="选择参数 required"[^>]*disabled=""/)
+  assert.ok(html.includes('当前没有默认值，已经是必填参数。'))
+  for (let index = 0; index < defaults.length; index++) {
+    assert.match(html, new RegExp(`aria-label="选择参数 p${index}"[^>]*value="p${index}"`))
+    assert.doesNotMatch(html, new RegExp(`aria-label="选择参数 p${index}"[^>]*disabled=""`))
+  }
+  assert.ok(html.includes('p0=None → p0 · 可选 → 必填'))
+  assert.ok(html.includes('<mark class="oi-added-parameter">p0</mark>, p1=False'))
+  assert.match(html, /<button[^>]*disabled=""[^>]*>开始分析<\/button>/)
+})
+
+test('unsupported-only and empty parameter lists explain recovery instead of hiding choices', () => {
+  let state = parameterProject('rename_parameter', mixedParameters.filter(parameter => ['positional_only', 'var_positional', 'var_keyword'].includes(parameter.kind)))
+  let html = render(ChangeView, state)
+  assert.ok(html.includes('此函数没有可用于当前变更的参数'))
+  assert.equal((html.match(/name="operation-parameter"/g) || []).length, 3)
+  state = parameterProject('remove_parameter', [])
+  html = render(ChangeView, state)
+  assert.ok(html.includes('此函数没有参数。'))
+  assert.ok(html.includes('返回选择'))
+})
+
+test('non-add canonical validation with null added_parameter enables analysis and preserves diagnostics', () => {
+  for (const type of ['remove_parameter', 'rename_parameter', 'make_parameter_required']) {
+    const operation = { parameterName: 'timeout', ...(type === 'rename_parameter' ? { newParameterName: 'delay' } : {}) }
+    const state = parameterProject(type, mixedParameters, operation)
+    const before = structuredClone(state.inspect.symbols[0])
+    const after = structuredClone(before)
+    if (type === 'remove_parameter') after.parameters = after.parameters.filter(parameter => parameter.name !== 'timeout')
+    if (type === 'rename_parameter') after.parameters.find(parameter => parameter.name === 'timeout').name = 'delay'
+    if (type === 'make_parameter_required') {
+      after.parameters.find(parameter => parameter.name === 'timeout').has_default = false
+      after.parameters.find(parameter => parameter.name === 'timeout').default_source = null
+    }
+    state.validation = { validation: { valid: true, diagnostics: [] }, change_spec: { change_type: type,
+      target_symbol_id: state.selectedSymbolId, operation: { change_type: type, parameter_name: 'timeout', ...(type === 'rename_parameter' ? { new_parameter_name: 'delay' } : {}) },
+      before, after, added_parameter: null }, coverage: { status: 'partial' }, diagnostics: { parse_errors: [{ code: 'syntax_error', file: 'broken.py', message: '真实解析失败' }] } }
+    const html = render(ChangeView, state)
+    assert.ok(html.includes('已确认变更 · 后端校验通过'))
+    assert.ok(html.includes('修改后 · 后端已校验'))
+    assert.ok(html.includes('partial：分析范围不完整。'))
+    assert.ok(html.includes('broken.py'))
+    assert.match(html, /<button[^>]*>开始分析<\/button>/)
+    assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>开始分析<\/button>/)
+  }
+})
+
+test('demo visibly restricts the three new types and add name collisions cannot submit a draft', () => {
+  const state = project()
+  state.mode = 'demo'
+  let html = render(ChangeView, state)
+  assert.equal((html.match(/<input(?=[^>]*name="change-type")(?=[^>]*disabled="")[^>]*>/g) || []).length, 3)
+  assert.ok(html.includes('请上传实际项目使用此类型'))
+  state.mode = 'project'
+  state.change.operation.parameterName = 'date'
+  html = render(ChangeView, state)
+  assert.ok(html.includes('当前函数已有同名参数'))
+  assert.match(html, /<button[^>]*disabled=""[^>]*>校验变更<\/button>/)
 })

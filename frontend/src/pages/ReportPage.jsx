@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useWorkflow } from '../state/WorkflowContext.jsx';
 import { formatSignature } from '../state/workflow.js';
+import { describeChange } from '../state/changeDraft.js';
 import { CoverageNotice, DiagnosticsList, EmptyWorkflow, ErrorNotice, ModeNotice, WorkflowSteps } from './PageParts.jsx';
 import { correspondingEvidence, correspondingExplanation, reportFindings, reportIntegrityDiagnostics } from './reportData.js';
 import ImpactIndex from '../components/report/ImpactIndex.jsx';
@@ -12,15 +13,16 @@ import ImpactCounts from '../components/report/ImpactCounts.jsx';
 import { entries, impactLabel } from '../components/report/presentation.js';
 import '../components/report/report.css';
 
-function ChangeOverview({ change }) {
+export function ChangeOverview({ change }) {
+  const description = describeChange(change);
   return <section className="oi-change-overview" aria-label="当前计划变更">
     <div className="oi-change-target"><span>计划变更</span><b>{change?.target_symbol_id || '未提供'}</b></div>
-    <div className="oi-change-parameter"><span>新增必填参数</span><code>{change?.added_parameter?.name || '未提供'}</code><small>{change?.added_parameter?.kind || '参数类型未提供'} · {change?.added_parameter?.required === true ? '必填' : '必填状态未提供'}</small></div>
+    <div className="oi-change-parameter"><span>{description.label}</span><code>{description.detail}</code></div>
     <div className="oi-planned-signatures">
       <div><span>修改前</span><code>{change?.before ? formatSignature(change.before) : '未提供'}</code></div>
       <div><span>修改后</span><code>{change?.after ? formatSignature(change.after) : '未提供'}</code></div>
     </div>
-    <p>此处展示计划签名，用户源码保持原样。变更类型：{change?.change_type === 'add_required_parameter' ? '新增必填参数' : change?.change_type || '未提供'}。</p>
+    <p>此处展示后端已校验的计划签名，用户源码保持原样。变更类型：{description.label}。</p>
   </section>;
 }
 
