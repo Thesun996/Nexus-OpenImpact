@@ -1,0 +1,66 @@
+{
+  "project_name": "signature_change",
+  "project_fingerprint": "db0a82348a94853526f7d79a2f58926994596a3ab1b7c639e6474673d32be1b3",
+  "coverage": {
+    "status": "complete",
+    "python_files": 4,
+    "indexed_modules": 4,
+    "indexed_functions": 4,
+    "files_with_parse_errors": 0
+  },
+  "change_spec": {
+    "change_type": "add_required_parameter",
+    "target_symbol_id": "utils.format_date",
+    "before": {
+      "name": "format_date",
+      "parameters": [
+        {
+          "name": "date",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "after": {
+      "name": "format_date",
+      "parameters": [
+        {
+          "name": "date",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        },
+        {
+          "name": "timezone",
+          "kind": "positional_or_keyword",
+          "has_default": false,
+          "default_source": null,
+          "annotation_source": null
+        }
+      ],
+      "is_async": false,
+      "return_annotation_source": null
+    },
+    "added_parameter": {
+      "name": "timezone",
+      "kind": "positional_or_keyword",
+      "required": true,
+      "annotation_source": null
+    }
+  },
+  "validation": {
+    "valid": true,
+    "diagnostics": []
+  },
+  "diagnostics": {
+    "parse_errors": [],
+    "unresolved_imports": [],
+    "ambiguous_modules": [],
+    "ambiguous_symbols": []
+  }
+}
