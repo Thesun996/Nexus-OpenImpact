@@ -7,6 +7,7 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from openimpact.analysis.ast_parser import ASTParser
@@ -26,8 +27,29 @@ def demo_zip() -> bytes:
             if path.is_file():
                 info = zipfile.ZipInfo(f"signature_change/{path.name}", (2026, 1, 1, 0, 0, 0))
                 info.compress_type = zipfile.ZIP_DEFLATED
-                archive.writestr(info, path.read_bytes())
+                data = path.read_bytes()
+                if path.suffix in {".py", ".json"}:
+                    # This frozen demo fixture uses Git's LF source bytes regardless
+                    # of checkout EOLs. Production ZIP fingerprints still hash the
+                    # exact uploaded bytes; possible binary fixtures stay unchanged.
+                    data = data.replace(b"\r\n", b"\n")
+                archive.writestr(info, data)
     return buffer.getvalue()
+
+
+@pytest.mark.parametrize("newline", [b"\n", b"\r\n"], ids=["lf", "crlf"])
+def test_frozen_demo_zip_is_stable_across_checkout_line_endings(tmp_path, monkeypatch, newline):
+    for path in DEMO.iterdir():
+        if path.is_file():
+            data = path.read_bytes()
+            if path.suffix in {".py", ".json"}:
+                data = data.replace(b"\r\n", b"\n").replace(b"\n", newline)
+            (tmp_path / path.name).write_bytes(data)
+    monkeypatch.setitem(demo_zip.__globals__, "DEMO", tmp_path)
+    samples = Path(__file__).resolve().parents[1] / "docs" / "api-samples"
+    captured = json.loads((samples / "inspect-response.json").read_text(encoding="utf-8"))
+
+    assert hashlib.sha256(demo_zip()).hexdigest() == captured["project_fingerprint"]
 
 
 def submit(client, path: str, data: bytes, fingerprint: str | None = None):
