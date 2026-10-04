@@ -138,6 +138,8 @@ V1 提供中文报告、中文 README 和中英混合源码的正确读取。中
 - 模块级函数。
 - 可以明确解析的 import 和本地调用。
 - 函数签名变化，首先实现新增必填参数。
+- Phase 6.2 扩展：删除一个 positional-only、positional-or-keyword 或 keyword-only 参数；拒绝删除 `*args` / `**kwargs`，仍仅评估调用签名兼容性。
+- Phase 6.3 扩展：重命名一个 positional-or-keyword 或 keyword-only 参数；拒绝重命名 positional-only、`*args`、`**kwargs`。不分析函数体旧名引用、reflection / inspect.signature、docstring / type comment / external string references。
 - Direct Impact。
 - 1-hop Indirect Impact。
 - 2-hop Indirect Impact。
@@ -160,7 +162,7 @@ Dashboard 展示直接影响、间接影响、相关测试与人工检查项。�
 
 ### 6.3 条件性扩展
 
-以下内容来自初始方向规划，只有核心闭环稳定且工期允许时再逐项纳入：删除参数、参数重命名、函数重命名、import 路径变化及轻量影响图。
+以下内容来自初始方向规划，只有核心闭环稳定且工期允许时再逐项纳入：函数重命名、import 路径变化及轻量影响图。删除普通参数与限定范围的参数重命名已获负责人授权，分别纳入 Phase 6.2 和 Phase 6.3；具体范围见上述最小闭环及 `docs/change-types.md`。
 
 类/API 重命名、简单返回值类型变化、第三方依赖 Breaking Change 移入后续候选范围，不构成当前 V1 核心验收承诺。每次扩大范围应先补充支持条件、规则与测试。
 
@@ -236,7 +238,7 @@ V1 暂不包含：
 
 ### 8.6 ChangeSpec
 
-当前实现使用结构化的 `ChangeSpec`：变化类型、目标 Symbol ID、修改前与修改后的 `FunctionSignature`，以及 `AddedParameter`。签名由函数名、参数元组、异步标记和返回注解组成；参数保留种类、默认值有无、默认值表达式及注解。默认值与注解只读取并比较语法表达式，不求值。
+当前实现使用结构化的 `ChangeSpec`：变化类型、目标 Symbol ID、修改前与修改后的 `FunctionSignature`，以及类型明确的 Operation。正式注册 `AddRequiredParameterOperation`、`RemoveParameterOperation` 和 `RenameParameterOperation`；旧新增参数格式中的 `AddedParameter` 保留兼容。签名由函数名、参数元组、异步标记和返回注解组成；参数保留种类、默认值有无、默认值表达式及注解。默认值与注解只读取并比较语法表达式，不求值。
 
 ```json
 {
@@ -257,7 +259,7 @@ V1 暂不包含：
 }
 ```
 
-这是结构示意，当前公开接口为 Python 数据类与 `validate_change_spec(index, spec)`，尚未提供 JSON 反序列化接口。校验要求目标为已索引的模块级函数、修改前签名与索引中的源码事实一致、修改后符合 Python 参数规则，且只新增一个无默认值的参数。失败返回结构化诊断，不进入影响分析。校验使用已构建的索引快照，不修改目标仓库；源码在建索引后若变化，应重新构建索引。首版暂不依赖 LLM 从自然语言猜测目标。
+上述新增示例继续有效。Python 接口为数据类、`ChangeSpec.from_operation()` 和 `validate_change_spec(index, spec)`，JSON 支持 `load_change_spec()` / `change_spec_from_dict()`。共享校验要求目标为已索引的模块级函数、修改前签名与源码一致、修改后符合 Python 参数规则，再委托 Operation 确认只新增一个必填参数、只删除指定普通参数或只重命名指定可按关键字传入的参数。删除操作必须保留其余参数和函数元信息，且不能删除 `*args` / `**kwargs`。before / after 始终是兼容性判断的事实来源。失败返回结构化诊断，不进入影响分析；校验不修改目标仓库，源码在建索引后若变化，应重新构建索引。首版暂不依赖 LLM 从自然语言猜测目标。完整删除示例见 `examples/parameter_removal/change.json`。重命名使用 parameter_name / new_parameter_name，保留顺序、kind、默认值、注解及其他签名信息；新名必须合法、非关键字、与旧名不同且无冲突。两个独立示例位于 `examples/parameter_rename_keyword/change.json` 与 `examples/parameter_rename_positional/change.json`，分别验证 1/1/1 与 0/0/0。其 No Impact 只表示调用绑定未新增不兼容，不保证函数体内部引用安全。
 
 ### 8.7 Impact Engine
 

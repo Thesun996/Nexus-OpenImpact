@@ -1,4 +1,4 @@
-"""Check resolved calls against one validated required-parameter addition."""
+"""Assess resolved calls using canonical before/after signatures."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -168,8 +168,8 @@ def analyze_direct_impact(graph: CallGraph, spec: ChangeSpec) -> DirectImpactRes
     )
     for edge in edges:
         call = _call_for_edge(calls, edge)
-        before = check_call_compatibility(call, spec.before)
-        after = check_call_compatibility(call, spec.after)
+        before = check_call_compatibility(call, spec.before_signature)
+        after = check_call_compatibility(call, spec.after_signature)
         effect = _change_effect(before.status, after.status)
         assessment = CallCompatibilityAssessment(
             spec, edge.caller_symbol_id, edge.callee_symbol_id, edge.file,
@@ -190,7 +190,7 @@ def analyze_direct_impact(graph: CallGraph, spec: ChangeSpec) -> DirectImpactRes
         }
         if effect == "direct_impact":
             findings.append(ImpactFinding(
-                assessment, "direct", effect, "required_parameter_added_breaks_call",
+                assessment, "direct", effect, spec.operation.direct_rule_id,
                 f"修改前调用兼容；修改后{after.reason}",
                 **evidence,
             ))

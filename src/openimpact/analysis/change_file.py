@@ -1,4 +1,4 @@
-"""Load the V1 structured ChangeSpec JSON format."""
+"""Load legacy V1 signatures and the optional typed operation contract."""
 
 import json
 from pathlib import Path
@@ -6,8 +6,10 @@ from typing import Any
 
 from openimpact.analysis.change_spec import (
     AddedParameter,
+    ChangeOperationError,
     ChangeSpec,
     FunctionSignature,
+    operation_from_dict,
 )
 from openimpact.analysis.models import Parameter
 
@@ -88,20 +90,47 @@ def load_change_spec(path: str | Path) -> ChangeSpec:
         raise ChangeFileError(
             f"ChangeSpec JSON 无效 {file_path}:{error.lineno}:{error.colno}: {error.msg}"
         ) from error
-    spec = _object(data, "ChangeSpec")
-    added = _object(spec.get("added_parameter"), "added_parameter")
+    return change_spec_from_dict(data)
+
+
+def _added_parameter(value: Any) -> AddedParameter:
+    added = _object(value, "added_parameter")
     kind = _string(added.get("kind"), "added_parameter.kind")
     if kind not in _ADDED_KINDS:
         raise ChangeFileError(f"added_parameter.kind 不受支持：{kind}")
-    return ChangeSpec(
-        _string(spec.get("change_type"), "change_type"),
-        _string(spec.get("target_symbol_id"), "target_symbol_id"),
-        _signature(spec.get("before"), "before"),
-        _signature(spec.get("after"), "after"),
-        AddedParameter(
-            _string(added.get("name"), "added_parameter.name"), kind,
-            _bool(added.get("required"), "added_parameter.required"),
-            _optional_string(added.get("annotation_source"),
-                             "added_parameter.annotation_source"),
-        ),
+    return AddedParameter(
+        _string(added.get("name"), "added_parameter.name"), kind,
+        _bool(added.get("required"), "added_parameter.required"),
+        _optional_string(added.get("annotation_source"), "added_parameter.annotation_source"),
     )
+
+
+def change_spec_from_dict(data: object) -> ChangeSpec:
+    """Decode intent without rebuilding or replacing the declared signatures."""
+    spec = _object(data, "ChangeSpec")
+    try:
+        if "operation" in spec:
+            operation = operation_from_dict(spec["operation"])
+            change_type = spec.get("change_type", operation.change_type.value)
+            added = None
+            if "added_parameter" in spec:
+                if spec["added_parameter"] is None:
+                    if operation.legacy_added_parameter is not None:
+                        raise ChangeFileError("operation_mismatch: added_parameter 与 operation 不一致。")
+                else:
+                    added = _added_parameter(spec["added_parameter"])
+        else:
+            # Old callers retain their validation diagnostics, including optional
+            # additions and unsupported change types; no after reconstruction.
+            operation = None
+            change_type = spec.get("change_type")
+            added = _added_parameter(spec.get("added_parameter"))
+        return ChangeSpec(
+            _string(change_type, "change_type"),
+            _string(spec.get("target_symbol_id"), "target_symbol_id"),
+            _signature(spec.get("before"), "before"),
+            _signature(spec.get("after"), "after"),
+            added, operation,
+        )
+    except ChangeOperationError as error:
+        raise ChangeFileError(f"{error.code}: {error}") from error

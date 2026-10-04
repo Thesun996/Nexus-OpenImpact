@@ -118,9 +118,12 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" http://127.0.0.1:80
 | `change` JSON 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `target_symbol_id` | string | 是 | inspect `symbols[].symbol_id` 中的模块级函数 |
-| `added_parameter.name` | string | 是 | 新增参数名；合法性由 Core Validator 判断 |
-| `added_parameter.kind` | string 枚举 | 是 | `positional_only`、`positional_or_keyword` 或 `keyword_only` |
-| `insert_before` | string | 否 | 目标函数中已有参数名；新增参数插在其前面 |
+| `change_type` | string 枚举 | 否 | 缺省为 `add_required_parameter`；也支持显式 `remove_parameter`、`rename_parameter` |
+| `added_parameter.name` | string | 新增时必填 | 新增参数名；合法性由 Core Validator 判断 |
+| `added_parameter.kind` | string 枚举 | 新增时必填 | `positional_only`、`positional_or_keyword` 或 `keyword_only` |
+| `insert_before` | string | 否 | 仅用于新增；目标函数中已有参数名，新增参数插在其前面 |
+| `parameter_name` | string | 删除或重命名时必填 | 待删除或重命名的现有参数名；各类型的 kind 边界见下文 |
+| `new_parameter_name` | string | 重命名时必填 | 合法 Python identifier、非 keyword，与旧名不同且不与其他参数重名 |
 
 ```json
 {
@@ -129,7 +132,53 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" http://127.0.0.1:80
 }
 ```
 
-`added_parameter.kind` 仅允许 `positional_only`、`positional_or_keyword`、`keyword_only`。默认插入位置为该参数类型组的末尾、下一类型组的开头；如果这导致非法签名，返回 Core Validator 的 `invalid_after_signature`，不会自行寻找其他插入点。可选 `"insert_before": "现有参数名"` 指定插入在该参数之前，仍由 Core Validator 判断合法性。接口总是生成 `add_required_parameter`，新增参数 `required=true` 且无默认值；其他变更类型、默认值及额外字段不在本接口范围内。
+新增类型的 `added_parameter.kind` 仅允许 `positional_only`、`positional_or_keyword`、`keyword_only`。默认插入位置为该参数类型组的末尾、下一类型组的开头；如果这导致非法签名，返回 Core Validator 的 `invalid_after_signature`，不会自行寻找其他插入点。可选 `"insert_before": "现有参数名"` 指定插入在该参数之前，仍由 Core Validator 判断合法性。缺省请求生成 `add_required_parameter`，新增参数 `required=true` 且无默认值。
+
+旧请求无需修改；显式传入 `"change_type": "add_required_parameter"` 与缺省请求返回相同结果。新增类型的 `change_spec` / 报告 `change` 保留原有五个字段。Phase 6.2 通过同一接口支持以下删除配置：
+
+```json
+{
+  "change_type": "remove_parameter",
+  "target_symbol_id": "utils.format_date",
+  "parameter_name": "timezone"
+}
+```
+
+删除请求只接受这三个 JSON 字段，不能混入 `added_parameter` 或 `insert_before`。服务从本次 ZIP 读取 before，移除指定参数生成 after，其余参数顺序、kind、默认值、注解和函数元信息完全保留。支持删除必填或可选的 `positional_only`、`positional_or_keyword`、`keyword_only`。参数不存在返回 HTTP 422 `parameter_not_found`；删除 `*args` 或 `**kwargs` 返回 HTTP 422 `unsupported_parameter_kind`；参数名格式非法返回 HTTP 422 `invalid_operation_payload`。上述错误均使用 `validation.diagnostics[]`，不是顶层 `error.code`，且不会执行影响分析。
+
+删除结果中 `change_type="remove_parameter"`，`added_parameter=null`，并保留 `operation={"change_type":"remove_parameter","parameter_name":"timezone"}`。validate 的 `change_spec` 与 analyze 的 `change` 使用相同结构。`schema_version` 仍为 `1`，原路径、multipart 字段、指纹算法、ZIP 限额和清理机制不变。未知 / 非字符串类型继续返回 HTTP 422 `invalid_change_config`。HTTP 输入采用下列简化配置；内部 Operation 通过响应表达，不作为新的 multipart 字段。设计、CLI 示例与当前限制见 [Change Type 架构](change-types.md)。
+
+Phase 6.3 通过同一 validate / analyze 接口支持重命名：
+
+```json
+{
+  "change_type": "rename_parameter",
+  "target_symbol_id": "utils.f",
+  "parameter_name": "timeout",
+  "new_parameter_name": "delay"
+}
+```
+
+重命名 JSON 必须且仅包含这四个字段，不接受 added_parameter 或 insert_before。服务从本次项目快照读取 before，只改变指定参数的 name，其余顺序、kind、默认值、注解和函数元信息保持不变；after 仍交给共享 Core Validator。支持 `positional_or_keyword` 与 `keyword_only`，拒绝 `positional_only`、`var_positional`、`var_keyword`。这些拒绝形式涉及函数体引用或更复杂语义，当前调用兼容性模型不覆盖。
+
+旧名和新名按照 Python 的 NFKC 标识符规则归一化；冲突、相同名称及关键字检查使用归一化后的名字，响应 operation 也返回该规范名字。例如全角 `ａ` 与 `a` 会视为同名，不能绕过冲突检查。
+
+| 重命名错误 | HTTP 状态 | `validation.diagnostics[].code` |
+| --- | --- | --- |
+| 旧名不存在 | 422 | `parameter_not_found` |
+| 新名不是合法 identifier 或为 keyword | 422 | `invalid_parameter_name` |
+| 新名等于旧名 | 422 | `parameter_name_unchanged` |
+| 新名与其他参数冲突 | 422 | `parameter_name_conflict` |
+| 不支持的旧参数 kind | 422 | `unsupported_parameter_kind` |
+| 目标 Symbol 不存在 | 422 | `target_not_found` |
+| 缺字段、混入其他类型字段 | 422 | `invalid_change_config` |
+| 旧名格式非法 | 422 | `invalid_operation_payload` |
+
+指纹不一致仍为 HTTP 409、顶层 `error.code="fingerprint_mismatch"`，在解压与分析前拒绝。上述 422 返回 `change_spec=null` 与原有 validation / diagnostics 结构，未进入影响分析；请求结束仍清理快照。
+
+重命名返回 `change_type="rename_parameter"`、`added_parameter=null`，统一 `operation={"change_type":"rename_parameter","parameter_name":"timeout","new_parameter_name":"delay"}`；validate 的 change_spec 与 analyze 的 change 保持一致。schema_version=1。纯位置调用通常仍兼容，旧 keyword 调用是否不兼容以 before / after 绑定为准（例如 **kwargs 定义可能接收旧 keyword）。展开实参继续 manual_review，不作为确定传播种子。
+
+重命名 Evidence 的 rule 为 `parameter_renamed_breaks_keyword_call`，reason 说明旧名 → 新名及实际绑定失败，代码片段、源码哈希和路径仍来自真实项目。Explanation 仅解释证据。当前不检查函数体内部旧参数名引用、positional-only 内部引用风险、reflection / inspect.signature、docstring、type comment 或 external string references，也不修改用户源码。
 
 PowerShell 示例（先准备好 `project.zip` 和仅含上述 JSON 的 `change.json`）：
 
@@ -156,7 +205,7 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" -F "change=<change.
 }
 ```
 
-`before` 完整取自本次上传源码的模块级函数签名，包括参数默认值、注解、异步标记和返回注解；`after` 只增加一个必填参数。`validation.diagnostics` 保存变更配置及 Core Validator 的错误；顶层 `diagnostics` 保存项目解析与 import 诊断。目标不存在或签名无效时返回 HTTP 422，结构仍与上例相同，`validation.valid=false`；无法构建 ChangeSpec 时 `change_spec=null`。指纹不一致返回 HTTP 409 `fingerprint_mismatch`，不会用另一份源码继续校验。返回结果不包含服务器临时路径，用户源码保持原样。
+`before` 完整取自本次上传源码的模块级函数签名，包括参数默认值、注解、异步标记和返回注解；`after` 根据 operation 增加一个必填参数或删除一个指定普通参数。`validation.diagnostics` 保存变更配置及 Core Validator 的错误；顶层 `diagnostics` 保存项目解析与 import 诊断。目标不存在或签名无效时返回 HTTP 422，结构仍与上例相同，`validation.valid=false`；无法构建 ChangeSpec 时 `change_spec=null`。指纹不一致返回 HTTP 409 `fingerprint_mismatch`，不会用另一份源码继续校验。返回结果不包含服务器临时路径，用户源码保持原样。
 
 正常返回的顶层字段为 `project_name: string`、`project_fingerprint: string`、`coverage: object`、`change_spec: object`、`validation: object`、`diagnostics: object`。校验失败但 ZIP 可读取时仍返回这些字段，`change_spec` 允许为 `null`，`validation.valid=false`，原因位于 `validation.diagnostics[]` 的 `code` 与 `message`。
 

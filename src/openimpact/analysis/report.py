@@ -1,11 +1,13 @@
 """Serialize an analysis run and render a concise Chinese terminal report."""
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import logging
 from pathlib import Path
 from typing import Any
 
 from openimpact.analysis.call_graph import CallEdge
+from openimpact.analysis.change_file import change_spec_from_dict
+from openimpact.analysis.change_spec import ChangeSpec
 from openimpact.analysis.direct_impact import ImpactFinding
 from openimpact.analysis.indirect_impact import IndirectImpactFinding
 from openimpact.analysis.pipeline import AnalysisRun
@@ -79,10 +81,15 @@ def _evidence_data(evidence: ImpactEvidence) -> dict[str, Any]:
 
 
 def _finding_evidence(
-    project_root: Path, finding: ImpactFinding | IndirectImpactFinding
+    project_root: Path, finding: ImpactFinding | IndirectImpactFinding, change_spec: ChangeSpec
 ) -> tuple[dict[str, Any], ImpactEvidence | None]:
+    reason = (change_spec.operation.evidence_reason(change_spec.target_symbol_id, finding.reason)
+              if change_spec.operation is not None else finding.reason)
     try:
         evidence = EvidenceBuilder(project_root).build(finding)
+        # Operation supplies intent wording only; source facts and the original
+        # before/after compatibility conclusion remain unchanged.
+        evidence = replace(evidence, reason=reason)
         return _evidence_data(evidence), evidence
     except Exception:
         # Evidence is supplementary; keep the already computed impact report usable.
@@ -98,7 +105,7 @@ def _finding_evidence(
             "source_snippet": None,
             "source_hash": None,
             "rule": rule,
-            "reason": finding.reason,
+            "reason": reason,
             "propagation_path": [],
             "call_expression": None,
             "evidence_reference": finding.evidence_reference,
@@ -170,18 +177,14 @@ def build_report(
         for finding in run.indirect.findings
     ]
     evidence_records = [
-        _finding_evidence(run.project_path, finding)
+        _finding_evidence(run.project_path, finding, run.change_spec)
         for finding in run.direct.findings if finding.effect == "direct_impact"
     ] + [
-        _finding_evidence(run.project_path, finding)
+        _finding_evidence(run.project_path, finding, run.change_spec)
         for finding in run.indirect.findings
     ]
     evidences = [item for item, _ in evidence_records]
-    change_description = (
-        f"{run.change_spec.target_symbol_id} 新增必填参数 "
-        f"{run.change_spec.added_parameter.name}"
-        f"（{run.change_spec.added_parameter.kind}）"
-    )
+    change_description = run.change_spec.describe()
     explanations = [
         _explanation_data(item, evidence, change_description, explanation_provider)
         for item, evidence in evidence_records
@@ -211,7 +214,7 @@ def build_report(
     return {
         "schema_version": 1,
         "project_path": str(run.project_path),
-        "change": asdict(run.change_spec),
+        "change": run.change_spec.to_dict(include_operation=False),
         "validation": {
             "valid": run.direct.validation.valid,
             "diagnostics": [asdict(item) for item in run.direct.validation.diagnostics],
@@ -255,15 +258,13 @@ def _path_text(edges: list[dict[str, Any]]) -> str:
 
 def render_chinese_report(report: dict[str, Any]) -> str:
     """Render existing report facts without performing analysis."""
-    change = report["change"]
-    added = change["added_parameter"]
+    change_description = change_spec_from_dict(report["change"]).describe()
     summary = report["summary"]
     coverage = report["coverage"]
     lines = [
         "Nexus OpenImpact 分析报告",
         f"项目：{report['project_path']}",
-        (f"变更：{change['target_symbol_id']} 新增必填参数 "
-         f"{added['name']}（{added['kind']}）"),
+        f"变更：{change_description}",
         (f"覆盖：{coverage['status']}；索引模块 {coverage['indexed_modules']}，"
          f"函数 {coverage['indexed_functions']}，解析失败文件 "
          f"{coverage['files_with_parse_errors']}"),

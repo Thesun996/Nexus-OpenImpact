@@ -34,7 +34,7 @@ OpenImpact 希望通过 AI 与静态分析结合，
 
 当前阶段：
 
-Phase 3.3 解释报告集成：Core MVP v0.1.0 的 CLI 和现有 API 保持可用；ZIP 项目检查、ChangeSpec 校验、完整影响分析、源码证据和中文解释已进入报告；前端尚未实现。
+Phase 6.3 参数重命名：后端支持新增必填参数、删除普通参数、重命名 positional-or-keyword / keyword-only 参数。三类变更均复用修改前 / 修改后签名兼容性判定、有限间接传播、源码证据及中文解释。现有 CLI、API 和 add/remove Demo 保持可用；本轮未修改 React。
 
 目标：
 
@@ -58,6 +58,24 @@ python -m openimpact analyze examples/signature_change --change examples/signatu
 ```
 
 预期摘要：Direct 1、1-hop 1、2-hop 1、coverage complete。项目版本为 `0.1.0`；Core 分析仍使用标准库，HTTP 服务安装 FastAPI 和 Uvicorn。运行完整测试时，在已激活的虚拟环境内执行 `pip install -e ".[test]"` 和 `python -m pytest -q`。
+
+删除参数 Demo 使用独立的 `examples/parameter_removal`，保持原 Demo 不变：
+
+```powershell
+python -m openimpact analyze examples/parameter_removal --change examples/parameter_removal/change.json
+python -m openimpact analyze examples/parameter_removal --change examples/parameter_removal/change.json --format json
+```
+
+该示例计划删除 `utils.format_date` 的可选参数 `timezone`，现有调用仍显式传入它，预期同样为 1 / 1 / 1、complete。未提供被删除可选参数的调用仍可兼容，不能计为 Direct。当前支持删除 positional-only、positional-or-keyword 和 keyword-only 参数；拒绝删除 `*args` / `**kwargs`。类型模型和限制见 [Change Type 架构](docs/change-types.md)。
+
+重命名 Demo 分别验证关键字调用与纯位置调用：
+
+```powershell
+python -m openimpact analyze examples/parameter_rename_keyword --change examples/parameter_rename_keyword/change.json --format json
+python -m openimpact analyze examples/parameter_rename_positional --change examples/parameter_rename_positional/change.json --format json
+```
+
+两者都计划将 `utils.f(a, timeout)` 的 timeout 改为 delay。keyword Demo 的实际调用仍传 `timeout=5`，预期 1 / 1 / 1、complete；positional Demo 使用 `f(a, 5)`，预期 0 / 0 / 0、complete。新名须合法且不重名，拒绝重命名 positional-only、`*args`、`**kwargs`。当前仅评估调用兼容性，不分析函数体旧名引用、reflection / inspect.signature、docstring / type comment / 外部字符串引用；不会替用户修改源码。
 
 本地启动 Demo API：
 
@@ -88,7 +106,7 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" http://127.0.0.1:80
 
 此 inspect 接口只读取 `.py` 源码并建立符号索引，不运行上传代码。返回模块、模块级函数、参数、覆盖状态及解析诊断；上传文件在请求结束后清理。ZIP 需满足上传大小、条目数及解压上限，具体数值、项目根目录识别和错误码见 [API 契约](docs/api-contract.md)。HTTP 请求不接受服务器本地项目路径。
 
-选择 inspect 返回的 Symbol ID 后，可把简化变更 JSON 作为 `change` 表单字段，连同同一 ZIP 提交到 `POST /api/v1/changes/validate`。可选 `expected_fingerprint` 用于核对文件版本。服务会从源码读取当前签名、生成新增必填参数的 ChangeSpec，并交给 Core Validator 校验；请求格式及诊断见 [API 契约](docs/api-contract.md)。
+选择 inspect 返回的 Symbol ID 后，可把简化变更 JSON 作为 `change` 表单字段，连同同一 ZIP 提交到 `POST /api/v1/changes/validate`。可选 `expected_fingerprint` 用于核对文件版本。服务会从源码读取当前签名，按新增、删除或重命名参数配置构建 ChangeSpec，并交给 Core Validator 校验；请求格式及诊断见 [API 契约](docs/api-contract.md)。删除配置示例为 `{"change_type":"remove_parameter","target_symbol_id":"utils.format_date","parameter_name":"timezone"}`，重命名配置示例为 `{"change_type":"rename_parameter","target_symbol_id":"utils.f","parameter_name":"timeout","new_parameter_name":"delay"}`；两者均使用现有 API 路径。
 
 使用同样的表单字段调用 `POST /api/v1/projects/analyze`，即可对本次上传的 ZIP 生成 Core JSON 影响报告。报告中的 `project_path` 为相对根目录 `.`；`coverage.status=partial` 时需结合诊断查看未覆盖代码，零条影响不代表整个项目确定无影响。调用示例和状态码见 [API 契约](docs/api-contract.md)。
 

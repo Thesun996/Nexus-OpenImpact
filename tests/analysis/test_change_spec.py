@@ -186,7 +186,7 @@ class ChangeSpecTests(unittest.TestCase):
     def test_change_type_other_than_required_addition_is_rejected(self):
         self.source("utils.py", "def format_date(date):\n    pass\n")
         spec = self.spec()
-        unsupported = ChangeSpec("rename_parameter", spec.target_symbol_id,
+        unsupported = ChangeSpec("unsupported_change", spec.target_symbol_id,
                                  spec.before, spec.after, spec.added_parameter)
         result = validate_change_spec(self.index(), unsupported)
         self.assertEqual(result.diagnostics[0].code, "unsupported_change_type")

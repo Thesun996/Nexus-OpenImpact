@@ -1,0 +1,21 @@
+{
+  "change_type": "remove_parameter",
+  "target_symbol_id": "utils.format_date",
+  "before": {
+    "name": "format_date",
+    "parameters": [
+      {"name": "date", "kind": "positional_or_keyword", "has_default": false},
+      {"name": "timezone", "kind": "positional_or_keyword", "has_default": true, "default_source": "'UTC'"}
+    ]
+  },
+  "after": {
+    "name": "format_date",
+    "parameters": [
+      {"name": "date", "kind": "positional_or_keyword", "has_default": false}
+    ]
+  },
+  "operation": {
+    "change_type": "remove_parameter",
+    "parameter_name": "timezone"
+  }
+}

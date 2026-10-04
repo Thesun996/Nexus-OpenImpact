@@ -98,7 +98,7 @@ def _validation_response(
         "project_name": report["project_name"],
         "project_fingerprint": report["project_fingerprint"],
         "coverage": report["coverage"],
-        "change_spec": asdict(spec) if spec is not None else None,
+        "change_spec": spec.to_dict(include_operation=False) if spec is not None else None,
         "validation": {"valid": valid, "diagnostics": diagnostics},
         "diagnostics": report["diagnostics"],
     })
