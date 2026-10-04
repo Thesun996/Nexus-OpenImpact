@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+import MovingMarker from '../../motion/MovingMarker.jsx';
 import { findingLocation, impactLabel, locationText } from './presentation.js';
 
 const groups = [
@@ -8,6 +10,7 @@ const groups = [
 ];
 
 export default function ImpactIndex({ findings, activeIndex, onSelect, reviewCounts, onReview }) {
+  const groupsRef = useRef(null);
   // Carry the original index through visual grouping; never renumber Evidence slots.
   const indexed = findings.map((finding, index) => ({ finding, index }));
   return (
@@ -23,7 +26,7 @@ export default function ImpactIndex({ findings, activeIndex, onSelect, reviewCou
           </option>)}
         </select>
       </label>
-      <div className="oi-impact-groups">
+      <div className="oi-impact-groups" ref={groupsRef}>
         {groups.map(([type, title, unit]) => {
           const rows = indexed.filter(({ finding }) => type === 'other'
             ? !groups.slice(0, 3).some(([known]) => finding.impact_type === known)
@@ -42,6 +45,7 @@ export default function ImpactIndex({ findings, activeIndex, onSelect, reviewCou
           </section>;
         })}
         {!findings.length && <p className="oi-index-empty">当前没有确定影响记录。</p>}
+        <MovingMarker containerRef={groupsRef} selector=".is-selected" identity={activeIndex} className={findings[activeIndex]?.impact_type === 'direct' ? 'is-direct' : ''} />
       </div>
       {Object.values(reviewCounts).some(Boolean) && <div className="oi-index-reviews">
         <p>独立检查记录</p>

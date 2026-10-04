@@ -8,6 +8,7 @@ import TraceView from '../components/report/TraceView.jsx';
 import EvidencePanel from '../components/report/EvidencePanel.jsx';
 import ExplanationPanel from '../components/report/ExplanationPanel.jsx';
 import ReviewNotes, { ReportDiagnostics } from '../components/report/ReviewNotes.jsx';
+import ImpactCounts from '../components/report/ImpactCounts.jsx';
 import { entries, impactLabel } from '../components/report/presentation.js';
 import '../components/report/report.css';
 
@@ -21,19 +22,6 @@ function ChangeOverview({ change }) {
     </div>
     <p>此处展示计划签名，用户源码保持原样。变更类型：{change?.change_type === 'add_required_parameter' ? '新增必填参数' : change?.change_type || '未提供'}。</p>
   </section>;
-}
-
-function ImpactCounts({ summary }) {
-  const metrics = [
-    ['Direct', 'direct_impact_count', '调用点', 'is-direct'],
-    ['1-hop', 'indirect_1hop_count', '上游函数', ''],
-    ['2-hop', 'indirect_2hop_count', '上游函数', ''],
-    ['人工检查', 'manual_review_count', '记录', ''],
-    ['未解析调用', 'unresolved_call_count', '记录', ''],
-  ];
-  return <dl className="oi-report-counts" aria-label="影响统计">
-    {metrics.map(([title, key, unit, className]) => <div className={className} key={key}><dt>{title}</dt><dd><strong>{summary?.[key] ?? '—'}</strong><span>{unit}</span></dd></div>)}
-  </dl>;
 }
 
 // Keep selection scoped to one Analyze response. A replacement report immediately
@@ -72,14 +60,14 @@ export function ReportResults({ report, mode = 'project', initialSelectedIndex =
       <ImpactIndex findings={findings} activeIndex={activeIndex}
         onSelect={(index) => setSelection({ report, index })} reviewCounts={reviewCounts} onReview={showReview} />
       <div className="oi-report-reading">
-        {selected ? <>
+        {selected ? <div key={activeIndex} className="oi-selected-evidence" data-evidence-slot={activeIndex}>
           <p className="oi-selected-record" aria-live="polite">当前记录：<b>{selected.caller_symbol_id || selected.impacted_symbol_id || '未提供'}</b><span>{impactLabel(selected.impact_type)}</span></p>
           <TraceView finding={selected} evidence={evidence} />
           <div className="oi-reading-panes">
             <EvidencePanel finding={selected} evidence={evidence} />
             <ExplanationPanel evidence={evidence} explanationRecord={explanationRecord} mode={mode} />
           </div>
-        </> : <div className="oi-report-empty" role="status">
+        </div> : <div className="oi-report-empty" role="status">
           <span aria-hidden="true">∅</span><h2>当前没有确定影响</h2>
           <p>当前已解析范围内没有确定 Direct 或 Indirect Impact。{report.coverage?.status === 'partial' ? '覆盖不完整，不能据此判断全项目无影响。' : '请结合人工检查与已有问题阅读结果。'}</p>
           <p>没有对应的传播路径、源码证据和中文解释，页面保留真实零结果。</p>

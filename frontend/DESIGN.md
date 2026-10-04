@@ -270,7 +270,7 @@ Analyze 没有 `project_fingerprint` 字段；项目指纹若显示，只能取�
 
 按钮和可选行支持默认、hover、focus-visible、pressed、disabled、loading。焦点框清晰，不以 hover 作为唯一反馈；拖放区保留 file input 的键盘路径。触控目标以 44px 为产品目标，高于 [WCAG 2.2 最小目标尺寸](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html)的 24px 基准及其例外条件。
 
-动效仅回应用户操作：120–180ms 的选中边界/内容状态变化，不播放无限路径流光，不逐字生成解释，不给每块内容入场动画。`prefers-reduced-motion` 下即时显示新状态，文字反馈和焦点仍完整保留，不引入 GSAP/Motion 依赖。
+动效仅回应用户操作：120–180ms 的选中边界/内容状态变化，不播放无限路径流光，不逐字生成解释，不给每块内容入场动画。`prefers-reduced-motion` 下即时显示新状态，文字反馈和焦点仍完整保留。Step 2.5 按已确认的动态交互任务引入 Motion for React，仅用于方向性的页面切换；其他效果使用 CSS 与 Web Animations API。节奏、生命周期保护与 Skill 应用记录见 [MOTION.md](MOTION.md)。
 
 ### 9.1 反馈与恢复状态
 

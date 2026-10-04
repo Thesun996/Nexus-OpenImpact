@@ -61,4 +61,15 @@
   --oi-rail-width: 4.5rem;
   --oi-content-max: 100rem;
   --oi-motion: 140ms;
+  --oi-motion-feedback: 140ms;
+  --oi-motion-enter: 220ms;
+  --oi-motion-exit: 90ms;
+  --oi-motion-reading: 180ms;
+  --oi-motion-trace: 260ms;
+  --oi-motion-trace-step: 65ms;
+  --oi-motion-evidence: 380ms;
+  --oi-ease-arrive: cubic-bezier(.16, 1, .3, 1);
+  --oi-ease-depart: cubic-bezier(.7, 0, .84, 0);
+  --oi-ease-page: cubic-bezier(.22, 1, .36, 1);
+  --oi-motion-travel: 6px;
 }

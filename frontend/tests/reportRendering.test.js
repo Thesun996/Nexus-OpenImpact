@@ -10,6 +10,7 @@ const fixture = JSON.parse(readFileSync(new URL('../src/demo/fixtures/analyze.js
 let server
 let ReportResults
 let ErrorNotice
+let ImpactCounts
 
 before(async () => {
   // Reuse the project's Vite JSX transform; no browser/testing dependency or
@@ -25,6 +26,7 @@ before(async () => {
   const module = await server.ssrLoadModule('/src/pages/ReportPage.jsx')
   ReportResults = module.ReportResults
   ErrorNotice = (await server.ssrLoadModule('/src/pages/PageParts.jsx')).ErrorNotice
+  ImpactCounts = (await server.ssrLoadModule('/src/components/report/ImpactCounts.jsx')).default
 })
 
 after(async () => { await server?.close() })
@@ -34,6 +36,34 @@ function render(report, index = 0) {
 }
 
 function clone() { return structuredClone(fixture) }
+
+test('statistics keep all five independent summary counts in three semantic groups', () => {
+  const summary = { direct_impact_count: 3, indirect_1hop_count: 5, indirect_2hop_count: 8, manual_review_count: 13, unresolved_call_count: 21 }
+  const original = JSON.stringify(summary)
+  const html = renderToStaticMarkup(createElement(ImpactCounts, { summary }))
+  assert.deepEqual([...html.matchAll(/<h2[^>]*>(.*?)<\/h2>/g)].map((match) => match[1]), ['确定影响', '影响传播', '分析边界'])
+  assert.deepEqual([...html.matchAll(/<strong>(.*?)<\/strong><span>(.*?)<\/span>/g)].map((match) => [match[1], match[2]]), [['3', '调用点'], ['5', '上游函数'], ['8', '上游函数'], ['13', '记录'], ['21', '记录']])
+  assert.equal(JSON.stringify(summary), original)
+})
+
+test('each help button has its own description and indirect help avoids claiming certain failure', () => {
+  const html = renderToStaticMarkup(createElement('div', null, createElement(ImpactCounts, {}), createElement(ImpactCounts, {})))
+  const buttons = [...html.matchAll(/<button[^>]*aria-label="了解([^"]+)"[^>]*aria-describedby="([^"]+)"[^>]*>/g)]
+  assert.deepEqual(buttons.slice(0, 5).map((match) => match[1]), ['直接影响', '1 层间接影响', '2 层间接影响', '人工检查', '未解析调用'])
+  assert.equal(new Set(buttons.map((match) => match[2])).size, 10, 'multiple reports must not share description IDs')
+  const tooltips = [...html.matchAll(/<span id="([^"]+)" class="oi-stat-tooltip" role="tooltip" hidden="">([^<]+)<\/span>/g)]
+  assert.deepEqual(buttons.map((match) => match[2]), tooltips.map((match) => match[1]))
+  for (const index of [1, 2]) {
+    assert.ok(tooltips[index][2].includes('建议进一步检查'))
+    assert.ok(tooltips[index][2].includes('不代表一定会运行失败'))
+  }
+})
+
+test('missing statistics remain unavailable while actual zero stays zero', () => {
+  const html = renderToStaticMarkup(createElement(ImpactCounts, { summary: { direct_impact_count: 0 } }))
+  assert.equal((html.match(/<strong>0<\/strong>/g) || []).length, 1)
+  assert.equal((html.match(/<strong>—<\/strong>/g) || []).length, 4)
+})
 
 test('Direct, 1-hop and 2-hop selections render their own source and same-slot explanation', () => {
   fixture.evidences.forEach((evidence, index) => {

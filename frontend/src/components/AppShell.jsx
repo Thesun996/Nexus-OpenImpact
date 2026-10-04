@@ -1,4 +1,6 @@
+import { useRef } from 'react'
 import { useWorkflow } from '../state/WorkflowContext.jsx'
+import MovingMarker from '../motion/MovingMarker.jsx'
 
 const navigation = [
   { label: '上传项目', page: 'upload' },
@@ -9,6 +11,7 @@ const navigation = [
 
 export default function AppShell({ page, navigate, children }) {
   const { state, actions } = useWorkflow()
+  const navRef = useRef(null)
   const isDemo = state.mode === 'demo'
   const projectName = state.inspect?.project_name || '尚未读取项目'
   const healthStatus = state.health?.status || 'idle'
@@ -40,7 +43,7 @@ export default function AppShell({ page, navigate, children }) {
             <circle cx="7" cy="7" r="3" /><circle cx="7" cy="25" r="3" /><circle cx="25" cy="16" r="3" />
           </svg>
         </a>
-        <nav className="oi-rail-nav" aria-label="主导航">
+        <nav ref={navRef} className="oi-rail-nav" aria-label="主导航">
           {navigation.map((item, index) => (
             <a key={item.page} className={page === item.page ? 'oi-nav-item is-current' : 'oi-nav-item'}
               aria-current={page === item.page ? 'page' : undefined} href={`#${item.page}`}
@@ -49,6 +52,7 @@ export default function AppShell({ page, navigate, children }) {
               <span>{item.label}</span>
             </a>
           ))}
+          <MovingMarker containerRef={navRef} selector=".is-current" identity={page} className="oi-step-marker" />
         </nav>
         <a className="oi-scope-link" href="#planned" onClick={(event) => handleNavigation(event, 'planned')}>功能范围</a>
         <span className="oi-rail-caption" aria-hidden="true">Change<br />Trace<br />Evidence</span>

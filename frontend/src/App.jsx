@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { pageDirection } from './motion/pageTransition.js'
+import WorkflowPages from './motion/WorkflowPages.jsx'
 import { WorkflowProvider } from './state/WorkflowContext.jsx'
 import AppShell from './components/AppShell.jsx'
 import UploadPage from './pages/UploadPage.jsx'
@@ -14,17 +16,20 @@ function currentPage() {
 }
 
 export default function App() {
-  const [page, setPage] = useState(currentPage)
+  const [route, setRoute] = useState(() => ({ page: currentPage(), direction: 0, sequence: 0 }))
+  const { page } = route
+  function moveTo(next) {
+    setRoute((previous) => previous.page === next ? previous : { page: next, direction: pageDirection(previous.page, next), sequence: previous.sequence + 1 })
+  }
   useEffect(() => {
-    const changed = () => setPage(currentPage())
+    const changed = () => moveTo(currentPage())
     window.addEventListener('hashchange', changed)
     return () => window.removeEventListener('hashchange', changed)
   }, [])
   function navigate(nextPage) {
     window.location.hash = nextPage
-    setPage(currentPage())
-    window.scrollTo({ top: 0 })
+    moveTo(currentPage())
   }
   const Page = pages[page]
-  return <WorkflowProvider><AppShell page={page} navigate={navigate}><Page navigate={navigate} /></AppShell></WorkflowProvider>
+  return <WorkflowProvider><AppShell page={page} navigate={navigate}><WorkflowPages {...route}><Page navigate={navigate} /></WorkflowPages></AppShell></WorkflowProvider>
 }

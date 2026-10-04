@@ -14,7 +14,7 @@ function TracePath({ path, number, direct }) {
         {symbols.map((symbol, index) => {
           const target = index === symbols.length - 1;
           const directCaller = index === symbols.length - 2;
-          return <li key={index} className={`oi-trace-step${target ? ' is-target' : ''}${directCaller ? ' is-direct-caller' : ''}`}>
+          return <li key={index} style={{ '--oi-trace-order': Math.min(symbols.length - 1 - index, 3) }} className={`oi-trace-step${target ? ' is-target' : ''}${directCaller ? ' is-direct-caller' : ''}`}>
             <div className="oi-trace-node">
               <span className="oi-trace-point" aria-hidden="true" />
               <span className="oi-trace-role">{target ? '变更目标' : directCaller ? 'Direct 调用方' : '上游，建议检查'}</span>
