@@ -7,11 +7,14 @@ export function WorkflowSteps({ current }) {
 
 export function ModeNotice({ mode }) {
   return (
-    <section className="state-message" role="note">
+    <details className="oi-workflow-note">
+      <summary>{mode === 'demo' ? '演示文件说明' : '项目文件与会话说明'}</summary>
+      <p>
       {mode === 'demo'
         ? '演示模式：当前展示仓库 signature_change 的固定接口样例。结果只属于演示文件，未请求真实分析接口。'
         : '项目模式：Inspect、Validate、Analyze 会重复上传本次选择的原始 ZIP，按 Inspect 指纹校验同一项目版本。刷新页面后需重新选择文件。'}
-    </section>
+      </p>
+    </details>
   );
 }
 
@@ -21,7 +24,7 @@ export function ErrorNotice({ error }) {
     <section className="state-message error" role="alert">
       <b>{error.code || '操作未完成'}</b>：{error.message}
       {error.code === 'fingerprint_mismatch' && <p>本次 ZIP 与此前 Inspect 的 project_fingerprint 不一致，已清除旧项目结果。请<a href="#upload">返回上传页</a>重新读取当前 ZIP，再选择函数并校验变更。</p>}
-      {error.diagnostics && <DiagnosticsList diagnostics={error.diagnostics} />}
+      {error.diagnostics && <DiagnosticsList diagnostics={error.diagnostics} showEmptyState={false} />}
     </section>
   );
 }
@@ -35,12 +38,12 @@ export function CoverageNotice({ coverage }) {
   );
 }
 
-export function DiagnosticsList({ diagnostics }) {
+export function DiagnosticsList({ diagnostics, showEmptyState = true }) {
   const entries = Array.isArray(diagnostics)
     ? diagnostics.map((entry) => ({ category: 'diagnostic', entry }))
     : Object.entries(diagnostics || {}).flatMap(([category, values]) =>
       Array.isArray(values) ? values.map((entry) => ({ category, entry })) : []);
-  if (!entries.length) return <p>未发现诊断项。</p>;
+  if (!entries.length) return showEmptyState ? <p>未发现诊断项。</p> : null;
   return entries.map(({ category, entry }, index) => {
     const detail = typeof entry === 'object' && entry !== null ? entry : { message: String(entry) };
     return (

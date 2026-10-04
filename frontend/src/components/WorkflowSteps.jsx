@@ -18,8 +18,8 @@ export default function WorkflowSteps({ page }) {
   ]
 
   return (
-    <section className="step-card" aria-label="分析步骤">
-      <ol className="progress-steps">
+    <section className="oi-stepper" aria-label="分析步骤">
+      <ol className="oi-progress-steps">
         {steps.map((step, index) => {
           const current = page === step.page
           const done = complete[index]

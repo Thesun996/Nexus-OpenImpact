@@ -9,6 +9,7 @@ import { createServer } from 'vite'
 const fixture = JSON.parse(readFileSync(new URL('../src/demo/fixtures/analyze.json', import.meta.url), 'utf8'))
 let server
 let ReportResults
+let ErrorNotice
 
 before(async () => {
   // Reuse the project's Vite JSX transform; no browser/testing dependency or
@@ -23,6 +24,7 @@ before(async () => {
   })
   const module = await server.ssrLoadModule('/src/pages/ReportPage.jsx')
   ReportResults = module.ReportResults
+  ErrorNotice = (await server.ssrLoadModule('/src/pages/PageParts.jsx')).ErrorNotice
 })
 
 after(async () => { await server?.close() })
@@ -55,6 +57,10 @@ test('zero-impact report renders actual zero counts without earlier source or ex
   const report = clone()
   report.change.target_symbol_id = 'page.page'
   report.change.added_parameter.name = 'zone'
+  // The overview now renders both real signatures. Keep this case internally
+  // consistent with page() -> page(zone), including its empty before signature.
+  report.change.before = { ...report.change.before, name: 'page', parameters: [] }
+  report.change.after = { ...report.change.after, name: 'page', parameters: [{ ...report.change.after.parameters[1], name: 'zone' }] }
   report.direct_impacts = []
   report.indirect_impacts = []
   report.evidences = []
@@ -85,7 +91,7 @@ test('unavailable Evidence retains findings, call location and diagnostics witho
   assert.ok(html.includes('Explanation unavailable'))
   assert.ok(html.includes('证据生成失败，影响结果仍可查看。'))
   assert.ok(html.includes('report.py:5:11'))
-  assert.ok(!html.includes('<pre class="code-block">'))
+  assert.doesNotMatch(html, /<pre class="code-block"[^>]*>/)
   assert.ok(!html.includes(fixture.explanations[1].explanation.summary))
   assert.equal((html.match(/<strong>1<\/strong>/g) || []).length, 3)
 })
@@ -97,7 +103,7 @@ test('missing or mismatched Explanation degrades while the actual Evidence stays
   let html = render(report)
   assert.ok(html.includes('Explanation unavailable'))
   assert.ok(html.includes('解释生成失败，源码证据仍可查看。'))
-  assert.ok(html.includes('<pre class="code-block">'))
+  assert.match(html, /<pre class="code-block"[^>]*>/)
   report.explanations[0] = structuredClone(report.explanations[1])
   html = render(report)
   assert.ok(html.includes('report_explanation_mismatch'))
@@ -208,4 +214,96 @@ test('multiple Indirect sources use the shortest existing representative for lis
   assert.ok(sourceCard.includes('dashboard.py:5:11'))
   assert.ok(!sourceCard.includes('dashboard.py:9:2'))
   assert.ok(sourceCard.includes('Evidence unavailable'))
+})
+
+test('grouping Indirect records preserves the original Evidence and Explanation index', () => {
+  const report = clone()
+  report.indirect_impacts.reverse()
+  report.evidences = [report.evidences[0], report.evidences[2], report.evidences[1]]
+  report.explanations = [report.explanations[0], report.explanations[2], report.explanations[1]]
+  const html = render(report, 1)
+  const selectedButton = html.match(/<button[^>]*aria-pressed="true"[^>]*>(.*?)<\/button>/s)?.[1]
+  assert.ok(selectedButton.includes('page.page'))
+  assert.ok(html.includes('return dashboard()'))
+  assert.ok(html.includes(fixture.explanations[2].explanation.summary))
+  assert.ok(!html.includes(fixture.explanations[1].explanation.summary))
+  assert.ok(!html.includes('report_evidence_mismatch'))
+})
+
+test('Direct trace contains only its confirmed caller, target and actual call site', () => {
+  const html = render(fixture)
+  const trace = html.match(/<section[^>]*aria-label="当前影响的调用路径"[^>]*>(.*?)<\/section>/s)?.[1]
+  assert.ok(trace, 'the selected finding must have a separate Trace view')
+  assert.ok(trace.includes('report.report → utils.format_date'))
+  assert.ok(trace.includes('report.py:5:11'))
+  assert.ok(!trace.includes('dashboard.dashboard'))
+  assert.ok(!trace.includes('page.page'))
+})
+
+test('missing Indirect path stays unavailable rather than inventing links from names or other findings', () => {
+  const report = clone()
+  report.evidences[1].status = 'unavailable'
+  report.evidences[1].location = null
+  report.evidences[1].source_snippet = null
+  report.evidences[1].source_hash = null
+  report.evidences[1].propagation_path = []
+  report.explanations[1] = { evidence: structuredClone(report.evidences[1]), explanation: null, diagnostics: [] }
+  const html = render(report, 1)
+  const trace = html.match(/<section[^>]*aria-label="当前影响的调用路径"[^>]*>(.*?)<\/section>/s)?.[1]
+  assert.ok(trace.includes('Trace unavailable'))
+  assert.ok(!trace.includes('dashboard.dashboard → report.report'))
+  assert.doesNotMatch(html, /<pre class="code-block"[^>]*>/)
+  assert.ok(html.includes('dashboard.py:5:11'))
+})
+
+test('conflicting Evidence metadata produces unavailable without displaying another snippet', () => {
+  const report = clone()
+  report.evidences[0].location.column += 1
+  report.explanations[0].evidence = structuredClone(report.evidences[0])
+  const html = render(report)
+  assert.ok(html.includes('report_evidence_mismatch'))
+  assert.ok(html.includes('Evidence unavailable'))
+  assert.ok(html.includes('Explanation unavailable'))
+  assert.doesNotMatch(html, /<pre class="code-block"[^>]*>/)
+  assert.ok(!html.includes(fixture.explanations[0].explanation.summary))
+})
+
+test('rendering reports and grouping the index never mutate response arrays or snapshots', () => {
+  const report = clone()
+  const original = JSON.stringify(report)
+  for (const index of [2, 0, 1]) render(report, index)
+  assert.equal(JSON.stringify(report), original)
+})
+
+test('available source exposes a named keyboard stop without altering the snippet', () => {
+  const html = render(fixture)
+  assert.match(html, /<pre class="code-block" tabindex="0" aria-label="源码片段，可横向滚动">/)
+  assert.ok(html.includes(fixture.evidences[0].source_snippet))
+})
+
+test('error notices preserve actual diagnostics without a contradictory empty success message', () => {
+  for (const diagnostics of [[], {}]) {
+    const html = renderToStaticMarkup(createElement(ErrorNotice, {
+      error: { code: 'invalid_zip', message: '上传文件不是有效 ZIP。', diagnostics },
+    }))
+    assert.ok(html.includes('invalid_zip'))
+    assert.ok(html.includes('上传文件不是有效 ZIP。'))
+    assert.ok(!html.includes('未发现诊断项'))
+  }
+  const html = renderToStaticMarkup(createElement(ErrorNotice, {
+    error: { code: 'fingerprint_mismatch', message: '项目指纹不一致。', diagnostics: [{ code: 'snapshot_changed', message: '请重新 Inspect。' }] },
+  }))
+  assert.ok(html.includes('snapshot_changed'))
+  assert.ok(html.includes('请重新 Inspect。'))
+  assert.ok(html.includes('返回上传页'))
+})
+
+test('provider provenance is an optional disclosure while evidence and confidence limits stay visible', () => {
+  const html = render(fixture)
+  assert.match(html, /<details class="oi-explanation-details"><summary>解释来源说明<\/summary>/)
+  assert.ok(html.includes('请求成功和解释非空均不能证明 DeepSeek 真实调用成功'))
+  assert.ok(html.includes('中文辅助解释'))
+  const explanationBeforeDisclosure = html.split('<details class="oi-explanation-details">')[0]
+  assert.ok(explanationBeforeDisclosure.includes('代码运行失败的概率'))
+  assert.ok(explanationBeforeDisclosure.includes(fixture.explanations[0].explanation.why_affected))
 })

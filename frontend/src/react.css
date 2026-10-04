@@ -1,22 +1,9 @@
-/* React/accessibility additions. The original layout stays in styles.css. */
-.mode-banner { margin: 18px 26px 0; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; display: flex; flex-wrap: wrap; gap: 8px 16px; background: white; color: var(--muted); }
-.mode-banner.demo { background: var(--yellow-soft); border-color: #ead4a0; }
-.mode-banner strong { color: var(--text); }
-button:disabled { cursor: not-allowed; opacity: .55; }
-button, input, select, textarea { font: inherit; }
-:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+/* React controls share the same tokens as the shell and reading surfaces. */
 .function-row[type='button'], .impact-item[type='button'] { width: 100%; text-align: left; color: inherit; font: inherit; }
-.function-row[type='button']:hover { background: var(--blue-soft); }
-.function-row[type='button'] { background: white; }
-.function-row[type='button'].selected { background: #eef5ff; }
-.impact-item.selected { box-shadow: inset 3px 0 0 var(--blue); border-color: var(--blue); }
-.empty-state { padding: 32px; text-align: center; border: 1px dashed var(--line-dark); border-radius: 12px; background: var(--panel); }
-.empty-state p { color: var(--muted); line-height: 1.8; }
-.workflow-error { color: #991b1b; background: var(--red-soft); border: 1px solid #fecaca; border-radius: 10px; padding: 12px 16px; }
-.diagnostic-list { padding-left: 20px; color: var(--muted); overflow-wrap: anywhere; }
-/* Keep report metadata separate from parameter names and individual call sites. */
+.function-row[type='button'] { background: var(--oi-surface); font-size: var(--oi-text-sm); }
+.function-row[type='button']:hover, .function-row[type='button'].selected { background: var(--oi-trace-soft); }
+.impact-item[type='button'] { font-size: var(--oi-text-sm); }
+.impact-item[type='button']:hover { border-color: var(--oi-trace); }
 .change-summary-card b small,
 .evidence-card .info-list small,
-.evidence-meta-card .info-list small { display: block; margin: 4px 0 0; color: #64748b; font-weight: 400; }
-@media (max-width: 700px) { .mode-banner { margin: 12px 14px 0; } }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+.evidence-meta-card .info-list small { display: block; margin-top: var(--oi-space-1); color: var(--oi-muted); font-family: var(--oi-font-ui); font-size: var(--oi-text-xs); font-weight: 400; }
