@@ -7,7 +7,7 @@ import unicodedata
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from openimpact.analysis.symbol_index import SymbolIndex, _module_name
+from openimpact.analysis.symbol_index import SymbolIndex
 
 
 def normalized_name(name: str) -> str:
@@ -52,11 +52,11 @@ class ModuleInventory:
         paths = index.scanner.scan()
         counts: dict[str, int] = {}
         for path in paths:
-            key = normalized_name(_module_name(path))
+            key = normalized_name(index.module_name(path))
             counts[key] = counts.get(key, 0) + 1
         descriptors = []
         for path in paths:
-            module = _module_name(path)
+            module = index.module_name(path)
             kind = "package" if path.stem == "__init__" else "nested" if len(path.parts) != 1 else "module"
             reason = "unsupported_module_layout" if kind != "module" else name_problem(module)
             if counts[normalized_name(module)] > 1 or module in index.ambiguous_modules:

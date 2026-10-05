@@ -64,6 +64,10 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
     }
   }
 
+  function checkAnalysisRoot(payload, expected = '.') {
+    if ((payload.analysis_layout?.analysis_root ?? '.') !== expected) invalidResponse()
+  }
+
   // Compare declared intent only. Core remains the authority for signature validity.
   function matchesIntent(spec, change) {
     if (!spec || spec.target_symbol_id !== change.target_symbol_id || spec.change_type !== change.change_type) return false
@@ -88,6 +92,9 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
 
   const actions = {
     selectFile: (file) => changeState({ type: 'FILE_SELECTED', file }),
+    setAnalysisRoot: (analysisRoot) => {
+      if (analysisRoot !== getState().analysisRoot && getState().mode !== 'demo') changeState({ type: 'ANALYSIS_ROOT_CHANGED', analysisRoot })
+    },
     selectDomain: (domain) => changeState({ type: 'DOMAIN_SELECTED', domain }),
     selectModule: (id) => changeState({ type: 'MODULE_SELECTED', id }),
     selectSymbol: (id) => changeState({ type: 'SYMBOL_SELECTED', id }),
@@ -118,7 +125,8 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
       if (active) return false
       const current = getState()
       if (current.mode !== 'project' || !current.file) return localFailure('inspect', 'file_required', '请先选择要分析的原始项目 ZIP。')
-      return run('inspect', (signal) => client.inspect(current.file, { signal }), (inspect, revision) => {
+      return run('inspect', (signal) => client.inspect(current.file, { signal, analysisRoot: current.analysisRoot }), (inspect, revision) => {
+        checkAnalysisRoot(inspect, current.analysisRoot)
         if (!Array.isArray(inspect.symbols) || !Array.isArray(inspect.modules)
           || !/^[a-f0-9]{64}$/.test(inspect.project_fingerprint)) invalidResponse()
         dispatch({ type: 'INSPECT_RECEIVED', inspect, revision })
@@ -144,8 +152,9 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
       if (current.changeDomain === 'symbol' && current.change.changeType === 'remove_module_symbol' && current.change.operation.confirmed !== true)
         return localFailure('validate', 'confirmation_required', '请确认仅分析拟定的符号删除，不修改项目文件。')
       const change = buildChangePayload(current)
-      return run('validate', (signal) => client.validate(current.file, change, current.projectFingerprint, { signal }), (validation, revision) => {
+      return run('validate', (signal) => client.validate(current.file, change, current.projectFingerprint, { signal, analysisRoot: current.analysisRoot }), (validation, revision) => {
         checkFingerprint(validation, current.projectFingerprint)
+        checkAnalysisRoot(validation, current.analysisRoot)
         if (current.changeDomain === 'symbol') {
           if (validation.validation?.valid !== true || !matchesSymbolIntent(validation.change_spec, change)
             || !symbolIdentity(validation.change_spec.before)
@@ -158,7 +167,7 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
         } else if (validation.validation?.valid !== true || !matchesIntent(validation.change_spec, change)
           || !signatureIdentity(validation.change_spec.before) || !signatureIdentity(validation.change_spec.after)) invalidResponse()
         dispatch({ type: 'VALIDATION_RECEIVED', validation, revision,
-          validatedChange: { revision, payload: structuredClone(change) } })
+          validatedChange: { revision, ...(current.analysisRoot !== '.' ? { analysisRoot: current.analysisRoot } : {}), payload: structuredClone(change) } })
       })
     },
     async analyzeProject() {
@@ -166,6 +175,7 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
       const current = getState()
       if (current.validation?.validation?.valid !== true || !current.file || !current.projectFingerprint) return localFailure('analyze', 'validation_required', '请先校验当前目标与变更配置。')
       if (current.validatedChange?.revision !== current.revision
+        || (current.validatedChange.analysisRoot ?? '.') !== current.analysisRoot
         || JSON.stringify(current.validatedChange.payload) !== JSON.stringify(buildChangePayload(current))) return localFailure('analyze', 'validation_required', '当前配置已变化，请重新校验变更。')
       if (current.mode === 'demo') {
         if (!isSupportedDemoChange(current)) return localFailure('analyze', 'validation_required', '请先校验固定演示配置。')
@@ -173,7 +183,8 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
         return true
       }
       const change = structuredClone(current.validatedChange.payload)
-      return run('analyze', (signal) => client.analyze(current.file, change, current.projectFingerprint, { signal }), (report, revision) => {
+      return run('analyze', (signal) => client.analyze(current.file, change, current.projectFingerprint, { signal, analysisRoot: current.analysisRoot }), (report, revision) => {
+        checkAnalysisRoot(report, current.analysisRoot)
         if (current.changeDomain === 'symbol') {
           checkFingerprint(report, current.projectFingerprint)
           if (report.change_domain !== 'symbol' || report.report_kind !== 'symbol_impact' || report.schema_version !== 1

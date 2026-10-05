@@ -62,10 +62,11 @@ function responseError(status, payload) {
   })
 }
 
-function projectForm(file, change, fingerprint) {
+function projectForm(file, change, fingerprint, analysisRoot = '.') {
   const form = new FormData()
   // Pass the caller's original File directly. Every project request reuploads it.
   form.append('file', file)
+  if (analysisRoot !== '.') form.append('analysis_root', analysisRoot)
   if (change !== undefined) form.append('change', JSON.stringify(change))
   if (fingerprint !== undefined && fingerprint !== null && fingerprint !== '') {
     form.append('expected_fingerprint', fingerprint)
@@ -102,14 +103,14 @@ export function createApiClient({ fetchImpl = fetch } = {}) {
     health({ signal } = {}) {
       return request('/health', { method: 'GET', signal })
     },
-    inspect(file, { signal } = {}) {
-      return request('/projects/inspect', { method: 'POST', body: projectForm(file), signal })
+    inspect(file, { signal, analysisRoot = '.' } = {}) {
+      return request('/projects/inspect', { method: 'POST', body: projectForm(file, undefined, undefined, analysisRoot), signal })
     },
-    validate(file, change, fingerprint, { signal } = {}) {
-      return request('/changes/validate', { method: 'POST', body: projectForm(file, change, fingerprint), signal })
+    validate(file, change, fingerprint, { signal, analysisRoot = '.' } = {}) {
+      return request('/changes/validate', { method: 'POST', body: projectForm(file, change, fingerprint, analysisRoot), signal })
     },
-    analyze(file, change, fingerprint, { signal } = {}) {
-      return request('/projects/analyze', { method: 'POST', body: projectForm(file, change, fingerprint), signal })
+    analyze(file, change, fingerprint, { signal, analysisRoot = '.' } = {}) {
+      return request('/projects/analyze', { method: 'POST', body: projectForm(file, change, fingerprint, analysisRoot), signal })
     },
   }
 }

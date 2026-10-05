@@ -11,6 +11,7 @@ from openimpact.analysis.models import (
     Parameter,
     ParseDiagnostic,
     ParsedModule,
+    UnsupportedCallScope,
 )
 from openimpact.analysis.module_syntax import collect_module_imports
 from openimpact.analysis.symbol_syntax import collect_symbol_facts
@@ -119,6 +120,14 @@ class _CallCollector(ast.NodeVisitor):
         self.source = source
         self.calls: list[FunctionCall] = []
         self.enclosing_function: str | None = None
+        self.unsupported_scopes: list[UnsupportedCallScope] = []
+
+    def _excluded(self, node: ast.AST, scope: str, bodies: list[ast.AST]) -> None:
+        count = sum(isinstance(child, ast.Call) for body in bodies for child in ast.walk(body))
+        if count:
+            self.unsupported_scopes.append(UnsupportedCallScope(
+                scope, getattr(node, "name", None), node.lineno, node.col_offset, count,
+            ))
 
     def visit_FunctionDef(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         # Decorators and defaults execute when a definition is evaluated.
@@ -128,6 +137,7 @@ class _CallCollector(ast.NodeVisitor):
             if expression is not None:
                 self.visit(expression)
         if self.enclosing_function is not None:
+            self._excluded(node, "nested_function", node.body)
             return  # Nested function body is outside the supported scope.
         self.enclosing_function = node.name
         for statement in node.body:
@@ -138,6 +148,7 @@ class _CallCollector(ast.NodeVisitor):
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         # Class methods and class body calls are outside this release's scope.
+        self._excluded(node, "class_body", node.body)
         if self.enclosing_function is None:
             for expression in (*node.decorator_list, *node.bases):
                 self.visit(expression)
@@ -147,6 +158,7 @@ class _CallCollector(ast.NodeVisitor):
         for expression in (*node.args.defaults, *node.args.kw_defaults):
             if expression is not None:
                 self.visit(expression)
+        self._excluded(node, "lambda", [node.body])
 
     def visit_Call(self, node: ast.Call) -> None:
         expression_type, callee_path = _callee_syntax(node.func)
@@ -267,4 +279,5 @@ class ASTParser:
             symbol_bound_names=symbol_bound_names,
             symbol_diagnostics=symbol_diagnostics,
             symbol_binding_counts=symbol_binding_counts,
+            unsupported_call_scopes=tuple(collector.unsupported_scopes),
         )

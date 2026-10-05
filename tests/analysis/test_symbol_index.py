@@ -90,12 +90,13 @@ class SymbolIndexTests(unittest.TestCase):
         self.assertEqual(index.modules["pkg.helpers"], Path("pkg/helpers.py"))
         self.assertEqual(index.bindings["report"]["h"].target_symbol_id, "pkg.helpers.helper")
 
-    def test_relative_import_and_wildcard_are_unresolved(self):
+    def test_relative_import_in_regular_package_resolves_but_wildcard_remains_unresolved(self):
         self.source("pkg/__init__.py", "")
         self.source("pkg/utils.py", "def f():\n    pass\n")
         self.source("pkg/report.py", "from .utils import f\nfrom pkg.utils import *\n")
         bindings = self.build().bindings["pkg.report"]
-        self.assertEqual(bindings["f"].reason, "relative_import_unsupported")
+        self.assertEqual(bindings["f"].status, "resolved")
+        self.assertEqual(bindings["f"].target_symbol_id, "pkg.utils.f")
         self.assertEqual(bindings["*"].reason, "wildcard_import_unsupported")
 
     def test_parse_error_does_not_register_symbol_or_resolve_import(self):

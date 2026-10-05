@@ -1,5 +1,7 @@
 # OpenImpact 前端交接：后端接口冻结范围
 
+普通包增量：上传页的“源码根目录”缺省为 `.`，src 布局填 `src`。三个业务请求在 FormData 中追加同一 `analysis_root`，并检查响应 `analysis_layout`，默认省略时视为 `.`。切换目录取消旧请求、更新 revision 并清空 Inspect / Validate / Report；更换 ZIP 重置目录，409 保留目录方便重新读取。Change JSON、fingerprint 与三个领域工作流不变。`diagnostics.unsupported_scopes` 为新的可选诊断数组，需要显示具体排除范围；详见 [普通包能力](package-imports.md)。
+
 更新日期：2026-10-03，补充 Web MVP 三人成果整合验收方案。Backend v1 提供健康检查与三个正式业务接口，字段、状态码与大小限制以 [API 契约](api-contract.md) 为准。后端报告版本为 `schema_version=1`；公开字段和 API 路径保持不变。本轮不开发 React，使用 rule 模式联调。
 
 ## 启动后端与健康检查

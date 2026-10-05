@@ -1,5 +1,9 @@
 # Nexus OpenImpact API 契约
 
+## 普通包支持的兼容追加
+
+三个业务接口追加可选单一 multipart 文本字段 `analysis_root`，缺省 `.`，例如 `src`。三个阶段须重复传入同一选择，不放入 `change` JSON。非默认时追加 `analysis_layout`；默认旧响应不增加此字段。目录校验、422 / 400、排除调用作用域诊断详见 [普通包契约](package-imports.md)。`source_root` 仍表示 ZIP 外包装。原三领域八种操作、schema_version=1、fingerprint 算法、Evidence 顺序及旧 JSON 字段含义保持。
+
 Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 增加上传 Python 项目 ZIP 的语法检查。Phase 2.3 增加简化配置生成与校验 ChangeSpec。Phase 2.4 增加上传项目的完整影响分析，调用现有 `analyze_project()` 和 `build_report()`。
 
 ## 前后端冻结范围

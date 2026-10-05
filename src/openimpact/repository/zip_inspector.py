@@ -16,6 +16,7 @@ from openimpact.analysis.module_facts import ModuleInventory
 from openimpact.analysis.import_resolver import resolve_imports
 from openimpact.analysis.module_report import module_coverage, module_diagnostics
 from openimpact.repository.scanner import RepositoryScanner
+from openimpact.repository.layout import layout_metadata
 
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 MAX_ENTRIES = 256
@@ -210,13 +211,15 @@ def _result(
          "parse_status": "error" if path in index.parse_diagnostics else "ok"}
         for module, path in sorted(index.modules.items())
     ]
-    partial = bool(parse_errors or unresolved_imports or index.ambiguous_modules
+    unsupported_scopes = index.unsupported_scope_diagnostics()
+    partial = bool(parse_errors or unresolved_imports or unsupported_scopes or index.ambiguous_modules
                    or index.ambiguous_symbols)
     inventory = ModuleInventory.from_index(index, occupied_names)
     references = resolve_imports(index, inventory)
     from openimpact.analysis.variable_symbols import VariableInventory
     from openimpact.analysis.symbol_report import symbol_inspect
     return {
+        **({"analysis_layout": layout_metadata(index.analysis_root)} if index.analysis_root != "." else {}),
         **symbol_inspect(index, VariableInventory.from_index(index, inventory)),
         "module_inventory": inventory.to_dict(),
         "module_coverage": module_coverage(index, inventory, references),
@@ -234,6 +237,7 @@ def _result(
             "files_with_parse_errors": len(index.parse_diagnostics),
         },
         "diagnostics": {
+            **({"unsupported_scopes": unsupported_scopes} if unsupported_scopes else {}),
             "parse_errors": parse_errors,
             "unresolved_imports": unresolved_imports,
             "ambiguous_modules": sorted(index.ambiguous_modules),
@@ -243,7 +247,7 @@ def _result(
 
 
 @contextmanager
-def indexed_python_zip(data: bytes, filename: str | None = None):
+def indexed_python_zip(data: bytes, filename: str | None = None, *, analysis_root: str = "."):
     """Yield the existing syntax index and inspect report inside one isolated import."""
     if len(data) > MAX_UPLOAD_BYTES:
         _reject("zip_limit_exceeded", "ZIP 上传大小超过限制。", 413)
@@ -265,7 +269,7 @@ def indexed_python_zip(data: bytes, filename: str | None = None):
                 _extract_python(archive, sources, project_root, stripped_root)
             except (zipfile.BadZipFile, EOFError, RuntimeError, NotImplementedError, zlib.error) as error:
                 _reject("invalid_zip", f"ZIP 文件损坏或无法解压：{error}")
-            index = SymbolIndex(project_root).build()
+            index = SymbolIndex(project_root, analysis_root=analysis_root).build()
             # Preserve all validated root names, including unextracted directories
             # and non-Python entries, for virtual rename collision checks.
             occupied = set()
@@ -279,7 +283,7 @@ def indexed_python_zip(data: bytes, filename: str | None = None):
             yield index, _result(index, filename, fingerprint, stripped_root, len(sources), tuple(occupied))
 
 
-def inspect_python_zip(data: bytes, filename: str | None = None) -> dict:
+def inspect_python_zip(data: bytes, filename: str | None = None, *, analysis_root: str = ".") -> dict:
     """Return syntax facts from an untrusted ZIP, cleaning up before returning."""
-    with indexed_python_zip(data, filename) as (_, report):
+    with indexed_python_zip(data, filename, analysis_root=analysis_root) as (_, report):
         return report

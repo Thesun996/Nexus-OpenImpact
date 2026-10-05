@@ -4,7 +4,6 @@ import builtins
 import hashlib
 from collections import Counter
 from dataclasses import asdict, dataclass
-from openimpact.analysis.symbol_index import _module_name
 from openimpact.analysis.import_resolver import ResolvedImport, resolve_imports
 from openimpact.analysis.module_graph import ModuleDependencyGraph
 
@@ -53,7 +52,7 @@ def lookup(inventory, module, name):
 def resolve_symbol_references(index, inventory):
     results = []
     for file, parsed in sorted(index.parsed_files.items()):
-        module = _module_name(file)
+        module = index.module_name(file)
         source = inventory.modules.get(module)
         binding = import_bindings(parsed)
         counts = dict(parsed.symbol_binding_counts)

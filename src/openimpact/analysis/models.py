@@ -110,6 +110,15 @@ class ModuleSyntaxDiagnostic:
 
 
 @dataclass(frozen=True)
+class UnsupportedCallScope:
+    scope: str
+    name: str | None
+    line: int
+    column: int
+    call_count: int
+
+
+@dataclass(frozen=True)
 class ParsedModule:
     path: Path
     functions: tuple[FunctionDefinition, ...]
@@ -124,3 +133,4 @@ class ParsedModule:
     symbol_bound_names: frozenset[str] = frozenset()
     symbol_diagnostics: tuple = ()
     symbol_binding_counts: tuple[tuple[str, int], ...] = ()
+    unsupported_call_scopes: tuple[UnsupportedCallScope, ...] = ()

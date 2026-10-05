@@ -28,6 +28,7 @@ from openimpact.analysis.symbol_impact import analyze_symbol_project
 from openimpact.analysis.symbol_report import build_symbol_report
 from openimpact.api_change import ChangeConfigError, build_change_spec, parse_change_config
 from openimpact.repository import zip_inspector
+from openimpact.repository.layout import AnalysisRootError
 
 _DEMO_DIR = Path(__file__).resolve().parents[2] / "examples" / "signature_change"
 _DEMO_CHANGE = _DEMO_DIR / "change.json"
@@ -107,6 +108,7 @@ def _validation_response(
     module = isinstance(spec, ModuleChangeSpec) or report.get("change_domain") == "module"
     symbol = isinstance(spec, SymbolChangeSpec) or report.get("change_domain") == "symbol"
     return JSONResponse(status_code=status, content={
+        **({"analysis_layout": report["analysis_layout"]} if "analysis_layout" in report else {}),
         **({"change_domain": "symbol" if symbol else "module"} if module or symbol else {}),
         "project_name": report["project_name"],
         "project_fingerprint": report["project_fingerprint"],
@@ -124,9 +126,10 @@ async def _change_input_error(
     keys = [key for key, _ in items]
     if (request.query_params or keys.count("file") != 1 or keys.count("change") != 1
             or keys.count("expected_fingerprint") > 1
-            or set(keys) - {"file", "change", "expected_fingerprint"}):
+            or keys.count("analysis_root") > 1
+            or set(keys) - {"file", "change", "expected_fingerprint", "analysis_root"}):
         await file.close()
-        return _error(400, "unsupported_input", "仅接受 file、change 和可选 expected_fingerprint。")
+        return _error(400, "unsupported_input", "仅接受 file、change 和可选 expected_fingerprint、analysis_root。")
     if expected_fingerprint is not None and not re.fullmatch(r"[0-9a-fA-F]{64}", expected_fingerprint):
         await file.close()
         return _error(422, "invalid_fingerprint", "expected_fingerprint 必须是 SHA-256 十六进制值。")
@@ -169,16 +172,16 @@ def _validated_spec(
     return spec
 
 
-def _inspect_zip(data: bytes, filename: str | None) -> JSONResponse:
-    return JSONResponse(content=zip_inspector.inspect_python_zip(data, filename))
+def _inspect_zip(data: bytes, filename: str | None, *, analysis_root: str = ".") -> JSONResponse:
+    return JSONResponse(content=zip_inspector.inspect_python_zip(data, filename, analysis_root=analysis_root))
 
 
 def _validate_zip(
-    data: bytes, filename: str | None, change: str, expected_fingerprint: str | None
+    data: bytes, filename: str | None, change: str, expected_fingerprint: str | None, *, analysis_root: str = "."
 ) -> JSONResponse:
     if error := _fingerprint_error(data, expected_fingerprint):
         return error
-    with zip_inspector.indexed_python_zip(data, filename) as (index, report):
+    with zip_inspector.indexed_python_zip(data, filename, analysis_root=analysis_root) as (index, report):
         spec = _validated_spec(index, report, change)
         if isinstance(spec, JSONResponse):
             return spec
@@ -186,12 +189,12 @@ def _validate_zip(
 
 
 def _analyze_zip(
-    data: bytes, filename: str | None, change: str, expected_fingerprint: str | None
+    data: bytes, filename: str | None, change: str, expected_fingerprint: str | None, *, analysis_root: str = "."
 ) -> JSONResponse:
     """Keep the snapshot, validation, report, and cleanup inside one worker call."""
     if error := _fingerprint_error(data, expected_fingerprint):
         return error
-    with zip_inspector.indexed_python_zip(data, filename) as (index, inspect_report):
+    with zip_inspector.indexed_python_zip(data, filename, analysis_root=analysis_root) as (index, inspect_report):
         spec = _validated_spec(index, inspect_report, change)
         if isinstance(spec, JSONResponse):
             return spec
@@ -202,14 +205,19 @@ def _analyze_zip(
                 report = build_symbol_report(analyze_symbol_project(index, spec, inventory))
                 report["project_fingerprint"] = inspect_report["project_fingerprint"]
                 report["project_name"] = inspect_report["project_name"]
+                if "analysis_layout" in inspect_report:
+                    report["analysis_layout"] = inspect_report["analysis_layout"]
                 return JSONResponse(content=report)
             if isinstance(spec, ModuleChangeSpec):
                 inventory = ModuleInventory.from_index(index, tuple(inspect_report["module_inventory"]["occupied_names"]))
                 report = build_module_report(analyze_module_project(index, spec, inventory))
                 report["project_fingerprint"] = inspect_report["project_fingerprint"]
                 report["project_name"] = inspect_report["project_name"]
+                if "analysis_layout" in inspect_report:
+                    report["analysis_layout"] = inspect_report["analysis_layout"]
                 return JSONResponse(content=report)
-            report = build_report(analyze_project(index.scanner.project_path, spec))
+            report = build_report(analyze_project(index.scanner.project_path, spec,
+                **({"analysis_root": index.analysis_root} if index.analysis_root != "." else {})))
             if not report["validation"]["valid"]:
                 raise RuntimeError("Validated ChangeSpec failed against the same project snapshot")
             report["project_path"] = "."
@@ -243,15 +251,21 @@ def health() -> dict[str, str]:
 
 
 @app.post("/api/v1/projects/inspect")
-async def inspect_project(request: Request, file: UploadFile = File(...)) -> JSONResponse:
+async def inspect_project(request: Request, file: UploadFile = File(...), analysis_root: str = Form(".")) -> JSONResponse:
     form_items = (await request.form()).multi_items()
-    if request.query_params or len(form_items) != 1 or form_items[0][0] != "file":
+    keys = [key for key, _ in form_items]
+    if (request.query_params or keys.count("file") != 1 or keys.count("analysis_root") > 1
+            or set(keys) - {"file", "analysis_root"}):
         await file.close()
-        return _error(400, "unsupported_input", "仅接受名为 file 的 ZIP 文件字段。")
+        return _error(400, "unsupported_input", "仅接受 file ZIP 文件及可选 analysis_root 字段。")
 
     try:
+        analysis_root = (await request.form()).get("analysis_root", analysis_root)
         data = await _read_zip(file)
-        return await run_in_threadpool(_inspect_zip, data, file.filename)
+        return await run_in_threadpool(_inspect_zip, data, file.filename,
+                                      **({"analysis_root": analysis_root} if analysis_root != "." else {}))
+    except AnalysisRootError as error:
+        return _error(422, error.code, str(error))
     except zip_inspector.ZipInspectionError as error:
         return _error(error.status_code, error.code, str(error))
     except OSError:
@@ -266,13 +280,18 @@ async def validate_change(
     file: UploadFile = File(...),
     change: str = Form(...),
     expected_fingerprint: str | None = Form(None),
+    analysis_root: str = Form("."),
 ) -> JSONResponse:
     if error := await _change_input_error(request, file, expected_fingerprint):
         return error
 
     try:
+        analysis_root = (await request.form()).get("analysis_root", analysis_root)
         data = await _read_zip(file)
-        return await run_in_threadpool(_validate_zip, data, file.filename, change, expected_fingerprint)
+        return await run_in_threadpool(_validate_zip, data, file.filename, change, expected_fingerprint,
+                                      **({"analysis_root": analysis_root} if analysis_root != "." else {}))
+    except AnalysisRootError as error:
+        return _error(422, error.code, str(error))
     except zip_inspector.ZipInspectionError as error:
         return _error(error.status_code, error.code, str(error))
     except OSError:
@@ -287,13 +306,18 @@ async def analyze_uploaded_project(
     file: UploadFile = File(...),
     change: str = Form(...),
     expected_fingerprint: str | None = Form(None),
+    analysis_root: str = Form("."),
 ) -> JSONResponse:
     if error := await _change_input_error(request, file, expected_fingerprint):
         return error
 
     try:
+        analysis_root = (await request.form()).get("analysis_root", analysis_root)
         data = await _read_zip(file)
-        return await run_in_threadpool(_analyze_zip, data, file.filename, change, expected_fingerprint)
+        return await run_in_threadpool(_analyze_zip, data, file.filename, change, expected_fingerprint,
+                                      **({"analysis_root": analysis_root} if analysis_root != "." else {}))
+    except AnalysisRootError as error:
+        return _error(422, error.code, str(error))
     except zip_inspector.ZipInspectionError as error:
         return _error(error.status_code, error.code, str(error))
     except OSError:

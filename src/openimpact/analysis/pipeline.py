@@ -23,9 +23,9 @@ class AnalysisRun:
     indirect: IndirectImpactResult
 
 
-def analyze_project(project_path: str | Path, change_spec: ChangeSpec) -> AnalysisRun:
+def analyze_project(project_path: str | Path, change_spec: ChangeSpec, *, analysis_root: str = ".") -> AnalysisRun:
     """Index, resolve, validate, assess, and propagate without modifying source."""
-    index = SymbolIndex(project_path).build()
+    index = SymbolIndex(project_path, analysis_root=analysis_root).build()
     graph = CallGraph(index).build()
     direct = analyze_direct_impact(graph, change_spec)
     indirect = propagate_indirect_impact(graph, direct)

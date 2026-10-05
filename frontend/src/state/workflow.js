@@ -6,7 +6,7 @@ export const DEMO_FINGERPRINT = 'db0a82348a94853526f7d79a2f58926994596a3ab1b7c63
 
 export function createInitialState(revision = 0) {
   return {
-    mode: 'project', file: null, inspect: null, projectFingerprint: null,
+    mode: 'project', file: null, analysisRoot: '.', inspect: null, projectFingerprint: null,
     changeDomain: 'function', selectedModuleId: null, selectedSymbolId: null, selectedVariableSymbolId: null,
     change: createChangeDraft(),
     validation: null, validatedChange: null, report: null,
@@ -38,6 +38,9 @@ export function workflowReducer(state, action) {
         change: updateChangeDraft(createChangeDraft(), { parameterName: 'timezone' }),
         health: state.health,
       }
+    case 'ANALYSIS_ROOT_CHANGED':
+      if (state.mode === 'demo' || typeof action.analysisRoot !== 'string' || action.analysisRoot === state.analysisRoot) return state
+      return { ...createInitialState(state.revision + 1), file: state.file, analysisRoot: action.analysisRoot, health: state.health }
     case 'INSPECT_RECEIVED':
       return { ...state, inspect: action.inspect, projectFingerprint: action.inspect.project_fingerprint, selectedSymbolId: null, selectedModuleId: null, selectedVariableSymbolId: null, validation: null, validatedChange: null, report: null, loading: { ...state.loading, inspect: false }, error: null }
     case 'DOMAIN_SELECTED':
@@ -74,7 +77,7 @@ export function workflowReducer(state, action) {
     case 'REQUEST_FAILED':
       return { ...state, ...(action.validation ? { validation: action.validation } : {}), loading: { ...state.loading, [action.stage]: false }, error: action.error }
     case 'FINGERPRINT_MISMATCH':
-      return { ...createInitialState(state.revision + 1), file: state.file, health: state.health, error: action.error }
+      return { ...createInitialState(state.revision + 1), file: state.file, analysisRoot: state.analysisRoot, health: state.health, error: action.error }
     case 'VALIDATION_RECEIVED':
       return { ...state, validation: action.validation, validatedChange: action.validatedChange || null, report: null, loading: { ...state.loading, validate: false }, error: null }
     case 'REPORT_RECEIVED':

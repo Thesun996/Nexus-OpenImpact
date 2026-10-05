@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from openimpact.analysis.models import ModuleImportSyntax
 from openimpact.analysis.module_change import VirtualModuleLayout
 from openimpact.analysis.module_facts import ModuleInventory
-from openimpact.analysis.symbol_index import SymbolIndex, _module_name
+from openimpact.analysis.symbol_index import SymbolIndex
 
 
 @dataclass(frozen=True)
@@ -24,7 +24,7 @@ def resolve_imports(index: SymbolIndex, inventory: ModuleInventory,
                     layout: VirtualModuleLayout | None = None) -> tuple[ResolvedImport, ...]:
     references = []
     for path, parsed in sorted(index.parsed_files.items()):
-        source_module = _module_name(path)
+        source_module = index.module_name(path)
         source = inventory.get(source_module)
         for syntax in parsed.module_imports:
             identity = f"{path.as_posix()}:{syntax.statement_ordinal}:{syntax.alias_ordinal}"

@@ -109,7 +109,7 @@ def local_http(app):
             raise RuntimeError("Audit HTTP server did not stop")
 
 
-def run(repository, output):
+def run(repository, output, analysis_root="."):
     # Force the rule provider before importing the server. No external models.
     os.environ["OPENIMPACT_LLM_PROVIDER"] = "rule"
     from openimpact.api import app
@@ -135,11 +135,14 @@ def run(repository, output):
     (output / "source-review.json").write_text(
         json.dumps(notes, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    index = SymbolIndex(repository).build()
+    index = SymbolIndex(repository, analysis_root=analysis_root).build()
+    cases = tuple((name, target.removeprefix("src.") if analysis_root == "src" else target, parameter)
+                  for name, target, parameter in CASES)
     if {path.as_posix() for path in index.scanner.scan()} != set(sources):
         raise ValueError("Scanned Python files differ from the pinned source manifest")
     graph = CallGraph(index).build()
-    results = {"commit": COMMIT, "python_files": len(sources),
+    results = {"commit": COMMIT, "analysis_root": analysis_root, "python_files": len(sources),
+               "excluded_scope_count": len(index.unsupported_scope_diagnostics()),
                "indexed_modules": len(index.modules), "indexed_functions": len(index.symbols),
                "resolved_call_sites": len(graph.edges),
                "unresolved_call_reasons": dict(Counter(call.reason for call in graph.unresolved_calls)),
@@ -147,10 +150,10 @@ def run(repository, output):
                    binding.reason for bindings in index.bindings.values()
                    for binding in bindings.values() if binding.status == "unresolved")),
                "cases": [], "http": {}}
-    for name, target, parameter in CASES:
+    for name, target, parameter in cases:
         spec = build_change_spec(index, config(target, parameter))
         started = time.perf_counter()
-        report = build_report(analyze_project(repository, spec), explanation_provider=RuleBasedProvider())
+        report = build_report(analyze_project(repository, spec, analysis_root=analysis_root), explanation_provider=RuleBasedProvider())
         elapsed = time.perf_counter() - started
         report["project_path"] = "."  # Do not publish this machine's absolute path.
         (output / (name + "-report.json")).write_text(
@@ -181,7 +184,7 @@ def run(repository, output):
     with patch.object(zip_inspector, "TemporaryDirectory", tracked_directory):
         with local_http(app) as url, httpx.Client(base_url=url, trust_env=False, timeout=30) as client:
             files = {"file": ("python-dotenv-v1.1.1.zip", data, "application/zip")}
-            inspected = client.post("/api/v1/projects/inspect", files=files)
+            inspected = client.post("/api/v1/projects/inspect", files=files, data={"analysis_root": analysis_root})
             inspected.raise_for_status()
             inspect = inspected.json()
             (output / "inspect-response.json").write_text(
@@ -190,9 +193,9 @@ def run(repository, output):
             results["http"]["inspect"] = {"status": inspected.status_code,
                 "coverage": inspect["coverage"],
                 "selectable_module_count": sum(m["selectable"] for m in inspect["module_inventory"]["modules"])}
-            for name, target, parameter in CASES:
+            for name, target, parameter in cases:
                 fields = {"change": json.dumps(config(target, parameter)),
-                          "expected_fingerprint": inspect["project_fingerprint"]}
+                          "expected_fingerprint": inspect["project_fingerprint"], "analysis_root": analysis_root}
                 validated = client.post("/api/v1/changes/validate", files=files, data=fields)
                 analyzed = client.post("/api/v1/projects/analyze", files=files, data=fields)
                 validated.raise_for_status()
@@ -213,15 +216,15 @@ def run(repository, output):
                     "coverage": result["coverage"], "same_as_local": True,
                     "validate_fingerprint_matches": fingerprint_matches}
             mismatch = client.post("/api/v1/projects/analyze", files=files, data={
-                "change": json.dumps(config(CASES[0][1], CASES[0][2])),
+                "change": json.dumps(config(cases[0][1], cases[0][2])), "analysis_root": analysis_root,
                 "expected_fingerprint": "0" * 64})
             if mismatch.status_code != 409 or mismatch.json()["error"]["code"] != "fingerprint_mismatch":
                 raise RuntimeError("Analyze fingerprint guard failed")
             results["http"]["fingerprint_mismatch"] = {"status": mismatch.status_code, "body": mismatch.json()}
             module = client.post("/api/v1/changes/validate", files=files, data={
                 "change": json.dumps({"change_domain": "module", "change_type": "rename_module",
-                                      "target_module_id": "src.dotenv.parser", "new_module_name": "formatting"}),
-                "expected_fingerprint": inspect["project_fingerprint"]})
+                                      "target_module_id": cases[0][1].rsplit(".", 1)[0], "new_module_name": "formatting"}),
+                "expected_fingerprint": inspect["project_fingerprint"], "analysis_root": analysis_root})
             (output / "nested-module-validation.json").write_text(
                 json.dumps(module.json(), ensure_ascii=False, indent=2), encoding="utf-8"
             )
@@ -243,5 +246,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("repository", type=Path, help="Local pinned v1.1.1 checkout; never executed")
     parser.add_argument("--output", type=Path, default=Path(".local/real-project-audit/results"))
+    parser.add_argument("--analysis-root", default=".", help="Explicit import root, relative to the source project")
     arguments = parser.parse_args()
-    run(arguments.repository.resolve(), arguments.output.resolve())
+    run(arguments.repository.resolve(), arguments.output.resolve(), arguments.analysis_root)

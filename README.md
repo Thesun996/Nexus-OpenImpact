@@ -1,5 +1,7 @@
 # Nexus OpenImpact
 
+普通包支持已扩展：网页可显式选择源码根目录，支持普通包的静态相对导入。src 布局填写 `src`；默认 `.` 保留旧流程。详见 [使用方式与边界](docs/package-imports.md) 和 [包项目 Demo](examples/package_signature_change/README.md)。
+
 ## AI 驱动的代码变更影响分析助手
 
 ---

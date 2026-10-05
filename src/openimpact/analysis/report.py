@@ -14,6 +14,7 @@ from openimpact.analysis.pipeline import AnalysisRun
 from openimpact.explanation.models import ExplanationInput
 from openimpact.explanation.provider import ExplanationProvider, explain_safely
 from openimpact.reporting.evidence import EvidenceBuilder, ImpactEvidence
+from openimpact.repository.layout import layout_metadata
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -209,9 +210,12 @@ def build_report(
         for binding in run.index.bindings[module].values()
         if binding.status == "unresolved"
     ]
-    partial = bool(parse_errors or unresolved_calls or unresolved_imports
+    unsupported_scopes = run.index.unsupported_scope_diagnostics()
+    partial = bool(parse_errors or unresolved_calls or unresolved_imports or unsupported_scopes
                    or run.index.ambiguous_modules or run.index.ambiguous_symbols)
     return {
+        **({"analysis_layout": layout_metadata(run.index.analysis_root)}
+           if run.index.analysis_root != "." else {}),
         "schema_version": 1,
         "project_path": str(run.project_path),
         "change": run.change_spec.to_dict(include_operation=False),
@@ -244,6 +248,7 @@ def build_report(
         "manual_reviews": manual,
         "pre_existing_problems": pre_existing,
         "diagnostics": {
+            **({"unsupported_scopes": unsupported_scopes} if unsupported_scopes else {}),
             "parse_errors": parse_errors,
             "unresolved_calls": unresolved_calls,
             "unresolved_imports": unresolved_imports,
@@ -322,4 +327,6 @@ def render_chinese_report(report: dict[str, Any]) -> str:
     for item in diagnostics["unresolved_imports"]:
         lines.append(f"- import {item['file']}:{item['line']} "
                      f"{item['local_name']} [{item['reason']}]")
+    for item in diagnostics.get("unsupported_scopes", []):
+        lines.append(f"- 分析范围 {item['file']}:{item['line']}：{item['message']}")
     return "\n".join(lines)

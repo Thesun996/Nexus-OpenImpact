@@ -1,0 +1,10 @@
+{
+  "change_type": "add_required_parameter",
+  "target_symbol_id": "trace_demo.utils.format_date",
+  "before": {"name": "format_date", "parameters": [{"name": "date", "kind": "positional_or_keyword", "has_default": false}]},
+  "after": {"name": "format_date", "parameters": [
+    {"name": "date", "kind": "positional_or_keyword", "has_default": false},
+    {"name": "timezone", "kind": "keyword_only", "has_default": false}
+  ]},
+  "added_parameter": {"name": "timezone", "kind": "keyword_only", "required": true}
+}

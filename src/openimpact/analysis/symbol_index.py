@@ -13,6 +13,7 @@ from openimpact.analysis.models import (
     ParsedModule,
 )
 from openimpact.repository.scanner import RepositoryScanner
+from openimpact.repository.layout import module_name, validate_analysis_root
 
 
 @dataclass(frozen=True)
@@ -38,17 +39,15 @@ class ImportBinding:
 
 
 def _module_name(relative_path: Path) -> str:
-    parts = relative_path.with_suffix("").parts
-    if parts[-1] == "__init__" and len(parts) > 1:
-        parts = parts[:-1]
-    return ".".join(parts)
+    return module_name(relative_path)
 
 
 class SymbolIndex:
     """Project-level identity map; it never inspects or resolves calls."""
 
-    def __init__(self, project_path: str | Path):
+    def __init__(self, project_path: str | Path, *, analysis_root: str = "."):
         self.scanner = RepositoryScanner(project_path)
+        self.analysis_root = validate_analysis_root(self.scanner.project_path, analysis_root)
         self.modules: dict[str, Path] = {}
         self.symbols: dict[str, Symbol] = {}
         self.bindings: dict[str, dict[str, ImportBinding]] = {}
@@ -71,7 +70,7 @@ class SymbolIndex:
         paths_by_module: dict[str, list[Path]] = defaultdict(list)
         parsed_by_path: dict[Path, ParsedModule] = {}
         for relative_path in self.scanner.scan():
-            module = _module_name(relative_path)
+            module = self.module_name(relative_path)
             paths_by_module[module].append(relative_path)
             parsed = ASTParser(self.scanner.project_path / relative_path).parse()
             parsed_by_path[relative_path] = parsed
@@ -115,6 +114,53 @@ class SymbolIndex:
                 self.bindings[module][binding.local_name] = binding
         return self
 
+    def module_name(self, relative_path: Path) -> str:
+        return module_name(relative_path, self.analysis_root)
+
+    def unsupported_scope_diagnostics(self) -> list[dict]:
+        labels = {"class_body": "类及类方法", "nested_function": "嵌套函数", "lambda": "匿名函数"}
+        return [
+            {"code": "unsupported_call_scope", "file": file.as_posix(),
+             "line": scope.line, "column": scope.column, "scope": scope.scope,
+             "name": scope.name, "excluded_call_count": scope.call_count,
+             "message": f"{labels[scope.scope]}中的 {scope.call_count} 个调用未进入当前函数分析范围，请人工检查。"}
+            for file, parsed in sorted(self.parsed_files.items())
+            for scope in parsed.unsupported_call_scopes
+        ]
+
+    def _package_problem(self, package: str) -> str | None:
+        for depth in range(1, len(package.split(".")) + 1):
+            name = ".".join(package.split(".")[:depth])
+            if name in self.ambiguous_modules:
+                return "ambiguous_project_module"
+            path = self.modules.get(name)
+            if path is None or path.name != "__init__.py":
+                return "namespace_package_unsupported"
+            if path in self.parse_diagnostics:
+                return "module_parse_failed"
+            if "__path__" in self.parsed_modules[name].module_rebindings:
+                return "package_path_rebound"
+        return None
+
+    def _relative_module(self, source_module: str, source_file: Path,
+                         imported: ImportReference) -> tuple[str | None, str | None]:
+        if {"__package__", "__spec__"} & self.parsed_modules[source_module].module_rebindings:
+            return None, "package_context_rebound"
+        package = source_module if source_file.name == "__init__.py" else source_module.rpartition(".")[0]
+        if not package:
+            return None, "relative_import_without_package"
+        problem = self._package_problem(package)
+        if problem:
+            return None, problem
+        parts = package.split(".")
+        if imported.level > len(parts):
+            return None, "relative_import_beyond_package"
+        base = ".".join(parts[:len(parts) - imported.level + 1])
+        target = f"{base}.{imported.module}" if imported.module else base
+        parent = target.rpartition(".")[0]
+        problem = self._package_problem(parent) if parent else None
+        return (None, problem) if problem else (target, None)
+
     @staticmethod
     def _unresolved(binding: ImportBinding, reason: str) -> ImportBinding:
         return ImportBinding(
@@ -127,12 +173,27 @@ class SymbolIndex:
         )
 
     def _module_reason(self, module: str) -> str | None:
+        parts = module.split(".")
+        for depth in range(1, len(parts)):
+            parent = ".".join(parts[:depth])
+            if parent in self.ambiguous_modules:
+                return "ambiguous_project_module"
+            path = self.modules.get(parent)
+            if path is not None and path.name != "__init__.py":
+                return "parent_module_is_not_package"
+            if path is not None and path.name == "__init__.py":
+                if path in self.parse_diagnostics:
+                    return "module_parse_failed"
+                if "__path__" in self.parsed_modules[parent].module_rebindings:
+                    return "package_path_rebound"
         if module in self.ambiguous_modules:
             return "ambiguous_project_module"
         if module not in self.modules:
             return "module_not_in_project"
         if self.modules[module] in self.parse_diagnostics:
             return "module_parse_failed"
+        if self.modules[module].name == "__init__.py":
+            return self._package_problem(module)
         return None
 
     def _bind(self, source_module: str, source_file: Path, imported: ImportReference) -> ImportBinding:
@@ -145,7 +206,9 @@ class SymbolIndex:
         binding = ImportBinding(source_module, local_name, source_file, imported.lineno,
                                 "unresolved")
         if imported.level:
-            return self._unresolved(binding, "relative_import_unsupported")
+            imported_module, reason = self._relative_module(source_module, source_file, imported)
+            if reason:
+                return self._unresolved(binding, reason)
         if imported.imported_name == "*":
             return self._unresolved(binding, "wildcard_import_unsupported")
 
@@ -168,6 +231,13 @@ class SymbolIndex:
             return ImportBinding(source_module, local_name, source_file, imported.lineno,
                                  "resolved", "function", imported_module, symbol_id)
         if symbol_id in self.modules and not self._module_reason(symbol_id):
+            package = self.parsed_modules[imported_module]
+            member = imported.imported_name
+            if member in package.module_rebindings or any(
+                (item.alias or (item.module.split(".")[0] if item.import_type == "import" else item.imported_name)) == member
+                for item in package.imports if item is not imported
+            ):
+                return self._unresolved(binding, "package_member_not_proven")
             return ImportBinding(source_module, local_name, source_file, imported.lineno,
                                  "resolved", "module", target_module=symbol_id)
         return self._unresolved(binding, "name_not_in_project_module")
