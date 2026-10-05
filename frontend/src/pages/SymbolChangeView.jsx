@@ -23,7 +23,7 @@ export default function SymbolChangeView({ state, onSelectChangeType, onUpdateCh
         </form></article>
         <article className="oi-change-result"><header><h2>定义变化</h2><span className={`oi-validation-status${valid ? ' is-valid' : ''}`} role="status">{state.loading.validate ? '校验中' : valid ? '已确认变更 · 后端校验通过' : state.validation ? '校验未通过' : '符号草稿 · 待校验'}</span></header>
           <div className="oi-signature-before"><span className="oi-field-caption">变更前</span><code>{spec?.before.definition || selected.definition}</code></div><div className="oi-signature-after"><span className="oi-field-caption">{valid ? '变更后 · 后端已校验' : '草稿 · 待校验'}</span><code>{valid ? spec.after?.definition || '定义不再提供旧名称' : draft}</code></div>
-          <p>Direct 只代表新产生的确定静态引用断裂；不保证运行时失败。</p>
+          <p>直接影响只代表新产生的确定静态引用断裂；不保证运行时失败。</p>
           {state.validation && <section className="oi-validation-diagnostics"><DiagnosticsList diagnostics={state.validation.validation?.diagnostics} showEmptyState={false} /><DiagnosticsList diagnostics={symbolDiagnosticEntries(state.validation.diagnostics)} showEmptyState={false} /></section>}
           <footer className="oi-change-actions"><span>重复提交同一原始 ZIP 与指纹。</span><button className="primary-action" disabled={!valid || busy} onClick={onAnalyze}>{state.loading.analyze ? '正在分析…' : '开始分析'}</button></footer>
         </article>

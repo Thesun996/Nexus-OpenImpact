@@ -47,14 +47,14 @@ test('delete confirmation explains no real source modification and does not cons
 })
 test('module report exposes distinct units, Import evidence and rule explanation without call compatibility', () => {
   const html = render(ReportResults, { report: structuredClone(fixture.report) })
-  assert.ok(html.includes('直接导入')); assert.ok(html.includes('Import 源码证据')); assert.ok(html.includes('from utils import format_date'))
+  assert.ok(html.includes('直接导入')); assert.ok(html.includes('导入源码证据')); assert.ok(html.includes('from utils import format_date'))
   assert.ok(html.includes('规则解释')); assert.ok(html.includes('项目导入绑定变化'))
   assert.ok(!html.includes('调用兼容性变化')); assert.ok(!html.includes('新增必填参数'))
 })
 test('wrong evidence index downgrades both source and explanation without unsafe HTML', () => {
   const report = structuredClone(fixture.report); report.evidences[0].evidence_reference = 'wrong'
   let html = render(ReportResults, { report })
-  assert.ok(html.includes('Evidence unavailable')); assert.ok(html.includes('Explanation unavailable'))
+  assert.ok(html.includes('源码证据暂不可用')); assert.ok(html.includes('解释暂不可用'))
   assert.ok(!html.includes('from utils import format_date'))
   report.evidences[0] = structuredClone(fixture.report.evidences[0]); report.evidences[0].source_snippet = '<script>window.BAD=1</script>'
   html = render(ReportResults, { report }); assert.ok(html.includes('&lt;script&gt;')); assert.ok(!html.includes('<script>'))
@@ -63,7 +63,7 @@ test('zero partial result is visible without fabricated findings, sources or exp
   const report = structuredClone(fixture.report); report.import_impacts = []; report.module_indirect_impacts = []; report.evidences = []; report.explanations = []
   report.summary.direct_import_count = report.summary.indirect_1hop_module_count = report.summary.indirect_2hop_module_count = 0
   report.coverage.status = 'partial'; report.diagnostics.import_diagnostics = [{ code: 'dynamic_import', file: 'x.py', line: 1, message: '人工检查' }]
-  const html = render(ReportResults, { report }); assert.ok(html.includes('partial：分析范围不完整')); assert.ok(html.includes('当前没有确定影响'))
+  const html = render(ReportResults, { report }); assert.ok(html.includes('分析范围不完整')); assert.ok(html.includes('当前没有确定影响'))
   assert.ok(html.includes('dynamic_import')); assert.ok(!html.includes('from utils import format_date'))
 })
 test('unknown module schema cannot be mistaken for frozen Function report v1', () => {

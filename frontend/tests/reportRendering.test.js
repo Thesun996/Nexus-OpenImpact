@@ -40,6 +40,36 @@ function render(report, index = 0) {
 
 function clone() { return structuredClone(fixture) }
 
+test('student-facing labels are Chinese while identifiers, source and canonical report remain intact', () => {
+  const report = clone()
+  const snapshot = JSON.stringify(report)
+  const html = render(report)
+  for (const label of ['直接影响', '1 层间接影响', '2 层间接影响', '可用', '暂无法判断', '修改前 兼容', '修改后 不兼容']) {
+    assert.ok(html.includes(label), label)
+  }
+  for (const label of ['Direct Impact', '1-hop Indirect', '2-hop Indirect', '本次 Change', '>unknown<', '>available<']) {
+    assert.ok(!html.includes(label), label)
+  }
+  assert.ok(html.includes('utils.format_date'))
+  assert.ok(html.includes('report.py:5:11'))
+  assert.ok(html.includes(report.evidences[0].source_snippet))
+  assert.ok(html.includes('新增必填参数使原调用不兼容'))
+  assert.match(html, /<details class="oi-evidence-metadata">.*原始规则编号.*required_parameter_added_breaks_call/s)
+  assert.equal(JSON.stringify(report), snapshot)
+})
+
+test('indirect static reason is Chinese without rewriting the actual source or response', () => {
+  const report = clone()
+  const snapshot = JSON.stringify(report)
+  for (const index of [1, 2]) {
+    const html = render(report, index)
+    assert.ok(html.includes('该函数位于确定直接影响的上游调用路径中，建议检查'))
+    assert.ok(!html.includes('Direct Impact'))
+    assert.ok(html.includes(renderToStaticMarkup(createElement('code', null, report.evidences[index].source_snippet))))
+  }
+  assert.equal(JSON.stringify(report), snapshot)
+})
+
 test('statistics keep all five independent summary counts in three semantic groups', () => {
   const summary = { direct_impact_count: 3, indirect_1hop_count: 5, indirect_2hop_count: 8, manual_review_count: 13, unresolved_call_count: 21 }
   const original = JSON.stringify(summary)
@@ -104,7 +134,7 @@ test('Direct, 1-hop and 2-hop selections render their own source and same-slot e
     })
     if (index > 0) {
       assert.ok(html.includes(evidence.propagation_path[0].symbols.join(' → ')))
-      assert.ok(html.includes('原始 Direct 引用：'))
+      assert.ok(html.includes('原始直接影响证据引用：'))
       assert.ok(html.includes('调用点 1：'))
     }
   })
@@ -127,7 +157,7 @@ test('zero-impact report renders actual zero counts without earlier source or ex
   report.summary.indirect_2hop_count = 0
   const html = render(report)
   assert.equal((html.match(/<strong>0<\/strong>/g) || []).length, 5)
-  assert.ok(html.includes('当前已解析范围内没有确定 Direct 或 Indirect Impact'))
+  assert.ok(html.includes('当前已解析范围内没有确定直接影响或间接影响'))
   assert.ok(!html.includes('utils.format_date'))
   assert.ok(!html.includes('timezone'))
   assert.ok(!html.includes('return format_date'))
@@ -144,8 +174,8 @@ test('unavailable Evidence retains findings, call location and diagnostics witho
   evidence.diagnostics = [{ code: 'evidence_unavailable', message: '证据生成失败，影响结果仍可查看。' }]
   report.explanations[0] = { evidence: structuredClone(evidence), explanation: null, diagnostics: [{ code: 'evidence_unavailable', message: '源码证据不可用，无法生成解释。' }] }
   const html = render(report)
-  assert.ok(html.includes('Evidence unavailable'))
-  assert.ok(html.includes('Explanation unavailable'))
+  assert.ok(html.includes('源码证据暂不可用'))
+  assert.ok(html.includes('解释暂不可用'))
   assert.ok(html.includes('证据生成失败，影响结果仍可查看。'))
   assert.ok(html.includes('report.py:5:11'))
   assert.doesNotMatch(html, /<pre class="code-block"[^>]*>/)
@@ -158,7 +188,7 @@ test('missing or mismatched Explanation degrades while the actual Evidence stays
   report.explanations[0].explanation = null
   report.explanations[0].diagnostics = [{ code: 'explanation_unavailable', message: '解释生成失败，源码证据仍可查看。' }]
   let html = render(report)
-  assert.ok(html.includes('Explanation unavailable'))
+  assert.ok(html.includes('解释暂不可用'))
   assert.ok(html.includes('解释生成失败，源码证据仍可查看。'))
   assert.match(html, /<pre class="code-block"[^>]*>/)
   report.explanations[0] = structuredClone(report.explanations[1])
@@ -171,7 +201,7 @@ test('invalid Explanation fields do not break rendering or become claimed model 
   const report = clone()
   report.explanations[0].explanation = { summary: { unsafe: true }, confidence: 1 }
   const html = render(report)
-  assert.ok(html.includes('Explanation unavailable'))
+  assert.ok(html.includes('解释暂不可用'))
   assert.ok(html.includes('中文辅助解释'))
   assert.ok(html.includes('请求成功和解释非空均不能证明 DeepSeek 真实调用成功'))
 })
@@ -208,12 +238,12 @@ test('partial, manual review, unresolved and pre-existing data stay separate fro
   report.summary.pre_existing_problem_count = 1
   report.summary.unresolved_call_count = 1
   const html = render(report)
-  assert.ok(html.includes('partial：分析范围不完整'))
+  assert.ok(html.includes('分析范围不完整'))
   assert.ok(html.includes('零条影响也不表示整个项目确定无影响'))
   assert.ok(html.includes('extra.uncertain'))
   assert.ok(html.includes('extra.py:3:0'))
   assert.ok(html.includes('不作为确定间接传播起点'))
-  assert.ok(html.includes('修改前已经存在的问题，不归因于本次 Change'))
+  assert.ok(html.includes('修改前已经存在的问题，不归因于本次变更'))
   assert.ok(html.includes('missing_formatter'))
   assert.ok(html.includes('name_not_indexed'))
   assert.ok(html.includes('broken.py:1:0'))
@@ -270,7 +300,7 @@ test('multiple Indirect sources use the shortest existing representative for lis
   const sourceCard = html.match(/<article[^>]*aria-label="当前影响的源码证据"[^>]*>(.*?)<\/article>/s)?.[1]
   assert.ok(sourceCard.includes('dashboard.py:5:11'))
   assert.ok(!sourceCard.includes('dashboard.py:9:2'))
-  assert.ok(sourceCard.includes('Evidence unavailable'))
+  assert.ok(sourceCard.includes('源码证据暂不可用'))
 })
 
 test('grouping Indirect records preserves the original Evidence and Explanation index', () => {
@@ -307,7 +337,7 @@ test('missing Indirect path stays unavailable rather than inventing links from n
   report.explanations[1] = { evidence: structuredClone(report.evidences[1]), explanation: null, diagnostics: [] }
   const html = render(report, 1)
   const trace = html.match(/<section[^>]*aria-label="当前影响的调用路径"[^>]*>(.*?)<\/section>/s)?.[1]
-  assert.ok(trace.includes('Trace unavailable'))
+  assert.ok(trace.includes('路径暂不可用'))
   assert.ok(!trace.includes('dashboard.dashboard → report.report'))
   assert.doesNotMatch(html, /<pre class="code-block"[^>]*>/)
   assert.ok(html.includes('dashboard.py:5:11'))
@@ -319,8 +349,8 @@ test('conflicting Evidence metadata produces unavailable without displaying anot
   report.explanations[0].evidence = structuredClone(report.evidences[0])
   const html = render(report)
   assert.ok(html.includes('report_evidence_mismatch'))
-  assert.ok(html.includes('Evidence unavailable'))
-  assert.ok(html.includes('Explanation unavailable'))
+  assert.ok(html.includes('源码证据暂不可用'))
+  assert.ok(html.includes('解释暂不可用'))
   assert.doesNotMatch(html, /<pre class="code-block"[^>]*>/)
   assert.ok(!html.includes(fixture.explanations[0].explanation.summary))
 })

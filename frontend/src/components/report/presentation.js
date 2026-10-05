@@ -19,6 +19,8 @@ export function findingLocation(finding) {
 }
 
 export function impactLabel(type) {
-  return type === 'direct' ? 'Direct Impact' : type === 'indirect_1hop' ? '1-hop Indirect'
-    : type === 'indirect_2hop' ? '2-hop Indirect' : type || '类型未提供';
+  return type === 'direct' ? '直接影响' : type === 'indirect_1hop' ? '1 层间接影响'
+    : type === 'indirect_2hop' ? '2 层间接影响' : '其他影响记录';
 }
+
+export { statusLabel, riskLabel, reasonLabel, ruleLabel } from '../../presentation/labels.js';

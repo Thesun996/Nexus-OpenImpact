@@ -32,7 +32,7 @@ export default function ModuleChangeView({ state, onSelectChangeType, onUpdateCh
           <div className="oi-signature-after"><span className="oi-field-caption">{valid ? '变更后 · 后端已校验' : '草稿布局 · 待校验'}</span><code>{valid ? spec.after?.file || '模块不再位于项目布局中' : rename ? operation.newModuleName.trim() ? `${operation.newModuleName.trim()}.py` : '待填写新名称' : '拟定删除当前模块'}</code></div>
           <p>仅比较虚拟布局中的导入绑定。上游依赖建议检查，不代表确定运行失败。</p>
           {state.validation && <section className="oi-validation-diagnostics"><DiagnosticsList diagnostics={state.validation.validation?.diagnostics} showEmptyState={false} /><DiagnosticsList diagnostics={moduleDiagnosticEntries(state.validation.diagnostics)} showEmptyState={false} /></section>}
-          <footer className="oi-change-actions"><span>继续使用当前原始 ZIP 与 Inspect 指纹。</span><button className="primary-action" type="button" disabled={!valid || busy} onClick={onAnalyze}>{state.loading.analyze ? '正在分析…' : '开始分析'}</button></footer>
+          <footer className="oi-change-actions"><span>继续使用当前原始 ZIP 与项目指纹。</span><button className="primary-action" type="button" disabled={!valid || busy} onClick={onAnalyze}>{state.loading.analyze ? '正在分析…' : '开始分析'}</button></footer>
         </article>
       </section>
     </>}

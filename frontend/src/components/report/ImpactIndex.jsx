@@ -3,9 +3,9 @@ import MovingMarker from '../../motion/MovingMarker.jsx';
 import { findingLocation, impactLabel, locationText } from './presentation.js';
 
 const groups = [
-  ['direct', 'Direct Impact', '调用点'],
-  ['indirect_1hop', '1-hop Indirect', '上游函数'],
-  ['indirect_2hop', '2-hop Indirect', '上游函数'],
+  ['direct', '直接影响', '调用点'],
+  ['indirect_1hop', '1 层间接影响', '上游函数'],
+  ['indirect_2hop', '2 层间接影响', '上游函数'],
   ['other', '其他记录', '记录'],
 ];
 

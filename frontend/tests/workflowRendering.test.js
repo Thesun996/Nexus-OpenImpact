@@ -66,7 +66,7 @@ test('Inspect overview uses the actual file, modules, symbols, coverage and fing
   assert.match(html, /<dt>模块<\/dt><dd>2<\/dd>/)
   assert.match(html, /<dt>函数<\/dt><dd>3<\/dd>/)
   assert.ok(html.includes(state.projectFingerprint))
-  assert.ok(html.includes('partial：分析范围不完整。'))
+  assert.ok(html.includes('分析范围不完整。'))
   assert.ok(html.includes('更换 ZIP 会清除原项目的选择、校验和报告'))
 })
 
@@ -271,7 +271,7 @@ test('non-add canonical validation with null added_parameter enables analysis an
     const html = render(ChangeView, state)
     assert.ok(html.includes('已确认变更 · 后端校验通过'))
     assert.ok(html.includes('修改后 · 后端已校验'))
-    assert.ok(html.includes('partial：分析范围不完整。'))
+    assert.ok(html.includes('分析范围不完整。'))
     assert.ok(html.includes('broken.py'))
     assert.match(html, /<button[^>]*>开始分析<\/button>/)
     assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>开始分析<\/button>/)

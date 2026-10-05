@@ -1,3 +1,4 @@
+import { riskLabel, statusLabel, ruleLabel, reasonLabel } from '../components/report/presentation.js';
 import { moduleDiagnosticEntries } from './moduleReportData.js';
 import { useState } from 'react';
 import { CoverageNotice, DiagnosticsList } from './PageParts.jsx';
@@ -21,7 +22,7 @@ export default function ModuleReportView({ report }) {
     <section className="oi-change-overview" aria-label="当前计划模块变更">
       <div className="oi-change-target"><span>目标模块</span><b>{change.target_module_id}</b></div>
       <div className="oi-change-parameter"><span>{change.change_type === 'rename_module' ? '重命名模块' : '删除模块'}</span><code>{change.before.file} → {change.after?.file || '拟定移除'}</code></div>
-      <p>只分析虚拟项目布局，不重命名或删除源码。Direct 统计真实 Import 引用；Indirect 按上游模块去重，不代表确定运行失败。</p>
+      <p>只分析虚拟项目布局，不重命名或删除源码。直接影响统计真实导入引用；间接影响按上游模块去重，不代表确定运行失败。</p>
     </section>
     <div className="oi-module-counts" aria-label="模块影响统计">{counts.map(([group, label, value]) => <div key={label}><small>{group}</small><b>{value ?? 0}</b><span>{label}</span></div>)}</div>
     <p className="oi-explanation-note">{report.coverage.message}</p>
@@ -34,18 +35,18 @@ export default function ModuleReportView({ report }) {
       <div className="oi-report-reading">{finding ? <div key={finding.finding_id} className="oi-selected-evidence">
         <p className="oi-selected-record" aria-live="polite">当前记录：<b>{finding.impacted_module_id}</b><span>{moduleImpactLabel(finding.impact_type)}</span></p>
         <section className="oi-trace-view"><h2>静态模块依赖路径</h2>
-          {evidence?.propagation_path?.length ? evidence.propagation_path.map((path, pathIndex) => <div className="oi-module-path" key={`${path.source_direct_impact}-${pathIndex}`}><ol>{path.modules.map((module, step) => <li key={`${module}-${step}`}><code>{module}</code>{step < path.modules.length - 1 && <span aria-hidden="true"> → </span>}</li>)}</ol><small>Direct 来源：{path.source_direct_impact}</small></div>) : <p>路径 unavailable：没有可对应的真实传播证据。</p>}
+          {evidence?.propagation_path?.length ? evidence.propagation_path.map((path, pathIndex) => <div className="oi-module-path" key={`${path.source_direct_impact}-${pathIndex}`}><ol>{path.modules.map((module, step) => <li key={`${module}-${step}`}><code>{module}</code>{step < path.modules.length - 1 && <span aria-hidden="true"> → </span>}</li>)}</ol><details><summary>直接影响来源（定位编号）</summary><code>{path.source_direct_impact}</code></details></div>) : <p>路径暂不可用：没有可对应的真实传播证据。</p>}
           <p>代表性静态依赖路径，未展示完整项目图；上游模块仅建议检查。</p>
         </section>
-        <div className="oi-reading-panes"><article className="oi-evidence-panel" aria-label="当前导入的源码证据"><header><div><h2>Import 源码证据</h2><code>{evidence?.location?.file || finding.location?.file || 'unavailable'}:{evidence?.location?.line || finding.location?.line || '?'}</code></div><span>{evidence?.status || 'unavailable'}</span></header>
-          {evidence?.status === 'available' && typeof evidence.source_snippet === 'string' ? <div className="oi-code-reading"><span className="oi-source-line">{evidence.location.line}</span><pre className="code-block" tabIndex={0} aria-label="导入源码片段"><code>{evidence.source_snippet}</code></pre></div> : <div className="oi-report-unavailable" role="status"><b>Evidence unavailable</b><p>当前记录证据缺失或元数据不匹配，不借用其他项源码。</p></div>}
-          <dl className="oi-static-facts"><div><dt>静态规则</dt><dd><code>{evidence?.rule || finding.rule || 'unavailable'}</code></dd></div><div><dt>判断依据</dt><dd>{finding.reason}</dd></div><div><dt>证据引用</dt><dd><code>{evidence?.evidence_reference || finding.finding_id}</code></dd></div></dl>
-          {finding.impact_type === 'direct_import' && <div className="oi-compatibility-proof"><h3>项目导入绑定变化</h3><p>变更前：{finding.before_resolution.status} → {finding.before_resolution.target_module_id}</p><p>变更后：{finding.after_resolution.status} · {finding.after_resolution.reason}</p></div>}
-          <details className="oi-evidence-metadata"><summary>证据元数据</summary><p><code>{evidence?.import_expression || 'unavailable'}</code></p><p>源码 SHA256：<code>{evidence?.source_hash || 'unavailable'}</code></p><DiagnosticsList diagnostics={evidence?.diagnostics} showEmptyState={false} /></details>
+        <div className="oi-reading-panes"><article className="oi-evidence-panel" aria-label="当前导入的源码证据"><header><div><h2>导入源码证据</h2><code>{evidence?.location?.file || finding.location?.file || '未提供'}:{evidence?.location?.line || finding.location?.line || '?'}</code></div><span>{statusLabel(evidence?.status || 'unavailable')}</span></header>
+          {evidence?.status === 'available' && typeof evidence.source_snippet === 'string' ? <div className="oi-code-reading"><span className="oi-source-line">{evidence.location.line}</span><pre className="code-block" tabIndex={0} aria-label="导入源码片段"><code>{evidence.source_snippet}</code></pre></div> : <div className="oi-report-unavailable" role="status"><b>源码证据暂不可用</b><p>当前记录证据缺失或元数据不匹配，不借用其他项源码。</p></div>}
+          <dl className="oi-static-facts"><div><dt>静态规则</dt><dd>{ruleLabel(evidence?.rule || finding.rule)}</dd></div><div><dt>判断依据</dt><dd>{reasonLabel(finding.reason)}</dd></div><div><dt>证据引用</dt><dd><details><summary>查看定位编号</summary><code>{evidence?.evidence_reference || finding.finding_id}</code></details></dd></div></dl>
+          {finding.impact_type === 'direct_import' && <div className="oi-compatibility-proof"><h3>项目导入绑定变化</h3><p>变更前：{statusLabel(finding.before_resolution.status)} → {finding.before_resolution.target_module_id}</p><p>变更后：{statusLabel(finding.after_resolution.status)} · {reasonLabel(finding.after_resolution.reason)}</p></div>}
+          <details className="oi-evidence-metadata"><summary>证据元数据</summary><p>原始绑定信息：<code>{JSON.stringify({ before: finding.before_resolution?.status, after: finding.after_resolution?.status, reason: finding.after_resolution?.reason })}</code></p><p>原始规则编号：<code>{evidence?.rule || finding.rule || '未提供'}</code></p><p><code>{evidence?.import_expression || '未提供'}</code></p><p>源码 SHA256：<code>{evidence?.source_hash || '未提供'}</code></p><DiagnosticsList diagnostics={evidence?.diagnostics} showEmptyState={false} /></details>
         </article><aside className="oi-explanation-panel" aria-label="当前导入的中文辅助解释"><h2>中文辅助解释</h2>
-          {isUsableExplanation(explanation) ? <><p className="oi-explanation-summary">{explanation.summary}</p><p>{explanation.why_affected}</p><h3>建议检查</h3><p>{explanation.suggested_check}</p><p className="oi-explanation-note">规则解释 · 业务风险 {explanation.risk_level} · 解释置信度 {explanation.confidence}，不表示运行失败概率。</p></> : <div className="oi-report-unavailable"><b>Explanation unavailable</b><p>请直接阅读静态证据与诊断。</p></div>}
+          {isUsableExplanation(explanation) ? <><p className="oi-explanation-summary">{explanation.summary}</p><p>{explanation.why_affected}</p><h3>建议检查</h3><p>{explanation.suggested_check}</p><p className="oi-explanation-note">规则解释 · 业务风险 {riskLabel(explanation.risk_level)} · 解释置信度 {explanation.confidence}，不表示运行失败概率。</p></> : <div className="oi-report-unavailable"><b>解释暂不可用</b><p>请直接阅读静态证据与诊断。</p></div>}
         </aside></div>
-      </div> : <div className="oi-report-empty" role="status"><span>∅</span><h2>当前没有确定影响</h2><p>{report.coverage.status === 'partial' ? '覆盖不完整，零结果不证明项目没有其他影响。' : '受支持的静态引用未因本次虚拟模块变更产生断裂。'}</p><p>没有对应的源码证据与解释，不使用 Demo 数据填充。</p></div>}
+      </div> : <div className="oi-report-empty" role="status"><span>∅</span><h2>当前没有确定影响</h2><p>{report.coverage.status === 'partial' ? '覆盖不完整，零结果不证明项目没有其他影响。' : '受支持的静态引用未因本次虚拟模块变更产生断裂。'}</p><p>没有对应的源码证据与解释，不使用演示 数据填充。</p></div>}
         <section className="oi-review-section"><h2>分析边界与诊断</h2><p>条件、局部、动态、相对和复杂包导入保持人工检查或未解析，不参与确定传播。</p><DiagnosticsList diagnostics={moduleDiagnosticEntries(report.diagnostics)} /></section>
       </div>
     </div>

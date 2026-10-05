@@ -40,7 +40,7 @@ test('symbol report uses physical references and actual source binding evidence'
 test('source renders as plain text; mismatch never lends another explanation',()=>{
   const report=structuredClone(fixture.report); report.evidences[0].source_snippet='<script>BAD</script>'
   let html=render(ReportResults,{report}); assert.ok(html.includes('&lt;script&gt;')); assert.ok(!html.includes('<script>'))
-  report.evidences[0].evidence_reference='wrong'; html=render(ReportResults,{report}); assert.ok(html.includes('Evidence unavailable')); assert.ok(html.includes('Explanation unavailable'))
+  report.evidences[0].evidence_reference='wrong'; html=render(ReportResults,{report}); assert.ok(html.includes('源码证据暂不可用')); assert.ok(html.includes('解释暂不可用'))
 })
 test('zero partial and unknown schema do not impersonate complete Function reports',()=>{
   const report=structuredClone(fixture.report); report.reference_impacts=[]; report.symbol_indirect_impacts=[]; report.evidences=[]; report.explanations=[]; report.coverage.status='partial'

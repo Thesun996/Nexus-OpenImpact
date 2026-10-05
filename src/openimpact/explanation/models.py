@@ -142,22 +142,38 @@ class ExplanationResult:
         return asdict(self)
 
 
+def _reader_change_description(data: ExplanationInput) -> str:
+    """Localize only the canonical add description's kind suffix; preserve identifiers."""
+    description = data.change_description
+    if description.startswith(f"{data.target_symbol} 新增必填参数 "):
+        for kind, label in (
+            ("positional_only", "仅按位置传入"),
+            ("positional_or_keyword", "可按位置或参数名传入"),
+            ("keyword_only", "仅按参数名传入"),
+        ):
+            suffix = f"（{kind}）"
+            if description.endswith(suffix):
+                return description[:-len(suffix)] + f"（{label}）"
+    return description
+
+
 def fallback_explanation(data: ExplanationInput) -> ExplanationResult:
     """Explain supplied facts deterministically; confidence measures evidence fidelity."""
     if not isinstance(data, ExplanationInput):
         raise TypeError("fallback_explanation 需要有效的 ExplanationInput。")
     location = data.source_location
     site = f"{location.file.as_posix()}:{location.line}"
+    description = _reader_change_description(data)
     if data.impact_type == "direct":
         summary = f"{site} 对 {data.target_symbol} 的调用因本次变更已确定不兼容。"
-        why = (f"变更：{data.change_description}。源码：{data.source_snippet.strip()}。"
-               f"规则 {data.rule}：{data.reason}")
+        why = (f"变更：{description}。源码：{data.source_snippet.strip()}。"
+               f"判断依据：{data.reason}")
         suggested = f"检查 {site} 的调用参数，并在修改后运行相关测试。"
     else:
         paths = [" → ".join(path.symbols) for path in data.propagation_path]
         summary = f"{site} 位于 {data.target_symbol} 的上游调用路径，建议检查。"
-        why = (f"变更：{data.change_description}。源码：{data.source_snippet.strip()}。"
-               f"规则 {data.rule}：{data.reason} "
+        reason = data.reason.replace("确定 Direct Impact 的上游调用路径", "确定直接影响的上游调用路径")
+        why = (f"变更：{description}。源码：{data.source_snippet.strip()}。判断依据：{reason} "
                f"路径：{'；'.join(paths)}。静态路径不保证运行时失败。")
         suggested = f"沿上游路径检查 {site} 的调用及相关测试。"
     return ExplanationResult(

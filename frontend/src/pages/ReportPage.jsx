@@ -12,7 +12,7 @@ import EvidencePanel from '../components/report/EvidencePanel.jsx';
 import ExplanationPanel from '../components/report/ExplanationPanel.jsx';
 import ReviewNotes, { ReportDiagnostics } from '../components/report/ReviewNotes.jsx';
 import ImpactCounts from '../components/report/ImpactCounts.jsx';
-import { entries, impactLabel } from '../components/report/presentation.js';
+import { entries, impactLabel, statusLabel } from '../components/report/presentation.js';
 import '../components/report/report.css';
 
 export function ChangeOverview({ change }) {
@@ -85,7 +85,7 @@ function FunctionReportResults({ report, mode = 'project', initialSelectedIndex 
           </div>
         </div> : <div className="oi-report-empty" role="status">
           <span aria-hidden="true">∅</span><h2>当前没有确定影响</h2>
-          <p>当前已解析范围内没有确定 Direct 或 Indirect Impact。{report.coverage?.status === 'partial' ? '覆盖不完整，不能据此判断全项目无影响。' : '请结合人工检查与已有问题阅读结果。'}</p>
+          <p>当前已解析范围内没有确定直接影响或间接影响。{report.coverage?.status === 'partial' ? '覆盖不完整，不能据此判断全项目无影响。' : '请结合人工检查与已有问题阅读结果。'}</p>
           <p>没有对应的传播路径、源码证据和中文解释，页面保留真实零结果。</p>
         </div>}
         <ReviewNotes report={report} sectionRefs={sectionRefs} />
@@ -99,7 +99,7 @@ export default function ReportPage({ navigate }) {
   const { state } = useWorkflow();
   const report = state.report;
   return <div className="oi-report-page">
-    <section className="page-heading"><div><h1>分析报告</h1><p>{report ? report.change_domain === 'symbol' ? '从静态符号引用追到真实定义与源码证据。' : report.change_domain === 'module' ? '从静态导入依赖追到真实源码，理解拟定模块变更。' : '从调用路径追到真实源码，理解这次变更的影响。' : '当前会话尚未产生分析报告。'}</p></div><div className="heading-actions"><span>覆盖状态 <b>{report?.coverage?.status || '尚未分析'}</b></span><button className="ghost-action" type="button" onClick={() => navigate('change')}>调整变更</button></div></section>
+    <section className="page-heading"><div><h1>分析报告</h1><p>{report ? report.change_domain === 'symbol' ? '从静态符号引用追到真实定义与源码证据。' : report.change_domain === 'module' ? '从静态导入依赖追到真实源码，理解拟定模块变更。' : '从调用路径追到真实源码，理解这次变更的影响。' : '当前会话尚未产生分析报告。'}</p></div><div className="heading-actions"><span>覆盖状态 <b>{report ? statusLabel(report.coverage?.status) : '尚未分析'}</b></span><button className="ghost-action" type="button" onClick={() => navigate('change')}>调整变更</button></div></section>
     <details className="oi-report-process"><summary>分析流程与会话说明</summary><WorkflowSteps current={4} /><ModeNotice mode={state.mode} /></details>
     <ErrorNotice error={state.error} />
     {!report ? <EmptyWorkflow title="没有当前项目的报告" message="请先选择函数并校验变更。刷新浏览器后需重新选择 ZIP，演示样例只在明确开启演示模式后展示。" navigate={navigate} /> : <ReportResults report={report} mode={state.mode} />}

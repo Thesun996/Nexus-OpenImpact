@@ -97,7 +97,9 @@ def test_rule_fallback_explains_direct_without_claiming_business_severity():
 
     assert "report.py:5" in result.summary
     assert "已确定不兼容" in result.summary
-    assert data.rule in result.why_affected
+    assert data.rule not in result.why_affected
+    assert CHANGE_DESCRIPTION in result.why_affected
+    assert data.rule == direct.rule  # Canonical Evidence still contains the rule ID.
     assert data.reason in result.why_affected
     assert result.risk_level == "unknown"
     assert result.confidence == 1.0
@@ -114,3 +116,39 @@ def test_rule_fallback_keeps_indirect_uncertainty_and_path():
     assert "page.page → dashboard.dashboard → report.report → utils.format_date" in result.why_affected
     assert "不保证运行时失败" in result.why_affected
     assert result.risk_level == "unknown"
+
+
+@pytest.mark.parametrize("kind, label", [
+    ("positional_only", "仅按位置传入"),
+    ("positional_or_keyword", "可按位置或参数名传入"),
+    ("keyword_only", "仅按参数名传入"),
+])
+def test_chinese_explanation_preserves_identifiers_and_original_evidence(kind, label):
+    direct, _ = _evidences()
+    # An identifier can itself look like an internal enum: never translate it.
+    original = ExplanationInput.from_evidence(direct,
+        f"utils.format_date 新增必填参数 positional_or_keyword（{kind}）")
+    snapshot = original.to_dict()
+    result = fallback_explanation(original)
+    assert f"utils.format_date 新增必填参数 positional_or_keyword（{label}）" in result.why_affected
+    assert original.rule not in result.why_affected
+    assert original.reason in result.why_affected
+    assert original.to_dict() == snapshot
+    assert original.source_snippet == "    return format_date(date)"
+
+
+def test_unrecognized_description_is_not_rewritten_as_code_or_guessed():
+    direct, _ = _evidences()
+    description = "utils.format_date 中保留 literal positional_or_keyword（keyword_only）"
+    data = ExplanationInput.from_evidence(direct, description)
+    assert description in fallback_explanation(data).why_affected
+
+
+def test_chinese_indirect_explanation_preserves_real_path_and_uncertainty():
+    _, indirect = _evidences()
+    data = ExplanationInput.from_evidence(indirect, CHANGE_DESCRIPTION)
+    result = fallback_explanation(data)
+    assert "Direct Impact" not in result.why_affected
+    assert "确定直接影响的上游调用路径" in result.why_affected
+    assert "page.page → dashboard.dashboard → report.report → utils.format_date" in result.why_affected
+    assert "不保证运行时失败" in result.why_affected

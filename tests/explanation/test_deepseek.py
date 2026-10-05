@@ -91,6 +91,10 @@ def test_valid_mock_response_builds_validated_result_and_evidence_only_prompt():
     assert json.loads(body["messages"][1]["content"]) == data.to_dict()
     system = body["messages"][0]["content"]
     assert "只解释" in system
+    assert "中文学生开发者" in system
+    assert "函数名、参数名、文件路径及引用的源码必须保持原文" in system
+    assert "不要在正文重复内部英文规则编号" in system
+    assert "JSON 字段名及 risk_level 枚举值仍遵守" in system
     assert "不得重新判断影响" in system
     assert "不得提出具体代码修改方案" in system
     assert "人工检查" in system

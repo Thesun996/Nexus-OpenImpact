@@ -1,3 +1,4 @@
+import { statusLabel } from '../../presentation/labels.js';
 import { formatSignature } from '../../state/workflow.js';
 import { DiagnosticsList, ModeNotice, WorkflowSteps } from '../../pages/PageParts.jsx';
 import './workflow-pages.css';
@@ -9,8 +10,8 @@ export function WorkflowNotes({ current, mode }) {
 export function ProjectOverview({ inspect, file, fingerprint, mode }) {
   return <section className="oi-project-overview" aria-label="已读取项目概览">
     <div className="oi-project-identity"><span>{mode === 'demo' ? '独立演示项目' : '本次 ZIP 的项目'}</span><h2>{inspect.project_name || '项目名称未提供'}</h2><code>{file?.name || '文件名未提供'}</code></div>
-    <dl className="oi-project-facts"><div><dt>模块</dt><dd>{inspect.modules?.length ?? '—'}</dd></div><div><dt>函数</dt><dd>{inspect.symbols?.length ?? '—'}</dd></div><div><dt>覆盖</dt><dd className={inspect.coverage?.status === 'complete' ? 'is-complete' : ''}>{inspect.coverage?.status || '未知'}</dd></div></dl>
-    <details className="oi-project-details"><summary>模块与项目指纹</summary><p>项目指纹 <code>{fingerprint || '未提供'}</code></p><ul>{(inspect.modules || []).map((module, index) => <li key={`${module.module}-${index}`}><code>{module.module || '模块名未提供'}</code><span>{module.file || '路径未提供'}</span><small>{module.parse_status || '解析状态未提供'}</small></li>)}</ul></details>
+    <dl className="oi-project-facts"><div><dt>模块</dt><dd>{inspect.modules?.length ?? '—'}</dd></div><div><dt>函数</dt><dd>{inspect.symbols?.length ?? '—'}</dd></div><div><dt>覆盖</dt><dd className={inspect.coverage?.status === 'complete' ? 'is-complete' : ''}>{statusLabel(inspect.coverage?.status)}</dd></div></dl>
+    <details className="oi-project-details"><summary>模块与项目指纹</summary><p>项目指纹 <code>{fingerprint || '未提供'}</code></p><ul>{(inspect.modules || []).map((module, index) => <li key={`${module.module}-${index}`}><code>{module.module || '模块名未提供'}</code><span>{module.file || '路径未提供'}</span><small>{statusLabel(module.parse_status)}</small></li>)}</ul></details>
   </section>;
 }
 

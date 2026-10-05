@@ -6,10 +6,7 @@ import { CHANGE_TYPES, describeChange, getParameterChoices, previewSignature } f
 import { CoverageNotice, DiagnosticsList, EmptyWorkflow, ErrorNotice } from './PageParts.jsx';
 import { diagnosticCount, SignatureText, WorkflowNotes } from '../components/workflow/WorkflowParts.jsx';
 
-const KIND_LABELS = {
-  positional_only: '仅位置参数', positional_or_keyword: '普通位置或关键字参数',
-  keyword_only: '仅关键字参数', var_positional: '可变位置参数', var_keyword: '可变关键字参数',
-};
+import { parameterKindLabel } from '../presentation/labels.js';
 
 function ChangeTypeSelector({ changeType, mode, onSelect }) {
   return <fieldset className="oi-change-type-selector"><legend>变更类型</legend>
@@ -29,7 +26,7 @@ function ParameterSelector({ choices, selectedName, onSelect }) {
       : choices.map(({ parameter, enabled, reason }, index) => <label className={`oi-operation-parameter${parameter.name === selectedName ? ' is-selected' : ''}${enabled ? '' : ' is-disabled'}`} key={parameter.name}>
         <input type="radio" name="operation-parameter" aria-label={`选择参数 ${parameter.name}`} aria-describedby={!enabled ? `oi-parameter-restriction-${index}` : undefined} value={parameter.name} checked={parameter.name === selectedName} disabled={!enabled} onChange={() => onSelect(parameter.name)} />
         <span><code>{parameter.kind === 'var_positional' ? '*' : parameter.kind === 'var_keyword' ? '**' : ''}{parameter.name}{parameter.has_default === true ? `=${parameter.default_source ?? '…'}` : ''}</code>
-          <small>{KIND_LABELS[parameter.kind] || parameter.kind || '参数类型未提供'} · {enabled ? '可选择' : '不支持'}</small>
+          <small>{parameterKindLabel(parameter.kind)} · {enabled ? '可选择' : '不支持'}</small>
           {!enabled && <small className="oi-parameter-restriction" id={`oi-parameter-restriction-${index}`}>{reason}</small>}
         </span>
       </label>)}
@@ -83,8 +80,8 @@ function FunctionChangeView({ state, onSelectChangeType, onUpdateChange, onValid
           <form className="oi-change-form" aria-busy={state.loading.validate} onSubmit={(event) => { event.preventDefault(); if (configured && !busy) onValidate(); }}>
             {isAdd ? <>
               <label><span>新增参数名</span><input type="text" value={operation.parameterName} onChange={(event) => onUpdateChange({ parameterName: event.target.value })} placeholder="填写 Python 参数名" required autoComplete="off" aria-invalid={hasConflict || undefined} aria-describedby={hasConflict ? 'oi-parameter-conflict' : undefined} />{hasConflict && <small id="oi-parameter-conflict" className="oi-parameter-restriction" role="status">当前函数已有同名参数，请使用新的名称。</small>}</label>
-              <label><span>参数类型</span><select aria-label="参数类型" value={operation.kind} onChange={(event) => onUpdateChange({ kind: event.target.value })}><option value="positional_or_keyword">普通位置或关键字参数</option><option value="positional_only">仅位置参数</option><option value="keyword_only">仅关键字参数</option></select><small><code>{operation.kind}</code></small></label>
-              <label><span>插入位置（可选）</span><select aria-label="插入位置（可选）" aria-describedby="oi-insertion-help" value={operation.insertBefore} onChange={(event) => onUpdateChange({ insertBefore: event.target.value })}><option value="">使用后端默认位置</option>{selected.parameters?.map((parameter) => <option value={parameter.name} key={parameter.name}>放在 {parameter.name} 前</option>)}</select><small id="oi-insertion-help">对应 insert_before。参数位置与合法性由后端判断。</small></label>
+              <label><span>参数类型</span><select aria-label="参数类型" value={operation.kind} onChange={(event) => onUpdateChange({ kind: event.target.value })}><option value="positional_or_keyword">普通位置或关键字参数</option><option value="positional_only">仅位置参数</option><option value="keyword_only">仅关键字参数</option></select><small>{parameterKindLabel(operation.kind)}</small></label>
+              <label><span>插入位置（可选）</span><select aria-label="插入位置（可选）" aria-describedby="oi-insertion-help" value={operation.insertBefore} onChange={(event) => onUpdateChange({ insertBefore: event.target.value })}><option value="">使用后端默认位置</option>{selected.parameters?.map((parameter) => <option value={parameter.name} key={parameter.name}>放在 {parameter.name} 前</option>)}</select><small id="oi-insertion-help">插入到指定参数之前；留空使用默认位置，参数位置与合法性由后端判断。</small></label>
             </> : <>
               <ParameterSelector choices={choices} selectedName={operation.parameterName} onSelect={(parameterName) => onUpdateChange({ parameterName })} />
               {isRename && <label><span>新参数名</span><input type="text" value={operation.newParameterName} onChange={(event) => onUpdateChange({ newParameterName: event.target.value })} placeholder="填写新的 Python 参数名" required autoComplete="off" /><small>参数的顺序、类型及默认值保持原样；名称合法性由后端校验。</small></label>}
@@ -102,9 +99,9 @@ function FunctionChangeView({ state, onSelectChangeType, onUpdateChange, onValid
                 : draft ? <SignatureText definition={draft} highlightParameterName={removedName ? undefined : draftHighlight} /> : <p className="oi-preview-unavailable">草稿预览不可用，请填写或选择当前变更所需参数。</p>}
             <div className="oi-parameter-draft"><span>{valid ? validatedDescription.detail : draftSummary(state.change, selected)}</span>{!valid && <small>候选签名尚未通过校验，不能据此开始分析。</small>}</div>
           </div>
-          <p className="oi-validation-message">{state.loading.validate ? '正在使用当前 ZIP 与 Inspect 指纹构建并校验 ChangeSpec。' : valid ? state.mode === 'demo' ? '演示 ChangeSpec 已匹配固定案例，可查看演示报告。' : 'ChangeSpec 校验通过，可以提交分析。' : validation ? '当前配置未通过后端校验，请根据诊断调整参数后重新校验。' : '修改输入后，旧校验与报告立即失效；需重新校验。'}</p>
+          <p className="oi-validation-message">{state.loading.validate ? '正在使用当前 ZIP 与项目指纹构建并校验变更配置。' : valid ? state.mode === 'demo' ? '演示变更配置已匹配固定案例，可查看演示报告。' : '变更配置校验通过，可以提交分析。' : validation ? '当前配置未通过后端校验，请根据诊断调整参数后重新校验。' : '修改输入后，旧校验与报告立即失效；需重新校验。'}</p>
           {validation && (validationDiagnostics > 0 || projectDiagnostics > 0 || validation.coverage?.status === 'partial') && <section className="oi-validation-diagnostics" aria-label="后端校验诊断">{validationDiagnostics > 0 && <DiagnosticsList diagnostics={validation.validation?.diagnostics} />}<CoverageNotice coverage={validation.coverage} />{projectDiagnostics > 0 && <DiagnosticsList diagnostics={validation.diagnostics} />}</section>}
-          <footer className="oi-change-actions"><span>{state.mode === 'demo' ? '下一步展示独立演示结果' : '分析继续使用本次原始 ZIP 与 Inspect 指纹。'}</span><button className="primary-action" type="button" onClick={onAnalyze} disabled={!valid || busy}>{state.loading.analyze ? '正在分析…' : state.mode === 'demo' ? '查看演示报告' : '开始分析'}</button></footer>
+          <footer className="oi-change-actions"><span>{state.mode === 'demo' ? '下一步展示独立演示结果' : '分析继续使用本次原始 ZIP 与项目指纹。'}</span><button className="primary-action" type="button" onClick={onAnalyze} disabled={!valid || busy}>{state.loading.analyze ? '正在分析…' : state.mode === 'demo' ? '查看演示报告' : '开始分析'}</button></footer>
         </article>
       </section>
     </>}

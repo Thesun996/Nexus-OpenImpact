@@ -313,7 +313,7 @@
       },
       "explanation": {
         "summary": "report.py:5 对 utils.format_date 的调用因本次变更已确定不兼容。",
-        "why_affected": "变更：utils.format_date 新增必填参数 timezone（positional_or_keyword）。源码：return format_date(date)。规则 required_parameter_added_breaks_call：修改前调用兼容；修改后该签名的必填参数 timezone 未由当前调用提供。",
+        "why_affected": "变更：utils.format_date 新增必填参数 timezone（可按位置或参数名传入）。源码：return format_date(date)。判断依据：修改前调用兼容；修改后该签名的必填参数 timezone 未由当前调用提供。",
         "risk_level": "unknown",
         "suggested_check": "检查 report.py:5 的调用参数，并在修改后运行相关测试。",
         "confidence": 1.0
@@ -365,7 +365,7 @@
       },
       "explanation": {
         "summary": "dashboard.py:5 位于 utils.format_date 的上游调用路径，建议检查。",
-        "why_affected": "变更：utils.format_date 新增必填参数 timezone（positional_or_keyword）。源码：return report(\"2026-10-01\")。规则 resolved_upstream_call_path：该符号位于确定 Direct Impact 的上游调用路径中，建议检查；静态路径不保证运行时失败。 路径：dashboard.dashboard → report.report → utils.format_date。静态路径不保证运行时失败。",
+        "why_affected": "变更：utils.format_date 新增必填参数 timezone（可按位置或参数名传入）。源码：return report(\"2026-10-01\")。判断依据：该符号位于确定直接影响的上游调用路径中，建议检查；静态路径不保证运行时失败。 路径：dashboard.dashboard → report.report → utils.format_date。静态路径不保证运行时失败。",
         "risk_level": "unknown",
         "suggested_check": "沿上游路径检查 dashboard.py:5 的调用及相关测试。",
         "confidence": 1.0
@@ -424,7 +424,7 @@
       },
       "explanation": {
         "summary": "page.py:5 位于 utils.format_date 的上游调用路径，建议检查。",
-        "why_affected": "变更：utils.format_date 新增必填参数 timezone（positional_or_keyword）。源码：return dashboard()。规则 resolved_upstream_call_path：该符号位于确定 Direct Impact 的上游调用路径中，建议检查；静态路径不保证运行时失败。 路径：page.page → dashboard.dashboard → report.report → utils.format_date。静态路径不保证运行时失败。",
+        "why_affected": "变更：utils.format_date 新增必填参数 timezone（可按位置或参数名传入）。源码：return dashboard()。判断依据：该符号位于确定直接影响的上游调用路径中，建议检查；静态路径不保证运行时失败。 路径：page.page → dashboard.dashboard → report.report → utils.format_date。静态路径不保证运行时失败。",
         "risk_level": "unknown",
         "suggested_check": "沿上游路径检查 page.py:5 的调用及相关测试。",
         "confidence": 1.0
