@@ -354,6 +354,16 @@
     flex-wrap:wrap
   }
 }
+.oi-question-suggestions .oi-generate-questions {
+  border-color:var(--oi-trace);
+  color:var(--oi-trace)
+}
+.oi-question-generation-note,.oi-question-suggestions>p {
+  flex-basis:100%;
+  margin:0;
+  font-size:14px;
+  overflow-wrap:anywhere
+}
 @media(prefers-reduced-motion:reduce) {
   .oi-full-source .is-target-line {
     animation:none

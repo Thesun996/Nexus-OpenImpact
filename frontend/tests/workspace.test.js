@@ -1,6 +1,6 @@
 import test, { before, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { createRequestGate, sourceTree } from '../src/components/workspace/requestGate.js'
+import { checkedSuggestions, createRequestGate, sourceTree } from '../src/components/workspace/requestGate.js'
 import { createApiClient } from '../src/api/client.js'
 import { createServer } from 'vite'
 import { createElement } from 'react'
@@ -64,4 +64,38 @@ test('partial and demo questions show the real boundaries instead of fabricated 
   assert.ok(html.includes('继续了解这次变更'))
   assert.ok(html.includes('disabled'))
   assert.ok(!html.includes('模型调用成功'))
+  assert.ok(html.includes('生成推荐追问'))
+  assert.ok(!html.includes('我应该先检查哪些位置？'))
+})
+
+test('recommendations use the same uploaded snapshot without answer history or a fixed question', async () => {
+  const file = new File(['actual chosen zip'], 'current.zip'), fingerprint = 'b'.repeat(64)
+  const change = { target_symbol_id: 'utils.f', change_type: 'rename_parameter', parameter_name: 'timeout', new_parameter_name: 'delay' }
+  const controller = new AbortController()
+  const client = createApiClient({ fetchImpl: async (url, options) => {
+    assert.equal(url, '/api/v1/reports/question-suggestions')
+    assert.equal(options.body.get('file'), file)
+    assert.equal(options.body.get('expected_fingerprint'), fingerprint)
+    assert.equal(options.body.get('analysis_root'), 'src')
+    assert.equal(options.body.get('finding_index'), '2')
+    assert.deepEqual(JSON.parse(options.body.get('change')), change)
+    assert.equal(options.body.has('question'), false)
+    assert.equal(options.body.has('history'), false)
+    assert.equal(options.signal, controller.signal)
+    assert.equal(new Headers(options.headers).has('Content-Type'), false)
+    return new Response(JSON.stringify({ success: true }))
+  } })
+  await client.questionSuggestions(file, change, fingerprint, { analysisRoot: 'src', findingIndex: 2, signal: controller.signal })
+})
+
+test('recommendation response cannot reuse a different snapshot or label fallback as model success', () => {
+  const fingerprint = 'a'.repeat(64)
+  const result = { project_fingerprint: fingerprint, finding_index: 0, status: 'available', provider: 'deepseek', message: '模型推荐追问',
+    questions: [{ question: '当前调用有哪些位置需要检查？', citations: [] }, { question: '这些证据还有哪些边界？', citations: [] }] }
+  assert.equal(checkedSuggestions(result, fingerprint, 0), result)
+  for (const overrides of [{ project_fingerprint: 'b'.repeat(64) }, { finding_index: 1 }, { provider: 'fallback' },
+    { status: 'unavailable' }, { questions: [] }, { questions: [{ question: '问题' }] }]) {
+    assert.throws(() => checkedSuggestions({ ...result, ...overrides }, fingerprint, 0))
+  }
+  assert.equal(checkedSuggestions({ ...result, provider: 'rule', status: 'unavailable', questions: [] }, fingerprint, 0).questions.length, 0)
 })

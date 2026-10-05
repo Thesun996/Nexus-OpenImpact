@@ -21,7 +21,7 @@ from openimpact.analysis.variable_symbols import VariableInventory
 from openimpact.explanation.fallback import RuleBasedProvider
 from openimpact.repository import zip_inspector
 from openimpact.repository.layout import AnalysisRootError
-from openimpact.reporting.questions import answer_question, question_context, question_history
+from openimpact.reporting.questions import answer_question, question_context, question_history, suggest_questions
 
 router = APIRouter()
 
@@ -58,12 +58,12 @@ def _source(data, filename, path, expected, analysis_root):
                 "message": "文件可阅读不代表已完整分析；源码仅在本次请求内读取，不执行或修改。"}
 
 
-def _question(data, filename, change, question, finding_index, history, expected, analysis_root):
+def _question(data, filename, change, question, finding_index, history, expected, analysis_root, *, recommendations=False):
     from openimpact.api import _error, _fingerprint_error, _validated_spec
     from fastapi.responses import JSONResponse
     if error := _fingerprint_error(data, expected):
         return error
-    if not question.strip() or len(question) > 1000:
+    if not recommendations and (not question.strip() or len(question) > 1000):
         return _error(422, "invalid_question", "问题不能为空，且不能超过 1000 个字符。")
     try:
         history = question_history(history)
@@ -77,7 +77,7 @@ def _question(data, filename, change, question, finding_index, history, expected
         if isinstance(spec, JSONResponse):
             return spec
         # Generate authoritative facts without asking the model once per finding.
-        # Only the user's explicit question invokes a model, at most once.
+        # Only the user's explicit question/recommendation request invokes a model, at most once.
         if isinstance(spec, SymbolChangeSpec):
             modules = ModuleInventory.from_index(index, tuple(inspection["module_inventory"]["occupied_names"]))
             report = build_symbol_report(analyze_symbol_project(index, spec, VariableInventory.from_index(index, modules)))
@@ -92,10 +92,15 @@ def _question(data, filename, change, question, finding_index, history, expected
             context = question_context(report, slot)
         except ValueError as error:
             return _error(422, "invalid_question_context", str(error))
-        return {**answer_question(context, question.strip(), history),
+        result = suggest_questions(context) if recommendations else answer_question(context, question.strip(), history)
+        return {**result,
                 "project_fingerprint": inspection["project_fingerprint"], "finding_index": slot,
                 "change_domain": context["change_domain"], "coverage": report["coverage"],
                 "scope": "current_change_report"}
+
+
+def _suggestions(data, filename, change, finding_index, expected, analysis_root):
+    return _question(data, filename, change, "", finding_index, "[]", expected, analysis_root, recommendations=True)
 
 
 async def _request(request, file, expected, root, operation, fields, allowed):
@@ -135,3 +140,11 @@ async def report_question(request: Request, file: UploadFile = File(...), change
     return await _request(request, file, expected_fingerprint, analysis_root, _question,
                           (change, question, finding_index, history),
                           {"file", "change", "question", "expected_fingerprint", "finding_index", "history", "analysis_root"})
+
+
+@router.post("/api/v1/reports/question-suggestions")
+async def report_question_suggestions(request: Request, file: UploadFile = File(...), change: str = Form(...),
+                                      expected_fingerprint: str = Form(...), finding_index: str | None = Form(None),
+                                      analysis_root: str = Form(".")):
+    return await _request(request, file, expected_fingerprint, analysis_root, _suggestions, (change, finding_index),
+                          {"file", "change", "expected_fingerprint", "finding_index", "analysis_root"})

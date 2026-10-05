@@ -124,6 +124,11 @@ export function createApiClient({ fetchImpl = fetch } = {}) {
       if (findingIndex != null) form.append('finding_index', String(findingIndex))
       return request('/reports/questions', { method: 'POST', body: form, signal })
     },
+    questionSuggestions(file, change, fingerprint, { signal, analysisRoot = '.', findingIndex } = {}) {
+      const form = projectForm(file, change, fingerprint, analysisRoot)
+      if (findingIndex != null) form.append('finding_index', String(findingIndex))
+      return request('/reports/question-suggestions', { method: 'POST', body: form, signal })
+    },
   }
 }
 

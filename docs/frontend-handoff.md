@@ -398,3 +398,5 @@ Symbol 使用 `symbol_coverage` / `symbol_diagnostics`，其他领域继续使�
 报告底部增加推荐追问与自定义问题；右下角「项目源码」可浏览原 ZIP 内 Scanner 接受的 `.py` 文件，证据/回答引用可定位完整文件。两者共用当前原始 File、Inspect 指纹和 analysis_root，不改变既有 Workflow reducer、报告映射或 Evidence/Explanation 同序规则。
 
 新增请求与返回见 [API 契约](api-contract.md#只读源码与报告追问追加入口)，使用边界和来源判断见 [报告工作台说明](report-workspace.md)。完整 API 地址集中在现有 Client；仍通过 Vite `/api` 代理。报告追问仅当前变更范围，模型失败明确回退；演示模式不发送真实模型请求。
+
+推荐问题改为用户主动调用 `/api/v1/reports/question-suggestions` 获取模型输出，不再使用固定问题列表。生成中禁止重复点击，项目、配置或选中影响项变化后取消旧请求并清除推荐；迟到响应不能覆盖当前上下文。`unavailable` 不显示伪造推荐，用户仍可自行提问。正式模型体验需在后端启用 DeepSeek；`rule` 是明确的离线状态。后端默认值和原回答回退契约保持兼容。

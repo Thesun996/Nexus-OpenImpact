@@ -49,6 +49,7 @@ class _ZipBodyLimit:
                     "/api/v1/projects/inspect", "/api/v1/changes/validate",
                     "/api/v1/projects/analyze",
                     "/api/v1/projects/source", "/api/v1/reports/questions",
+                    "/api/v1/reports/question-suggestions",
                 }):
             await self.application(scope, receive, send)
             return

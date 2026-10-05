@@ -359,6 +359,18 @@ Symbol 报告采用独立 `(symbol, symbol_impact, schema_version=1)`，Direct �
 
 引用来自后端重建的真实报告。每次最多十二个位置、三条代表性传播路径、4000 字符源码片段；模型上下文超过 24000 字符时回退。模型必须返回 `answer,status,citation_ids` 并只引用给定 ID，否则回退。此处明确返回调用来源，原有 Explanation 字段保持不变。追问无法改变静态结论；模型失败保持 HTTP 200 并明确 `provider=fallback`。
 
+### POST /api/v1/reports/question-suggestions
+
+追加的推荐追问入口采用 multipart/form-data。必填 `file`、`change`、`expected_fingerprint`；可选 `finding_index`、`analysis_root`，含义和上面的追问接口一致。不接受 `question`、`history` 或客户端报告。复用同一 ZIP 安全限制、线程池、真实报告重建和临时清理；旧接口与 Report schema 保持原样。
+
+200 返回 `questions[]`、`status`（available / unavailable）、`provider`（deepseek / rule / fallback）、`fallback_reason`、中文 `message`，以及上面相同的指纹、索引、领域、覆盖范围和 scope 字段。
+
+- 模型成功：`questions[]` 为 2～3 项 `{question,citations}`；中文问题最多 160 字符，不重复，引用只能来自当前证据。每个 citation 仍为 `{id,file,line,column}`。无对应证据时仅推荐范围问题，引用可为空。
+- 离线 `rule` 模式：`status=unavailable, provider=rule, questions=[]`，不请求模型，也不以固定问题替代模型推荐。
+- 无 Key、认证/网络失败、非法 JSON、重复或越界问题、伪造引用：`status=unavailable, provider=fallback, questions=[]`，附安全原因码，最多请求一次，不自动重试。
+
+每次由用户主动生成，避免页面切换时自动消耗 Token；点击推荐问题后，原追问接口再独立生成回答。格式和引用校验不能保证问题的全部自然语言假设正确，模型输出仍需核查。错误 HTTP 状态沿用下表。
+
 ### 错误响应
 
 沿用既有安全错误结构 `{"error":{"code":"...","message":"..."}}`，不暴露服务器路径、堆栈或 Key。ZIP 原错误状态和 Change 校验的既有 `validation` 错误结构继续适用。
