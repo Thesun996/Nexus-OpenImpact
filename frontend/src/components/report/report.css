@@ -114,6 +114,10 @@
 .oi-explanation-panel h2 { font-weight: 500; }
 .oi-explanation-panel h3 { font-size: var(--oi-text-sm); font-weight: 500; margin: var(--oi-space-6) 0 var(--oi-space-2); }
 .oi-explanation-panel p { margin: var(--oi-space-3) 0; overflow-wrap: anywhere; }
+.oi-explanation-text { line-height: 1.75; overflow-wrap: anywhere; }
+.oi-explanation-text ol { margin: var(--oi-space-3) 0; padding-left: 1.4em; }
+.oi-explanation-text li + li { margin-top: var(--oi-space-3); }
+.oi-explanation-text li { padding-left: .15em; }
 .oi-explanation-panel .oi-explanation-summary { font-size: var(--oi-text-sm); color: var(--oi-muted); }
 .oi-explanation-meta { display: flex; flex-wrap: wrap; gap: var(--oi-space-3) var(--oi-space-6); padding-top: var(--oi-space-4); margin: var(--oi-space-6) 0 0; border-top: 1px solid var(--oi-line); font-size: var(--oi-text-xs); color: var(--oi-muted); }
 .oi-explanation-meta > div { display: flex; gap: var(--oi-space-2); }

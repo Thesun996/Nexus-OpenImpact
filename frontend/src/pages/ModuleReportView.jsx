@@ -1,3 +1,4 @@
+import ExplanationText from '../components/report/ExplanationText.jsx';
 import { riskLabel, statusLabel, ruleLabel, reasonLabel } from '../components/report/presentation.js';
 import { moduleDiagnosticEntries } from './moduleReportData.js';
 import { useState } from 'react';
@@ -44,7 +45,7 @@ export default function ModuleReportView({ report }) {
           {finding.impact_type === 'direct_import' && <div className="oi-compatibility-proof"><h3>项目导入绑定变化</h3><p>变更前：{statusLabel(finding.before_resolution.status)} → {finding.before_resolution.target_module_id}</p><p>变更后：{statusLabel(finding.after_resolution.status)} · {reasonLabel(finding.after_resolution.reason)}</p></div>}
           <details className="oi-evidence-metadata"><summary>证据元数据</summary><p>原始绑定信息：<code>{JSON.stringify({ before: finding.before_resolution?.status, after: finding.after_resolution?.status, reason: finding.after_resolution?.reason })}</code></p><p>原始规则编号：<code>{evidence?.rule || finding.rule || '未提供'}</code></p><p><code>{evidence?.import_expression || '未提供'}</code></p><p>源码 SHA256：<code>{evidence?.source_hash || '未提供'}</code></p><DiagnosticsList diagnostics={evidence?.diagnostics} showEmptyState={false} /></details>
         </article><aside className="oi-explanation-panel" aria-label="当前导入的中文辅助解释"><h2>中文辅助解释</h2>
-          {isUsableExplanation(explanation) ? <><p className="oi-explanation-summary">{explanation.summary}</p><p>{explanation.why_affected}</p><h3>建议检查</h3><p>{explanation.suggested_check}</p><p className="oi-explanation-note">规则解释 · 业务风险 {riskLabel(explanation.risk_level)} · 解释置信度 {explanation.confidence}，不表示运行失败概率。</p></> : <div className="oi-report-unavailable"><b>解释暂不可用</b><p>请直接阅读静态证据与诊断。</p></div>}
+          {isUsableExplanation(explanation) ? <><p className="oi-explanation-summary">{explanation.summary}</p><ExplanationText text={explanation.why_affected} /><h3>建议检查</h3><ExplanationText text={explanation.suggested_check} ordered /><p className="oi-explanation-note">规则解释 · 业务风险 {riskLabel(explanation.risk_level)} · 解释置信度 {explanation.confidence}，不表示运行失败概率。</p></> : <div className="oi-report-unavailable"><b>解释暂不可用</b><p>请直接阅读静态证据与诊断。</p></div>}
         </aside></div>
       </div> : <div className="oi-report-empty" role="status"><span>∅</span><h2>当前没有确定影响</h2><p>{report.coverage.status === 'partial' ? '覆盖不完整，零结果不证明项目没有其他影响。' : '受支持的静态引用未因本次虚拟模块变更产生断裂。'}</p><p>没有对应的源码证据与解释，不使用演示 数据填充。</p></div>}
         <section className="oi-review-section"><h2>分析边界与诊断</h2><p>条件、局部、动态、相对和复杂包导入保持人工检查或未解析，不参与确定传播。</p><DiagnosticsList diagnostics={moduleDiagnosticEntries(report.diagnostics)} /></section>

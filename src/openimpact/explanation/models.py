@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from openimpact.reporting.evidence import EvidenceLocation, EvidencePath, ImpactEvidence
+from openimpact.explanation.context import ExplanationContext
 
 RiskLevel = Literal["low", "medium", "high", "unknown"]
 
@@ -38,6 +39,7 @@ class ExplanationInput:
     rule: str
     reason: str
     propagation_path: tuple[EvidencePath, ...]
+    context: ExplanationContext | None = None
 
     def __post_init__(self) -> None:
         for field in ("target_symbol", "change_description", "source_snippet", "rule", "reason"):
@@ -65,6 +67,22 @@ class ExplanationInput:
             raise ValueError("Direct 解释不能包含间接传播路径。")
         if self.impact_type != "direct" and not self.propagation_path:
             raise ValueError("Indirect 的 propagation_path 需要至少一条传播路径。")
+        if self.context is not None:
+            if not isinstance(self.context, ExplanationContext):
+                raise ValueError('context 必须是结构化证据上下文。')
+            first, last = self.context.steps[0], self.context.steps[-1]
+            if (first.file, first.line, first.column) != (
+                self.source_location.file.as_posix(), self.source_location.line, self.source_location.column
+            ) or last.callee != self.target_symbol:
+                raise ValueError('context 与当前证据不对应。')
+            symbols = (first.caller, *(step.callee for step in self.context.steps))
+            if self.impact_type == 'direct' and len(self.context.steps) != 1:
+                raise ValueError('直接影响不能带有推测的上游路径。')
+            if self.propagation_path and not any(symbols == path.symbols and all(
+                (step.file, step.line, step.column) == (site.file.as_posix(), site.line, site.column)
+                for step, site in zip(self.context.steps, path.call_sites)
+            ) for path in self.propagation_path):
+                raise ValueError('context 必须对应已有传播路径及真实位置。')
 
     @classmethod
     def from_evidence(
@@ -90,6 +108,7 @@ class ExplanationInput:
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-ready contract without absolute filesystem paths."""
         return {
+            **({'context': self.context.to_dict()} if self.context is not None else {}),
             "target_symbol": self.target_symbol,
             "change_description": self.change_description,
             "impact_type": self.impact_type,
@@ -176,6 +195,45 @@ def fallback_explanation(data: ExplanationInput) -> ExplanationResult:
         why = (f"变更：{description}。源码：{data.source_snippet.strip()}。判断依据：{reason} "
                f"路径：{'；'.join(paths)}。静态路径不保证运行时失败。")
         suggested = f"沿上游路径检查 {site} 的调用及相关测试。"
+    if data.context is not None:
+        context = data.context
+        terminal = context.steps[-1]
+        why = (f'变更：{description}。\n当前证据：{data.source_snippet.strip()}。'
+               f'\n原始直接调用 {terminal.site} 的兼容性依据：修改前，{context.before_reason} '
+               f'修改后，{context.after_reason}')
+        if data.impact_type != 'direct':
+            why += (f'\n确定发生新不兼容的位置是 {terminal.site}；当前上游记录只说明静态调用路径相连。'
+                    f'\n代表路径：{" → ".join((context.steps[0].caller, *(step.callee for step in context.steps)))}。'
+                    '静态路径不保证运行时失败。')
+        checks = [f'1. 先核对 {terminal.site}：{terminal.expression or "该位置的调用源码未能复核，请手动打开原文件"}。'
+                  f'对照修改后签名，具体问题是：{context.after_reason}']
+        question = {
+            'add_required_parameter': '检查新增参数所需信息能否由此层提供，还是需要由上游传入；值的来源需人工确认。',
+            'remove_parameter': '检查此层是否仍需要被删除参数所承载的信息，以及当前实参的去向；不能只删掉实参就认定业务正确。',
+            'rename_parameter': '检查这段调用是否继续使用旧参数名；位置调用与按参数名调用的影响不同，需按实际调用方式核对。',
+            'make_parameter_required': '检查此层是否依赖省略参数时的原默认值，以及改为显式传入后应由谁提供该值。',
+        }[context.change_type]
+        checks[0] += question
+        if context.change_type == 'make_parameter_required':
+            before = {parameter.name: parameter for parameter in context.before_signature.parameters}
+            changed = [before[parameter.name] for parameter in context.after_signature.parameters
+                       if parameter.name in before and before[parameter.name].has_default and not parameter.has_default]
+            if len(changed) == 1 and changed[0].default_source is not None:
+                checks[0] += f'原默认值的源码是 {changed[0].default_source[:200]}，此处没有执行该表达式。'
+        # Start at the direct site and work outwards, using only supplied edges.
+        for number, step in enumerate(reversed(context.steps[:-1]), 2):
+            checks.append(f'{number}. 再看 {step.site}（{step.caller} → {step.callee}）：'
+                          f'{step.expression or "调用源码未能复核，请手动核对该位置"}。'
+                          '检查这一层是否需要配合调整接口或传参；现有证据没有证明需要怎样调整。'
+                          '该上游位置未被判定为参数不兼容，仅按静态路径建议检查。')
+        checks.append(f'{len(checks) + 1}. 人工检查现有测试是否覆盖上述调用及上游入口；'
+                      '测试位置和执行结果未提供，需自行确认后运行。')
+        checks.append('业务边界：这里没有执行源码，不能确定输入取值、业务后果或运行时是否走到这条路径。')
+        if context.path_count > 1:
+            checks.append(f'该记录关联 {context.path_count} 个直接影响来源；上面仅展开一条代表路径，其他路径请查看源码证据。')
+        if context.incomplete_analysis:
+            checks.append('覆盖提示：项目含未解析或未支持内容，以上检查范围不能代表整个项目。')
+        suggested = '\n'.join(checks)
     return ExplanationResult(
         summary=summary,
         why_affected=why,

@@ -12,6 +12,7 @@ from openimpact.analysis.direct_impact import ImpactFinding
 from openimpact.analysis.indirect_impact import IndirectImpactFinding
 from openimpact.analysis.pipeline import AnalysisRun
 from openimpact.explanation.models import ExplanationInput
+from openimpact.explanation.context import build_explanation_context
 from openimpact.explanation.provider import ExplanationProvider, explain_safely
 from openimpact.reporting.evidence import EvidenceBuilder, ImpactEvidence
 from openimpact.repository.layout import layout_metadata
@@ -119,6 +120,7 @@ def _finding_evidence(
 def _explanation_data(
     evidence_data: dict[str, Any], evidence: ImpactEvidence | None,
     change_description: str, provider: ExplanationProvider | None,
+    run: AnalysisRun | None = None, finding: Any = None,
 ) -> dict[str, Any]:
     if evidence is None or evidence_data["status"] != "available":
         return {
@@ -129,6 +131,13 @@ def _explanation_data(
         }
     try:
         explanation_input = ExplanationInput.from_evidence(evidence, change_description)
+        if run is not None and finding is not None:
+            try:
+                explanation_input = replace(explanation_input,
+                    context=build_explanation_context(run, finding, evidence))
+            except Exception:
+                # Optional enrichment cannot suppress the base evidence explanation.
+                _LOGGER.warning('Explanation context unavailable; using base evidence')
         explanation = explain_safely(explanation_input, provider)
         return {"evidence": evidence_data, "explanation": explanation.to_dict(),
                 "diagnostics": []}
@@ -187,8 +196,10 @@ def build_report(
     evidences = [item for item, _ in evidence_records]
     change_description = run.change_spec.describe()
     explanations = [
-        _explanation_data(item, evidence, change_description, explanation_provider)
-        for item, evidence in evidence_records
+        _explanation_data(item, evidence, change_description, explanation_provider, run, finding)
+        for (item, evidence), finding in zip(evidence_records,
+            [item for item in run.direct.findings if item.effect == 'direct_impact']
+            + list(run.indirect.findings))
     ]
     parse_errors = [
         {"file": path.as_posix(), "kind": diagnostic.kind,

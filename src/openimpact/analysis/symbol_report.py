@@ -5,7 +5,7 @@ from openimpact.analysis.symbol_references import resolve_symbol_references, res
 from openimpact.analysis.module_report import reference_data
 from openimpact.reporting.source_reader import read_source_snapshot
 from openimpact.reporting.import_evidence import import_site
-from openimpact.explanation.models import ExplanationResult
+from openimpact.explanation.reference_fallback import explain_reference_evidence
 
 
 def symbol_diagnostics(index, inventory, references):
@@ -80,8 +80,12 @@ def build_symbol_report(run):
                     'status': 'available' if snippet is not None else 'unavailable', 'diagnostics': evidence_errors}
         evidences.append(evidence)
         try:
-            result = ExplanationResult(summary=f"{site['file']}:{site['line']} 的静态符号引用需要检查。", why_affected=finding['reason'],
-                                       risk_level='unknown', suggested_check='对照原定义、引用和依赖路径检查拟定变更；分析不会修改文件。', confidence=1.0).to_dict()
+            source = direct_by_id[representative['source_direct_impact']] if paths else direct_by_id[finding['finding_id']]
+            terminal = source.assessment.before.to_dict()
+            descriptor = next((item for item in run.inventory.modules.modules if item.file == terminal['file']), None)
+            result = explain_reference_evidence(evidence, run.change_spec.to_dict(), terminal,
+                source.assessment.reason, run.index.scanner.project_path,
+                descriptor.source_hash if descriptor else None).to_dict()
         except Exception: result = None
         explanations.append({'evidence_reference': finding['finding_id'], 'provider': 'rule', 'status': 'available' if result else 'unavailable', 'explanation': result})
     return {'change_domain': 'symbol', 'report_kind': 'symbol_impact', 'schema_version': 1, 'change': run.change_spec.to_dict(),

@@ -66,7 +66,7 @@ def build_module_report(run):
                                       "unavailable", ({"code": "evidence_unavailable", "message": "源码证据暂不可用。"},))
         evidences.append(evidence.to_dict())
         try:
-            explanation = explain_module_evidence(evidence).to_dict()
+            explanation = explain_module_evidence(evidence, run=run, finding=finding).to_dict()
         except Exception:
             explanation = None
         explanations.append({"evidence_reference": evidence.evidence_reference, "provider": "rule",

@@ -1,5 +1,9 @@
 # Nexus OpenImpact API 契约
 
+## 解释文字的兼容增强
+
+报告版本、公开字段和 Evidence 保持不变。解释层读取既有路径上下文，生成按真实位置排序的检查建议；上下文不作为新的公开字段。`why_affected` 和 `suggested_check` 允许换行，前端应安全按文本呈现，不能解析文字决定影响。证据不可用时解释为 `null`。详见 [检查建议](explanation-check-guidance.md)。
+
 ## 普通包支持的兼容追加
 
 三个业务接口追加可选单一 multipart 文本字段 `analysis_root`，缺省 `.`，例如 `src`。三个阶段须重复传入同一选择，不放入 `change` JSON。非默认时追加 `analysis_layout`；默认旧响应不增加此字段。目录校验、422 / 400、排除调用作用域诊断详见 [普通包契约](package-imports.md)。`source_root` 仍表示 ZIP 外包装。原三领域八种操作、schema_version=1、fingerprint 算法、Evidence 顺序及旧 JSON 字段含义保持。

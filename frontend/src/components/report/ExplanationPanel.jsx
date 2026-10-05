@@ -1,6 +1,7 @@
 import { DiagnosticsList } from '../../pages/PageParts.jsx';
 import { isUsableExplanation } from '../../pages/reportData.js';
 import { entries, riskLabel } from './presentation.js';
+import ExplanationText from './ExplanationText.jsx';
 
 export default function ExplanationPanel({ evidence, explanationRecord, mode }) {
   const explanation = explanationRecord?.explanation;
@@ -9,7 +10,7 @@ export default function ExplanationPanel({ evidence, explanationRecord, mode }) 
     <aside className="oi-explanation-panel" aria-label="当前证据的中文辅助解释">
       <h2>中文辅助解释</h2>
       {available && isUsableExplanation(explanation)
-        ? <><p className="oi-explanation-summary">{explanation.summary}</p><p>{explanation.why_affected}</p><h3>建议检查</h3><p>{explanation.suggested_check}</p>
+        ? <><p className="oi-explanation-summary">{explanation.summary}</p><ExplanationText text={explanation.why_affected} /><h3>建议检查</h3><ExplanationText text={explanation.suggested_check} ordered />
           <dl className="oi-explanation-meta"><div><dt>业务风险</dt><dd>{riskLabel(explanation.risk_level)}</dd></div><div><dt>解释置信度</dt><dd>{explanation.confidence}</dd></div></dl>
           <p className="oi-explanation-note">置信度描述解释结果，不代表代码运行失败的概率。</p>
         </>

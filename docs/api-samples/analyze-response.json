@@ -313,9 +313,9 @@
       },
       "explanation": {
         "summary": "report.py:5 对 utils.format_date 的调用因本次变更已确定不兼容。",
-        "why_affected": "变更：utils.format_date 新增必填参数 timezone（可按位置或参数名传入）。源码：return format_date(date)。判断依据：修改前调用兼容；修改后该签名的必填参数 timezone 未由当前调用提供。",
+        "why_affected": "变更：utils.format_date 新增必填参数 timezone（可按位置或参数名传入）。\n当前证据：return format_date(date)。\n原始直接调用 report.py:5:11 的兼容性依据：修改前，当前调用的确定参数可绑定到该签名。 修改后，该签名的必填参数 timezone 未由当前调用提供。",
         "risk_level": "unknown",
-        "suggested_check": "检查 report.py:5 的调用参数，并在修改后运行相关测试。",
+        "suggested_check": "1. 先核对 report.py:5:11：format_date(date)。对照修改后签名，具体问题是：该签名的必填参数 timezone 未由当前调用提供。检查新增参数所需信息能否由此层提供，还是需要由上游传入；值的来源需人工确认。\n2. 人工检查现有测试是否覆盖上述调用及上游入口；测试位置和执行结果未提供，需自行确认后运行。\n业务边界：这里没有执行源码，不能确定输入取值、业务后果或运行时是否走到这条路径。",
         "confidence": 1.0
       },
       "diagnostics": []
@@ -365,9 +365,9 @@
       },
       "explanation": {
         "summary": "dashboard.py:5 位于 utils.format_date 的上游调用路径，建议检查。",
-        "why_affected": "变更：utils.format_date 新增必填参数 timezone（可按位置或参数名传入）。源码：return report(\"2026-10-01\")。判断依据：该符号位于确定直接影响的上游调用路径中，建议检查；静态路径不保证运行时失败。 路径：dashboard.dashboard → report.report → utils.format_date。静态路径不保证运行时失败。",
+        "why_affected": "变更：utils.format_date 新增必填参数 timezone（可按位置或参数名传入）。\n当前证据：return report(\"2026-10-01\")。\n原始直接调用 report.py:5:11 的兼容性依据：修改前，当前调用的确定参数可绑定到该签名。 修改后，该签名的必填参数 timezone 未由当前调用提供。\n确定发生新不兼容的位置是 report.py:5:11；当前上游记录只说明静态调用路径相连。\n代表路径：dashboard.dashboard → report.report → utils.format_date。静态路径不保证运行时失败。",
         "risk_level": "unknown",
-        "suggested_check": "沿上游路径检查 dashboard.py:5 的调用及相关测试。",
+        "suggested_check": "1. 先核对 report.py:5:11：format_date(date)。对照修改后签名，具体问题是：该签名的必填参数 timezone 未由当前调用提供。检查新增参数所需信息能否由此层提供，还是需要由上游传入；值的来源需人工确认。\n2. 再看 dashboard.py:5:11（dashboard.dashboard → report.report）：report(\"2026-10-01\")。检查这一层是否需要配合调整接口或传参；现有证据没有证明需要怎样调整。该上游位置未被判定为参数不兼容，仅按静态路径建议检查。\n3. 人工检查现有测试是否覆盖上述调用及上游入口；测试位置和执行结果未提供，需自行确认后运行。\n业务边界：这里没有执行源码，不能确定输入取值、业务后果或运行时是否走到这条路径。",
         "confidence": 1.0
       },
       "diagnostics": []
@@ -424,9 +424,9 @@
       },
       "explanation": {
         "summary": "page.py:5 位于 utils.format_date 的上游调用路径，建议检查。",
-        "why_affected": "变更：utils.format_date 新增必填参数 timezone（可按位置或参数名传入）。源码：return dashboard()。判断依据：该符号位于确定直接影响的上游调用路径中，建议检查；静态路径不保证运行时失败。 路径：page.page → dashboard.dashboard → report.report → utils.format_date。静态路径不保证运行时失败。",
+        "why_affected": "变更：utils.format_date 新增必填参数 timezone（可按位置或参数名传入）。\n当前证据：return dashboard()。\n原始直接调用 report.py:5:11 的兼容性依据：修改前，当前调用的确定参数可绑定到该签名。 修改后，该签名的必填参数 timezone 未由当前调用提供。\n确定发生新不兼容的位置是 report.py:5:11；当前上游记录只说明静态调用路径相连。\n代表路径：page.page → dashboard.dashboard → report.report → utils.format_date。静态路径不保证运行时失败。",
         "risk_level": "unknown",
-        "suggested_check": "沿上游路径检查 page.py:5 的调用及相关测试。",
+        "suggested_check": "1. 先核对 report.py:5:11：format_date(date)。对照修改后签名，具体问题是：该签名的必填参数 timezone 未由当前调用提供。检查新增参数所需信息能否由此层提供，还是需要由上游传入；值的来源需人工确认。\n2. 再看 dashboard.py:5:11（dashboard.dashboard → report.report）：report(\"2026-10-01\")。检查这一层是否需要配合调整接口或传参；现有证据没有证明需要怎样调整。该上游位置未被判定为参数不兼容，仅按静态路径建议检查。\n3. 再看 page.py:5:11（page.page → dashboard.dashboard）：dashboard()。检查这一层是否需要配合调整接口或传参；现有证据没有证明需要怎样调整。该上游位置未被判定为参数不兼容，仅按静态路径建议检查。\n4. 人工检查现有测试是否覆盖上述调用及上游入口；测试位置和执行结果未提供，需自行确认后运行。\n业务边界：这里没有执行源码，不能确定输入取值、业务后果或运行时是否走到这条路径。",
         "confidence": 1.0
       },
       "diagnostics": []
