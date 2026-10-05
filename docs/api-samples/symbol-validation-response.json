@@ -1,0 +1,73 @@
+{
+  "change_domain": "symbol",
+  "project_name": "project",
+  "project_fingerprint": "9ac9fe6e320ee960c005a84a8bdee0eb6eb55465b240cd4c5d9c82f38ad7c8b6",
+  "coverage": {
+    "status": "complete",
+    "analysis_scope": "project_root_static_symbols",
+    "python_files": 4,
+    "supported_symbols": 1,
+    "message": "已覆盖受支持根模块的明确静态变量引用；不模拟运行时与动态反射。"
+  },
+  "change_spec": {
+    "change_domain": "symbol",
+    "change_type": "rename_module_symbol",
+    "target_symbol_id": "config.MAX_RETRIES",
+    "target_module_id": "config",
+    "operation": {
+      "new_symbol_name": "RETRY_LIMIT",
+      "change_type": "rename_module_symbol"
+    },
+    "before": {
+      "symbol_id": "config.MAX_RETRIES",
+      "module_id": "config",
+      "name": "MAX_RETRIES",
+      "file": "config.py",
+      "source_hash": "ae62edbf0a6458c13f40ef141f5d046677adcc71dc97b12ebb4e4faf25d73092",
+      "line": 1,
+      "column": 0,
+      "end_line": 1,
+      "end_column": 15,
+      "definition": "MAX_RETRIES = 3",
+      "value_source": "3",
+      "annotation_source": null,
+      "kind": "constant",
+      "selectable": true,
+      "reason": null
+    },
+    "after": {
+      "symbol_id": "config.RETRY_LIMIT",
+      "module_id": "config",
+      "name": "RETRY_LIMIT",
+      "file": "config.py",
+      "source_hash": "ae62edbf0a6458c13f40ef141f5d046677adcc71dc97b12ebb4e4faf25d73092",
+      "line": 1,
+      "column": 0,
+      "end_line": 1,
+      "end_column": 15,
+      "definition": "RETRY_LIMIT = 3",
+      "value_source": "3",
+      "annotation_source": null,
+      "kind": "constant",
+      "selectable": true,
+      "reason": null
+    },
+    "analysis_scope": "project_root_static_symbols",
+    "modifies_source": false
+  },
+  "validation": {
+    "valid": true,
+    "diagnostics": []
+  },
+  "diagnostics": {
+    "parse_errors": [],
+    "unsupported_modules": [],
+    "unsupported_symbols": [],
+    "syntax_diagnostics": [],
+    "import_syntax_diagnostics": [],
+    "manual_review_imports": [],
+    "unresolved_imports": [],
+    "manual_review_references": [],
+    "unresolved_references": []
+  }
+}

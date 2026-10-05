@@ -1,0 +1,782 @@
+{
+  "inspect": {
+    "symbol_inventory": {
+      "analysis_scope": "project_root_static_symbols",
+      "symbols": [
+        {
+          "symbol_id": "config.MAX_RETRIES",
+          "module_id": "config",
+          "name": "MAX_RETRIES",
+          "file": "config.py",
+          "source_hash": "ae62edbf0a6458c13f40ef141f5d046677adcc71dc97b12ebb4e4faf25d73092",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 15,
+          "definition": "MAX_RETRIES = 3",
+          "value_source": "3",
+          "annotation_source": null,
+          "kind": "constant",
+          "selectable": true,
+          "reason": null
+        }
+      ]
+    },
+    "symbol_coverage": {
+      "status": "complete",
+      "analysis_scope": "project_root_static_symbols",
+      "python_files": 4,
+      "supported_symbols": 1,
+      "message": "已覆盖受支持根模块的明确静态变量引用；不模拟运行时与动态反射。"
+    },
+    "symbol_diagnostics": {
+      "parse_errors": [],
+      "unsupported_modules": [],
+      "unsupported_symbols": [],
+      "syntax_diagnostics": [],
+      "import_syntax_diagnostics": [],
+      "manual_review_imports": [],
+      "unresolved_imports": [],
+      "manual_review_references": [],
+      "unresolved_references": []
+    },
+    "module_inventory": {
+      "analysis_scope": "project_root_static",
+      "modules": [
+        {
+          "module_id": "client",
+          "file": "client.py",
+          "source_hash": "f4b20848b3eee62402238482b947b6ca9f8a24e06227d88319e7527e259120b6",
+          "parse_status": "ok",
+          "selectable": true,
+          "reason": null,
+          "kind": "module"
+        },
+        {
+          "module_id": "config",
+          "file": "config.py",
+          "source_hash": "ae62edbf0a6458c13f40ef141f5d046677adcc71dc97b12ebb4e4faf25d73092",
+          "parse_status": "ok",
+          "selectable": true,
+          "reason": null,
+          "kind": "module"
+        },
+        {
+          "module_id": "dashboard",
+          "file": "dashboard.py",
+          "source_hash": "24c9314de54bb3936895c1560af9cd105e4e0f5090d33a3c73bb5aa611371299",
+          "parse_status": "ok",
+          "selectable": true,
+          "reason": null,
+          "kind": "module"
+        },
+        {
+          "module_id": "page",
+          "file": "page.py",
+          "source_hash": "e305cfd9f427672f8bc5ea2b15b079c958f69296fb7cef20e4278f285883cd62",
+          "parse_status": "ok",
+          "selectable": true,
+          "reason": null,
+          "kind": "module"
+        }
+      ],
+      "occupied_names": [
+        "client",
+        "config",
+        "dashboard",
+        "page"
+      ]
+    },
+    "module_coverage": {
+      "status": "complete",
+      "analysis_scope": "project_root_static",
+      "python_files": 4,
+      "supported_modules": 4,
+      "message": "已覆盖项目根下受支持的静态导入；不模拟运行时路径、外部同名提供者或初始化执行。"
+    },
+    "module_diagnostics": {
+      "parse_errors": [],
+      "import_diagnostics": [],
+      "unsupported_modules": [],
+      "unresolved_imports": [],
+      "manual_review_imports": []
+    },
+    "project_name": "project",
+    "project_fingerprint": "9ac9fe6e320ee960c005a84a8bdee0eb6eb55465b240cd4c5d9c82f38ad7c8b6",
+    "source_root": null,
+    "modules": [
+      {
+        "module": "client",
+        "file": "client.py",
+        "parse_status": "ok"
+      },
+      {
+        "module": "config",
+        "file": "config.py",
+        "parse_status": "ok"
+      },
+      {
+        "module": "dashboard",
+        "file": "dashboard.py",
+        "parse_status": "ok"
+      },
+      {
+        "module": "page",
+        "file": "page.py",
+        "parse_status": "ok"
+      }
+    ],
+    "symbols": [
+      {
+        "symbol_id": "client.read_limit",
+        "module": "client",
+        "file": "client.py",
+        "name": "read_limit",
+        "line": 2,
+        "parameters": []
+      }
+    ],
+    "coverage": {
+      "status": "complete",
+      "python_files": 4,
+      "indexed_modules": 4,
+      "indexed_functions": 1,
+      "files_with_parse_errors": 0
+    },
+    "diagnostics": {
+      "parse_errors": [],
+      "unresolved_imports": [],
+      "ambiguous_modules": [],
+      "ambiguous_symbols": []
+    }
+  },
+  "validation": {
+    "change_domain": "symbol",
+    "project_name": "project",
+    "project_fingerprint": "9ac9fe6e320ee960c005a84a8bdee0eb6eb55465b240cd4c5d9c82f38ad7c8b6",
+    "coverage": {
+      "status": "complete",
+      "analysis_scope": "project_root_static_symbols",
+      "python_files": 4,
+      "supported_symbols": 1,
+      "message": "已覆盖受支持根模块的明确静态变量引用；不模拟运行时与动态反射。"
+    },
+    "change_spec": {
+      "change_domain": "symbol",
+      "change_type": "rename_module_symbol",
+      "target_symbol_id": "config.MAX_RETRIES",
+      "target_module_id": "config",
+      "operation": {
+        "new_symbol_name": "RETRY_LIMIT",
+        "change_type": "rename_module_symbol"
+      },
+      "before": {
+        "symbol_id": "config.MAX_RETRIES",
+        "module_id": "config",
+        "name": "MAX_RETRIES",
+        "file": "config.py",
+        "source_hash": "ae62edbf0a6458c13f40ef141f5d046677adcc71dc97b12ebb4e4faf25d73092",
+        "line": 1,
+        "column": 0,
+        "end_line": 1,
+        "end_column": 15,
+        "definition": "MAX_RETRIES = 3",
+        "value_source": "3",
+        "annotation_source": null,
+        "kind": "constant",
+        "selectable": true,
+        "reason": null
+      },
+      "after": {
+        "symbol_id": "config.RETRY_LIMIT",
+        "module_id": "config",
+        "name": "RETRY_LIMIT",
+        "file": "config.py",
+        "source_hash": "ae62edbf0a6458c13f40ef141f5d046677adcc71dc97b12ebb4e4faf25d73092",
+        "line": 1,
+        "column": 0,
+        "end_line": 1,
+        "end_column": 15,
+        "definition": "RETRY_LIMIT = 3",
+        "value_source": "3",
+        "annotation_source": null,
+        "kind": "constant",
+        "selectable": true,
+        "reason": null
+      },
+      "analysis_scope": "project_root_static_symbols",
+      "modifies_source": false
+    },
+    "validation": {
+      "valid": true,
+      "diagnostics": []
+    },
+    "diagnostics": {
+      "parse_errors": [],
+      "unsupported_modules": [],
+      "unsupported_symbols": [],
+      "syntax_diagnostics": [],
+      "import_syntax_diagnostics": [],
+      "manual_review_imports": [],
+      "unresolved_imports": [],
+      "manual_review_references": [],
+      "unresolved_references": []
+    }
+  },
+  "report": {
+    "change_domain": "symbol",
+    "report_kind": "symbol_impact",
+    "schema_version": 1,
+    "change": {
+      "change_domain": "symbol",
+      "change_type": "rename_module_symbol",
+      "target_symbol_id": "config.MAX_RETRIES",
+      "target_module_id": "config",
+      "operation": {
+        "new_symbol_name": "RETRY_LIMIT",
+        "change_type": "rename_module_symbol"
+      },
+      "before": {
+        "symbol_id": "config.MAX_RETRIES",
+        "module_id": "config",
+        "name": "MAX_RETRIES",
+        "file": "config.py",
+        "source_hash": "ae62edbf0a6458c13f40ef141f5d046677adcc71dc97b12ebb4e4faf25d73092",
+        "line": 1,
+        "column": 0,
+        "end_line": 1,
+        "end_column": 15,
+        "definition": "MAX_RETRIES = 3",
+        "value_source": "3",
+        "annotation_source": null,
+        "kind": "constant",
+        "selectable": true,
+        "reason": null
+      },
+      "after": {
+        "symbol_id": "config.RETRY_LIMIT",
+        "module_id": "config",
+        "name": "RETRY_LIMIT",
+        "file": "config.py",
+        "source_hash": "ae62edbf0a6458c13f40ef141f5d046677adcc71dc97b12ebb4e4faf25d73092",
+        "line": 1,
+        "column": 0,
+        "end_line": 1,
+        "end_column": 15,
+        "definition": "RETRY_LIMIT = 3",
+        "value_source": "3",
+        "annotation_source": null,
+        "kind": "constant",
+        "selectable": true,
+        "reason": null
+      },
+      "analysis_scope": "project_root_static_symbols",
+      "modifies_source": false
+    },
+    "validation": {
+      "valid": true,
+      "diagnostics": []
+    },
+    "summary": {
+      "direct_reference_count": 1,
+      "indirect_1hop_module_count": 1,
+      "indirect_2hop_module_count": 1,
+      "manual_review_count": 0,
+      "unresolved_reference_count": 0
+    },
+    "counting_units": {
+      "direct": "unique_source_reference",
+      "indirect": "unique_upstream_module"
+    },
+    "coverage": {
+      "status": "complete",
+      "analysis_scope": "project_root_static_symbols",
+      "python_files": 4,
+      "supported_symbols": 1,
+      "message": "已覆盖受支持根模块的明确静态变量引用；不模拟运行时与动态反射。"
+    },
+    "diagnostics": {
+      "parse_errors": [],
+      "unsupported_modules": [],
+      "unsupported_symbols": [],
+      "syntax_diagnostics": [],
+      "import_syntax_diagnostics": [],
+      "manual_review_imports": [],
+      "unresolved_imports": [],
+      "manual_review_references": [],
+      "unresolved_references": []
+    },
+    "reference_assessments": [
+      {
+        "reference_id": "symbol-ref:045086e46e37ec6b83da0315",
+        "before": {
+          "reference_id": "symbol-ref:045086e46e37ec6b83da0315",
+          "source_module": "client",
+          "file": "client.py",
+          "line": 3,
+          "column": 11,
+          "end_line": 3,
+          "end_column": 29,
+          "expression": "config.MAX_RETRIES",
+          "reference_kind": "attribute_read",
+          "scope": "function",
+          "status": "resolved_project",
+          "target_symbol_id": "config.MAX_RETRIES",
+          "reason": "unique_public_module_symbol",
+          "location": {
+            "file": "client.py",
+            "line": 3,
+            "column": 11,
+            "end_line": 3,
+            "end_column": 29
+          }
+        },
+        "after": {
+          "reference_id": "symbol-ref:045086e46e37ec6b83da0315",
+          "source_module": "client",
+          "file": "client.py",
+          "line": 3,
+          "column": 11,
+          "end_line": 3,
+          "end_column": 29,
+          "expression": "config.MAX_RETRIES",
+          "reference_kind": "attribute_read",
+          "scope": "function",
+          "status": "unresolved",
+          "target_symbol_id": null,
+          "reason": "symbol_not_in_project",
+          "location": {
+            "file": "client.py",
+            "line": 3,
+            "column": 11,
+            "end_line": 3,
+            "end_column": 29
+          }
+        },
+        "effect": "direct_symbol_impact",
+        "reason": "引用原来唯一绑定 config.MAX_RETRIES；拟重命名为 RETRY_LIMIT后，旧名称不再提供该项目定义，产生新的静态引用断裂。此结论不保证运行时失败。"
+      }
+    ],
+    "reference_impacts": [
+      {
+        "finding_id": "symbol-direct:7fa3ecb4541a:symbol-ref:045086e46e37ec6b83da0315",
+        "impact_type": "direct_symbol_reference",
+        "target_symbol_id": "config.MAX_RETRIES",
+        "impacted_module_id": "client",
+        "reference_id": "symbol-ref:045086e46e37ec6b83da0315",
+        "location": {
+          "file": "client.py",
+          "line": 3,
+          "column": 11,
+          "end_line": 3,
+          "end_column": 29
+        },
+        "before_resolution": {
+          "reference_id": "symbol-ref:045086e46e37ec6b83da0315",
+          "source_module": "client",
+          "file": "client.py",
+          "line": 3,
+          "column": 11,
+          "end_line": 3,
+          "end_column": 29,
+          "expression": "config.MAX_RETRIES",
+          "reference_kind": "attribute_read",
+          "scope": "function",
+          "status": "resolved_project",
+          "target_symbol_id": "config.MAX_RETRIES",
+          "reason": "unique_public_module_symbol",
+          "location": {
+            "file": "client.py",
+            "line": 3,
+            "column": 11,
+            "end_line": 3,
+            "end_column": 29
+          }
+        },
+        "after_resolution": {
+          "reference_id": "symbol-ref:045086e46e37ec6b83da0315",
+          "source_module": "client",
+          "file": "client.py",
+          "line": 3,
+          "column": 11,
+          "end_line": 3,
+          "end_column": 29,
+          "expression": "config.MAX_RETRIES",
+          "reference_kind": "attribute_read",
+          "scope": "function",
+          "status": "unresolved",
+          "target_symbol_id": null,
+          "reason": "symbol_not_in_project",
+          "location": {
+            "file": "client.py",
+            "line": 3,
+            "column": 11,
+            "end_line": 3,
+            "end_column": 29
+          }
+        },
+        "certainty": "definite_project_reference_break",
+        "rule": "module_symbol_renamed_breaks_reference",
+        "reason": "引用原来唯一绑定 config.MAX_RETRIES；拟重命名为 RETRY_LIMIT后，旧名称不再提供该项目定义，产生新的静态引用断裂。此结论不保证运行时失败。"
+      }
+    ],
+    "symbol_indirect_impacts": [
+      {
+        "finding_id": "symbol-indirect:dashboard",
+        "impact_type": "indirect_1hop",
+        "impacted_module_id": "dashboard",
+        "target_symbol_id": "config.MAX_RETRIES",
+        "hop": 1,
+        "certainty": "needs_review",
+        "reason": "此模块位于确定符号引用断裂的上游静态依赖路径中，需要检查；不保证运行时执行或失败。",
+        "source_direct_impacts": [
+          "symbol-direct:7fa3ecb4541a:symbol-ref:045086e46e37ec6b83da0315"
+        ],
+        "propagation_path": [
+          {
+            "modules": [
+              "dashboard",
+              "client"
+            ],
+            "import_sites": [
+              {
+                "file": "dashboard.py",
+                "line": 1,
+                "column": 0,
+                "end_line": 1,
+                "end_column": 13,
+                "reference_id": "import:cc80b649fdc621c66619e046"
+              }
+            ],
+            "source_direct_impact": "symbol-direct:7fa3ecb4541a:symbol-ref:045086e46e37ec6b83da0315",
+            "terminal_reference": {
+              "reference_id": "symbol-ref:045086e46e37ec6b83da0315",
+              "source_module": "client",
+              "file": "client.py",
+              "line": 3,
+              "column": 11,
+              "end_line": 3,
+              "end_column": 29,
+              "expression": "config.MAX_RETRIES",
+              "reference_kind": "attribute_read",
+              "scope": "function",
+              "status": "resolved_project",
+              "target_symbol_id": "config.MAX_RETRIES",
+              "reason": "unique_public_module_symbol",
+              "location": {
+                "file": "client.py",
+                "line": 3,
+                "column": 11,
+                "end_line": 3,
+                "end_column": 29
+              }
+            }
+          }
+        ]
+      },
+      {
+        "finding_id": "symbol-indirect:page",
+        "impact_type": "indirect_2hop",
+        "impacted_module_id": "page",
+        "target_symbol_id": "config.MAX_RETRIES",
+        "hop": 2,
+        "certainty": "needs_review",
+        "reason": "此模块位于确定符号引用断裂的上游静态依赖路径中，需要检查；不保证运行时执行或失败。",
+        "source_direct_impacts": [
+          "symbol-direct:7fa3ecb4541a:symbol-ref:045086e46e37ec6b83da0315"
+        ],
+        "propagation_path": [
+          {
+            "modules": [
+              "page",
+              "dashboard",
+              "client"
+            ],
+            "import_sites": [
+              {
+                "file": "page.py",
+                "line": 1,
+                "column": 0,
+                "end_line": 1,
+                "end_column": 16,
+                "reference_id": "import:c4ab99d397f20dc4e1d757cb"
+              },
+              {
+                "file": "dashboard.py",
+                "line": 1,
+                "column": 0,
+                "end_line": 1,
+                "end_column": 13,
+                "reference_id": "import:cc80b649fdc621c66619e046"
+              }
+            ],
+            "source_direct_impact": "symbol-direct:7fa3ecb4541a:symbol-ref:045086e46e37ec6b83da0315",
+            "terminal_reference": {
+              "reference_id": "symbol-ref:045086e46e37ec6b83da0315",
+              "source_module": "client",
+              "file": "client.py",
+              "line": 3,
+              "column": 11,
+              "end_line": 3,
+              "end_column": 29,
+              "expression": "config.MAX_RETRIES",
+              "reference_kind": "attribute_read",
+              "scope": "function",
+              "status": "resolved_project",
+              "target_symbol_id": "config.MAX_RETRIES",
+              "reason": "unique_public_module_symbol",
+              "location": {
+                "file": "client.py",
+                "line": 3,
+                "column": 11,
+                "end_line": 3,
+                "end_column": 29
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "evidences": [
+      {
+        "evidence_reference": "symbol-direct:7fa3ecb4541a:symbol-ref:045086e46e37ec6b83da0315",
+        "impact_type": "direct_symbol_reference",
+        "target_symbol_id": "config.MAX_RETRIES",
+        "location": {
+          "file": "client.py",
+          "line": 3,
+          "column": 11,
+          "end_line": 3,
+          "end_column": 29
+        },
+        "source_snippet": "    return config.MAX_RETRIES",
+        "source_hash": "f4b20848b3eee62402238482b947b6ca9f8a24e06227d88319e7527e259120b6",
+        "rule": "module_symbol_renamed_breaks_reference",
+        "reason": "引用原来唯一绑定 config.MAX_RETRIES；拟重命名为 RETRY_LIMIT后，旧名称不再提供该项目定义，产生新的静态引用断裂。此结论不保证运行时失败。",
+        "propagation_path": [],
+        "reference_expression": "config.MAX_RETRIES",
+        "before_resolution": {
+          "reference_id": "symbol-ref:045086e46e37ec6b83da0315",
+          "source_module": "client",
+          "file": "client.py",
+          "line": 3,
+          "column": 11,
+          "end_line": 3,
+          "end_column": 29,
+          "expression": "config.MAX_RETRIES",
+          "reference_kind": "attribute_read",
+          "scope": "function",
+          "status": "resolved_project",
+          "target_symbol_id": "config.MAX_RETRIES",
+          "reason": "unique_public_module_symbol",
+          "location": {
+            "file": "client.py",
+            "line": 3,
+            "column": 11,
+            "end_line": 3,
+            "end_column": 29
+          }
+        },
+        "after_resolution": {
+          "reference_id": "symbol-ref:045086e46e37ec6b83da0315",
+          "source_module": "client",
+          "file": "client.py",
+          "line": 3,
+          "column": 11,
+          "end_line": 3,
+          "end_column": 29,
+          "expression": "config.MAX_RETRIES",
+          "reference_kind": "attribute_read",
+          "scope": "function",
+          "status": "unresolved",
+          "target_symbol_id": null,
+          "reason": "symbol_not_in_project",
+          "location": {
+            "file": "client.py",
+            "line": 3,
+            "column": 11,
+            "end_line": 3,
+            "end_column": 29
+          }
+        },
+        "status": "available",
+        "diagnostics": []
+      },
+      {
+        "evidence_reference": "symbol-indirect:dashboard",
+        "impact_type": "indirect_1hop",
+        "target_symbol_id": "config.MAX_RETRIES",
+        "location": {
+          "file": "dashboard.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 13,
+          "reference_id": "import:cc80b649fdc621c66619e046"
+        },
+        "source_snippet": "import client",
+        "source_hash": "24c9314de54bb3936895c1560af9cd105e4e0f5090d33a3c73bb5aa611371299",
+        "rule": "upstream_symbol_dependency_review",
+        "reason": "此模块位于确定符号引用断裂的上游静态依赖路径中，需要检查；不保证运行时执行或失败。",
+        "propagation_path": [
+          {
+            "modules": [
+              "dashboard",
+              "client"
+            ],
+            "import_sites": [
+              {
+                "file": "dashboard.py",
+                "line": 1,
+                "column": 0,
+                "end_line": 1,
+                "end_column": 13,
+                "reference_id": "import:cc80b649fdc621c66619e046"
+              }
+            ],
+            "source_direct_impact": "symbol-direct:7fa3ecb4541a:symbol-ref:045086e46e37ec6b83da0315",
+            "terminal_reference": {
+              "reference_id": "symbol-ref:045086e46e37ec6b83da0315",
+              "source_module": "client",
+              "file": "client.py",
+              "line": 3,
+              "column": 11,
+              "end_line": 3,
+              "end_column": 29,
+              "expression": "config.MAX_RETRIES",
+              "reference_kind": "attribute_read",
+              "scope": "function",
+              "status": "resolved_project",
+              "target_symbol_id": "config.MAX_RETRIES",
+              "reason": "unique_public_module_symbol",
+              "location": {
+                "file": "client.py",
+                "line": 3,
+                "column": 11,
+                "end_line": 3,
+                "end_column": 29
+              }
+            }
+          }
+        ],
+        "reference_expression": null,
+        "before_resolution": null,
+        "after_resolution": null,
+        "status": "available",
+        "diagnostics": []
+      },
+      {
+        "evidence_reference": "symbol-indirect:page",
+        "impact_type": "indirect_2hop",
+        "target_symbol_id": "config.MAX_RETRIES",
+        "location": {
+          "file": "page.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 16,
+          "reference_id": "import:c4ab99d397f20dc4e1d757cb"
+        },
+        "source_snippet": "import dashboard",
+        "source_hash": "e305cfd9f427672f8bc5ea2b15b079c958f69296fb7cef20e4278f285883cd62",
+        "rule": "upstream_symbol_dependency_review",
+        "reason": "此模块位于确定符号引用断裂的上游静态依赖路径中，需要检查；不保证运行时执行或失败。",
+        "propagation_path": [
+          {
+            "modules": [
+              "page",
+              "dashboard",
+              "client"
+            ],
+            "import_sites": [
+              {
+                "file": "page.py",
+                "line": 1,
+                "column": 0,
+                "end_line": 1,
+                "end_column": 16,
+                "reference_id": "import:c4ab99d397f20dc4e1d757cb"
+              },
+              {
+                "file": "dashboard.py",
+                "line": 1,
+                "column": 0,
+                "end_line": 1,
+                "end_column": 13,
+                "reference_id": "import:cc80b649fdc621c66619e046"
+              }
+            ],
+            "source_direct_impact": "symbol-direct:7fa3ecb4541a:symbol-ref:045086e46e37ec6b83da0315",
+            "terminal_reference": {
+              "reference_id": "symbol-ref:045086e46e37ec6b83da0315",
+              "source_module": "client",
+              "file": "client.py",
+              "line": 3,
+              "column": 11,
+              "end_line": 3,
+              "end_column": 29,
+              "expression": "config.MAX_RETRIES",
+              "reference_kind": "attribute_read",
+              "scope": "function",
+              "status": "resolved_project",
+              "target_symbol_id": "config.MAX_RETRIES",
+              "reason": "unique_public_module_symbol",
+              "location": {
+                "file": "client.py",
+                "line": 3,
+                "column": 11,
+                "end_line": 3,
+                "end_column": 29
+              }
+            }
+          }
+        ],
+        "reference_expression": null,
+        "before_resolution": null,
+        "after_resolution": null,
+        "status": "available",
+        "diagnostics": []
+      }
+    ],
+    "explanations": [
+      {
+        "evidence_reference": "symbol-direct:7fa3ecb4541a:symbol-ref:045086e46e37ec6b83da0315",
+        "provider": "rule",
+        "status": "available",
+        "explanation": {
+          "summary": "client.py:3 的静态符号引用需要检查。",
+          "why_affected": "引用原来唯一绑定 config.MAX_RETRIES；拟重命名为 RETRY_LIMIT后，旧名称不再提供该项目定义，产生新的静态引用断裂。此结论不保证运行时失败。",
+          "risk_level": "unknown",
+          "suggested_check": "对照原定义、引用和依赖路径检查拟定变更；分析不会修改文件。",
+          "confidence": 1.0
+        }
+      },
+      {
+        "evidence_reference": "symbol-indirect:dashboard",
+        "provider": "rule",
+        "status": "available",
+        "explanation": {
+          "summary": "dashboard.py:1 的静态符号引用需要检查。",
+          "why_affected": "此模块位于确定符号引用断裂的上游静态依赖路径中，需要检查；不保证运行时执行或失败。",
+          "risk_level": "unknown",
+          "suggested_check": "对照原定义、引用和依赖路径检查拟定变更；分析不会修改文件。",
+          "confidence": 1.0
+        }
+      },
+      {
+        "evidence_reference": "symbol-indirect:page",
+        "provider": "rule",
+        "status": "available",
+        "explanation": {
+          "summary": "page.py:1 的静态符号引用需要检查。",
+          "why_affected": "此模块位于确定符号引用断裂的上游静态依赖路径中，需要检查；不保证运行时执行或失败。",
+          "risk_level": "unknown",
+          "suggested_check": "对照原定义、引用和依赖路径检查拟定变更；分析不会修改文件。",
+          "confidence": 1.0
+        }
+      }
+    ],
+    "project_fingerprint": "9ac9fe6e320ee960c005a84a8bdee0eb6eb55465b240cd4c5d9c82f38ad7c8b6",
+    "project_name": "project"
+  }
+}

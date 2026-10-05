@@ -1,0 +1,19 @@
+{
+  "annotation_status": "unannotated",
+  "purpose": "Independent human annotation template; do not fill expected values from analyzer output.",
+  "case_id": null,
+  "annotator": null,
+  "reviewer": null,
+  "source_revision": null,
+  "project_files": null,
+  "change_payload": null,
+  "expected_direct_reference_sites": null,
+  "expected_indirect_1hop_modules": null,
+  "expected_indirect_2hop_modules": null,
+  "expected_propagation_paths": null,
+  "expected_manual_reviews": null,
+  "expected_unresolved_references": null,
+  "expected_coverage": null,
+  "annotation_rationale": null,
+  "runtime_failure_claim": false
+}

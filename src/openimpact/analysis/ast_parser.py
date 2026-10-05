@@ -13,6 +13,7 @@ from openimpact.analysis.models import (
     ParsedModule,
 )
 from openimpact.analysis.module_syntax import collect_module_imports
+from openimpact.analysis.symbol_syntax import collect_symbol_facts
 
 
 def _parameters(arguments: ast.arguments) -> tuple[Parameter, ...]:
@@ -252,6 +253,7 @@ class ASTParser:
             ]
         )
         module_imports, module_diagnostics = collect_module_imports(tree, source)
+        variable_definitions, symbol_reads, symbol_bound_names, symbol_diagnostics, symbol_binding_counts = collect_symbol_facts(tree, source)
         return ParsedModule(
             path=self.path,
             functions=tuple(functions),
@@ -260,4 +262,9 @@ class ASTParser:
             module_rebindings=module_rebindings,
             module_imports=module_imports,
             module_diagnostics=module_diagnostics,
+            variable_definitions=variable_definitions,
+            symbol_reads=symbol_reads,
+            symbol_bound_names=symbol_bound_names,
+            symbol_diagnostics=symbol_diagnostics,
+            symbol_binding_counts=symbol_binding_counts,
         )

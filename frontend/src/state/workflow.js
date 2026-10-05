@@ -1,4 +1,5 @@
 import { createModuleDraft, updateModuleDraft, buildModulePayload } from './moduleDraft.js'
+import { createSymbolDraft, updateSymbolDraft, buildSymbolPayload } from './symbolDraft.js'
 import { createChangeDraft, updateChangeDraft, buildDraftPayload } from './changeDraft.js'
 
 export const DEMO_FINGERPRINT = 'db0a82348a94853526f7d79a2f58926994596a3ab1b7c639e6474673d32be1b3'
@@ -6,7 +7,7 @@ export const DEMO_FINGERPRINT = 'db0a82348a94853526f7d79a2f58926994596a3ab1b7c63
 export function createInitialState(revision = 0) {
   return {
     mode: 'project', file: null, inspect: null, projectFingerprint: null,
-    changeDomain: 'function', selectedModuleId: null, selectedSymbolId: null,
+    changeDomain: 'function', selectedModuleId: null, selectedSymbolId: null, selectedVariableSymbolId: null,
     change: createChangeDraft(),
     validation: null, validatedChange: null, report: null,
     loading: { inspect: false, validate: false, analyze: false }, error: null, revision,
@@ -38,31 +39,35 @@ export function workflowReducer(state, action) {
         health: state.health,
       }
     case 'INSPECT_RECEIVED':
-      return { ...state, inspect: action.inspect, projectFingerprint: action.inspect.project_fingerprint, selectedSymbolId: null, selectedModuleId: null, validation: null, validatedChange: null, report: null, loading: { ...state.loading, inspect: false }, error: null }
+      return { ...state, inspect: action.inspect, projectFingerprint: action.inspect.project_fingerprint, selectedSymbolId: null, selectedModuleId: null, selectedVariableSymbolId: null, validation: null, validatedChange: null, report: null, loading: { ...state.loading, inspect: false }, error: null }
     case 'DOMAIN_SELECTED':
-      if (!['function', 'module'].includes(action.domain) || state.mode === 'demo' && action.domain === 'module') return state
-      return { ...state, changeDomain: action.domain, selectedSymbolId: null, selectedModuleId: null,
-        change: action.domain === 'module' ? createModuleDraft() : createChangeDraft(),
+      if (!['function', 'module', 'symbol'].includes(action.domain) || state.mode === 'demo' && action.domain !== 'function') return state
+      return { ...state, changeDomain: action.domain, selectedSymbolId: null, selectedModuleId: null, selectedVariableSymbolId: null,
+        change: action.domain === 'symbol' ? createSymbolDraft() : action.domain === 'module' ? createModuleDraft() : createChangeDraft(),
         validation: null, validatedChange: null, report: null, error: null, loading: createInitialState().loading, revision: state.revision + 1 }
     case 'MODULE_SELECTED':
-      if (state.changeDomain !== 'module') return state
+      if (!['module', 'symbol'].includes(state.changeDomain)) return state
       return { ...state, selectedModuleId: state.inspect?.module_inventory?.modules?.some(m => m.module_id === action.id && m.selectable === true) ? action.id : null,
-        change: createModuleDraft(state.change.changeType), validation: null, validatedChange: null, report: null,
+        selectedVariableSymbolId: null, change: state.changeDomain === 'symbol' ? createSymbolDraft(state.change.changeType) : createModuleDraft(state.change.changeType), validation: null, validatedChange: null, report: null,
         error: null, loading: createInitialState().loading, revision: state.revision + 1 }
     case 'SYMBOL_SELECTED':
-      if (state.changeDomain === 'module') return state
+      if (state.changeDomain !== 'function') return state
       return {
         ...state, selectedSymbolId: state.inspect?.symbols?.some((s) => s.symbol_id === action.id) ? action.id : null,
         change: createChangeDraft(state.change.changeType),
         validation: null, validatedChange: null, report: null, error: null, loading: createInitialState().loading, revision: state.revision + 1,
       }
+    case 'VARIABLE_SYMBOL_SELECTED':
+      if (state.changeDomain !== 'symbol') return state
+      return { ...state, selectedVariableSymbolId: state.inspect?.symbol_inventory?.symbols?.some(s => s.symbol_id === action.id && s.module_id === state.selectedModuleId && s.selectable === true) ? action.id : null,
+        change: createSymbolDraft(state.change.changeType), validation: null, validatedChange: null, report: null, error: null, loading: createInitialState().loading, revision: state.revision + 1 }
     case 'CHANGE_TYPE_SELECTED':
-      return { ...state, change: state.changeDomain === 'module' ? createModuleDraft(action.changeType) : createChangeDraft(action.changeType), validation: null, validatedChange: null, report: null, error: null, loading: createInitialState().loading, revision: state.revision + 1 }
+      return { ...state, change: state.changeDomain === 'symbol' ? createSymbolDraft(action.changeType) : state.changeDomain === 'module' ? createModuleDraft(action.changeType) : createChangeDraft(action.changeType), validation: null, validatedChange: null, report: null, error: null, loading: createInitialState().loading, revision: state.revision + 1 }
     case 'CHANGE_UPDATED':
-      return { ...state, change: state.changeDomain === 'module' ? updateModuleDraft(state.change, action.change) : updateChangeDraft(state.change, action.change), validation: null, validatedChange: null, report: null, error: null, loading: createInitialState().loading, revision: state.revision + 1 }
+      return { ...state, change: state.changeDomain === 'symbol' ? updateSymbolDraft(state.change, action.change) : state.changeDomain === 'module' ? updateModuleDraft(state.change, action.change) : updateChangeDraft(state.change, action.change), validation: null, validatedChange: null, report: null, error: null, loading: createInitialState().loading, revision: state.revision + 1 }
     case 'REQUEST_START': {
       const cleared = action.stage === 'inspect'
-        ? { inspect: null, projectFingerprint: null, selectedSymbolId: null, selectedModuleId: null, changeDomain: 'function', change: createInitialState().change, validation: null, validatedChange: null, report: null }
+        ? { inspect: null, projectFingerprint: null, selectedSymbolId: null, selectedModuleId: null, selectedVariableSymbolId: null, changeDomain: 'function', change: createInitialState().change, validation: null, validatedChange: null, report: null }
         : action.stage === 'validate' ? { validation: null, validatedChange: null, report: null } : { report: null }
       return { ...state, ...cleared, loading: { ...state.loading, [action.stage]: true }, error: null }
     }
@@ -92,7 +97,7 @@ export function getSelectedSymbol(state) {
 }
 
 export function buildChangePayload(state) {
-  return state.changeDomain === 'module' ? buildModulePayload(state.selectedModuleId, state.change) : buildDraftPayload(state.selectedSymbolId, state.change)
+  return state.changeDomain === 'symbol' ? buildSymbolPayload(state.selectedVariableSymbolId, state.change) : state.changeDomain === 'module' ? buildModulePayload(state.selectedModuleId, state.change) : buildDraftPayload(state.selectedSymbolId, state.change)
 }
 
 export function isSupportedDemoChange(state) {
@@ -126,5 +131,8 @@ export function getSelectedModule(state) {
   return state.inspect?.module_inventory?.modules?.find(m => m.module_id === state.selectedModuleId && m.selectable === true) || null
 }
 export function getSelectedTarget(state) {
-  return state.changeDomain === 'module' ? getSelectedModule(state) : getSelectedSymbol(state)
+  return state.changeDomain === 'symbol' ? getSelectedVariableSymbol(state) : state.changeDomain === 'module' ? getSelectedModule(state) : getSelectedSymbol(state)
+}
+export function getSelectedVariableSymbol(state) {
+  return state.inspect?.symbol_inventory?.symbols?.find(s => s.symbol_id === state.selectedVariableSymbolId && s.module_id === state.selectedModuleId && s.selectable === true) || null
 }

@@ -12,7 +12,7 @@ export default function WorkflowSteps({ page }) {
   const isDemo = state.mode === 'demo'
   const complete = [
     Boolean(state.inspect && (isDemo || state.file)),
-    Boolean(state.changeDomain === 'module' ? state.selectedModuleId : state.selectedSymbolId),
+    Boolean(state.changeDomain === 'symbol' ? state.selectedVariableSymbolId : state.changeDomain === 'module' ? state.selectedModuleId : state.selectedSymbolId),
     state.validation?.validation?.valid === true,
     Boolean(state.report),
   ]
@@ -31,7 +31,7 @@ export default function WorkflowSteps({ page }) {
               aria-current={current ? 'step' : undefined}
             >
               <span aria-hidden="true">{done && !current ? '✓' : index + 1}</span>
-              <b>{step.page === 'functions' && state.changeDomain === 'module' ? '选择模块' : step.label}</b>
+              <b>{step.page === 'functions' && state.changeDomain === 'symbol' ? '选择符号' : step.page === 'functions' && state.changeDomain === 'module' ? '选择模块' : step.label}</b>
               <small>{status}</small>
             </li>
           )

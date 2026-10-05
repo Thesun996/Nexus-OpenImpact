@@ -14,6 +14,10 @@ from openimpact.analysis.module_facts import ModuleInventory
 from openimpact.analysis.module_pipeline import analyze_module_project
 from openimpact.analysis.module_report import build_module_report, render_module_report
 from openimpact.analysis.symbol_index import SymbolIndex
+from openimpact.analysis.variable_symbols import VariableInventory
+from openimpact.analysis.symbol_change import build_symbol_change, SymbolChangeError
+from openimpact.analysis.symbol_impact import analyze_symbol_project
+from openimpact.analysis.symbol_report import build_symbol_report, render_symbol_report
 from openimpact.api_change import ChangeConfigError
 
 
@@ -29,6 +33,12 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         domain, config = read_cli_domain(args.change)
+        if domain == "symbol":
+            index = SymbolIndex(args.project_path).build()
+            inventory = VariableInventory.from_index(index)
+            report = build_symbol_report(analyze_symbol_project(index, build_symbol_change(inventory, config), inventory))
+            print(json.dumps(report, ensure_ascii=False, indent=2) if args.format == "json" else render_symbol_report(report))
+            return 0
         if domain == "module":
             index = SymbolIndex(args.project_path).build()
             inventory = ModuleInventory.from_index(index)
@@ -38,7 +48,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         spec = load_change_spec(args.change)
         run = analyze_project(args.project_path, spec)
-    except (ChangeFileError, ChangeConfigError, ModuleChangeError, OSError, UnicodeError) as error:
+    except (ChangeFileError, ChangeConfigError, ModuleChangeError, SymbolChangeError, OSError, UnicodeError) as error:
         print(f"OpenImpact 错误：{error}", file=sys.stderr)
         return 2
 

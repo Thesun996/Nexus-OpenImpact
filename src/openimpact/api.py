@@ -22,6 +22,10 @@ from openimpact.analysis.module_report import build_module_report
 from openimpact.analysis.pipeline import analyze_project
 from openimpact.analysis.report import build_report
 from openimpact.analysis.symbol_index import SymbolIndex
+from openimpact.analysis.variable_symbols import VariableInventory
+from openimpact.analysis.symbol_change import SymbolChangeSpec, SymbolChangeError, build_symbol_change
+from openimpact.analysis.symbol_impact import analyze_symbol_project
+from openimpact.analysis.symbol_report import build_symbol_report
 from openimpact.api_change import ChangeConfigError, build_change_spec, parse_change_config
 from openimpact.repository import zip_inspector
 
@@ -101,14 +105,15 @@ def _validation_response(
     report: dict, spec, valid: bool, diagnostics: list[dict], status: int
 ) -> JSONResponse:
     module = isinstance(spec, ModuleChangeSpec) or report.get("change_domain") == "module"
+    symbol = isinstance(spec, SymbolChangeSpec) or report.get("change_domain") == "symbol"
     return JSONResponse(status_code=status, content={
-        **({"change_domain": "module"} if module else {}),
+        **({"change_domain": "symbol" if symbol else "module"} if module or symbol else {}),
         "project_name": report["project_name"],
         "project_fingerprint": report["project_fingerprint"],
-        "coverage": report["module_coverage"] if module else report["coverage"],
+        "coverage": report["symbol_coverage"] if symbol else report["module_coverage"] if module else report["coverage"],
         "change_spec": spec.to_dict(include_operation=False) if spec is not None else None,
         "validation": {"valid": valid, "diagnostics": diagnostics},
-        "diagnostics": report["module_diagnostics"] if module else report["diagnostics"],
+        "diagnostics": report["symbol_diagnostics"] if symbol else report["module_diagnostics"] if module else report["diagnostics"],
     })
 
 
@@ -140,6 +145,10 @@ def _validated_spec(
 ) -> ChangeSpec | ModuleChangeSpec | JSONResponse:
     try:
         domain, config = parse_domain_config(change)
+        if domain == "symbol":
+            report["change_domain"] = "symbol"
+            modules = ModuleInventory.from_index(index, tuple(report["module_inventory"]["occupied_names"]))
+            return build_symbol_change(VariableInventory.from_index(index, modules), config)
         if domain == "module":
             report["change_domain"] = "module"
             inventory = ModuleInventory.from_index(index, tuple(report["module_inventory"]["occupied_names"]))
@@ -148,7 +157,7 @@ def _validated_spec(
         config.pop("change_domain", None)
         config = parse_change_config(json.dumps(config))
         spec = build_change_spec(index, config)
-    except (ChangeConfigError, ModuleChangeError) as error:
+    except (ChangeConfigError, ModuleChangeError, SymbolChangeError) as error:
         return _validation_response(report, None, False, [
             {"code": error.code, "message": str(error)}
         ], 422)
@@ -187,6 +196,13 @@ def _analyze_zip(
         if isinstance(spec, JSONResponse):
             return spec
         try:
+            if isinstance(spec, SymbolChangeSpec):
+                modules = ModuleInventory.from_index(index, tuple(inspect_report["module_inventory"]["occupied_names"]))
+                inventory = VariableInventory.from_index(index, modules)
+                report = build_symbol_report(analyze_symbol_project(index, spec, inventory))
+                report["project_fingerprint"] = inspect_report["project_fingerprint"]
+                report["project_name"] = inspect_report["project_name"]
+                return JSONResponse(content=report)
             if isinstance(spec, ModuleChangeSpec):
                 inventory = ModuleInventory.from_index(index, tuple(inspect_report["module_inventory"]["occupied_names"]))
                 report = build_module_report(analyze_module_project(index, spec, inventory))

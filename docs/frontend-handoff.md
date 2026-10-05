@@ -383,3 +383,11 @@ Web MVP 准备核查（2026-10-03）运行这三个相关测试文件，实际�
 ## V1.1 多领域页面接入
 
 目标选择页支持 Function / Module。模块使用独立候选、草稿与报告，保留原 ZIP / fingerprint / revision / AbortController。Module Report 按 domain、kind、version 分发，不能按函数报告解释导入统计。详见 [模块变更契约及真实响应](module-changes.md)。
+
+## V1.2 三领域接入
+
+目标页增加“模块符号变更”。按实际 `module_inventory` 选择模块，再按 `symbol_inventory.symbols` 选择公开变量/常量。disabled 候选显示 reason，不隐藏支持边界。配置页支持重命名新名称，或删除分析确认；界面明确说明不修改上传文件。
+
+Symbol 使用 `symbol_coverage` / `symbol_diagnostics`，其他领域继续使用原字段。草稿不能代替 Validate 的实际 Before / After 定义；Analyze 必须复用同一原始 ZIP、Inspect 指纹及当前已校验 payload。切换任一领域、目标、操作或字段都会取消旧请求并清除旧 Validate、Analyze、Report；旧响应按 revision 和 snapshot 丢弃。
+
+报告根据 domain / report_kind / schema_version 分发。Symbol Direct 按真实引用位置计数，上游按模块去重；路径的终端符号引用独立于真实模块边。Evidence / Explanation 同序并核对 metadata，unavailable 明确显示，partial 提示保留。规则说明不标记为真实模型成功。详见 [Symbol 契约与响应样例](symbol-changes.md)。原始 ZIP 仍仅保留在当前会话，刷新后重新选择；本地 Vite `/api` 代理无需扩大后端 CORS。

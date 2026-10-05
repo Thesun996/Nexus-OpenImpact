@@ -1,0 +1,6 @@
+{
+  "change_domain": "symbol",
+  "change_type": "rename_module_symbol",
+  "target_symbol_id": "config.MAX_RETRIES",
+  "new_symbol_name": "RETRY_LIMIT"
+}

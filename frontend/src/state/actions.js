@@ -2,6 +2,7 @@ import { ApiError, toWorkflowError } from '../api/client.js'
 import { buildChangePayload, getSelectedTarget, isSupportedDemoChange } from './workflow.js'
 
 import { matchesModuleIntent, moduleIdentity } from './moduleDraft.js'
+import { matchesSymbolIntent, symbolIdentity } from './symbolDraft.js'
 
 // One active business request per session. Cancellation saves client work;
 // identity + revision checks also protect against a transport ignoring abort.
@@ -90,6 +91,7 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
     selectDomain: (domain) => changeState({ type: 'DOMAIN_SELECTED', domain }),
     selectModule: (id) => changeState({ type: 'MODULE_SELECTED', id }),
     selectSymbol: (id) => changeState({ type: 'SYMBOL_SELECTED', id }),
+    selectVariableSymbol: (id) => changeState({ type: 'VARIABLE_SYMBOL_SELECTED', id }),
     selectChangeType: (changeType) => changeState({ type: 'CHANGE_TYPE_SELECTED', changeType }),
     updateChange: (change) => changeState({ type: 'CHANGE_UPDATED', change }),
     reset: () => changeState({ type: 'RESET' }),
@@ -139,10 +141,16 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
       }
       if (current.changeDomain === 'module' && current.change.changeType === 'remove_module' && current.change.operation.confirmed !== true)
         return localFailure('validate', 'confirmation_required', '请确认仅分析拟定的模块删除，不修改项目文件。')
+      if (current.changeDomain === 'symbol' && current.change.changeType === 'remove_module_symbol' && current.change.operation.confirmed !== true)
+        return localFailure('validate', 'confirmation_required', '请确认仅分析拟定的符号删除，不修改项目文件。')
       const change = buildChangePayload(current)
       return run('validate', (signal) => client.validate(current.file, change, current.projectFingerprint, { signal }), (validation, revision) => {
         checkFingerprint(validation, current.projectFingerprint)
-        if (current.changeDomain === 'module') {
+        if (current.changeDomain === 'symbol') {
+          if (validation.validation?.valid !== true || !matchesSymbolIntent(validation.change_spec, change)
+            || !symbolIdentity(validation.change_spec.before)
+            || symbolIdentity(validation.change_spec.before) !== symbolIdentity(getSelectedTarget(current))) invalidResponse()
+        } else if (current.changeDomain === 'module') {
           if (validation.validation?.valid !== true || validation.change_domain !== 'module'
             || !matchesModuleIntent(validation.change_spec, change)
             || !moduleIdentity(validation.change_spec.before)
@@ -166,7 +174,14 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
       }
       const change = structuredClone(current.validatedChange.payload)
       return run('analyze', (signal) => client.analyze(current.file, change, current.projectFingerprint, { signal }), (report, revision) => {
-        if (current.changeDomain === 'module') {
+        if (current.changeDomain === 'symbol') {
+          checkFingerprint(report, current.projectFingerprint)
+          if (report.change_domain !== 'symbol' || report.report_kind !== 'symbol_impact' || report.schema_version !== 1
+            || !matchesSymbolIntent(report.change, change) || report.validation?.valid !== true
+            || symbolIdentity(report.change.before) !== symbolIdentity(current.validation.change_spec.before)
+            || JSON.stringify(report.change.after) !== JSON.stringify(current.validation.change_spec.after)
+            || !report.summary || !Array.isArray(report.reference_impacts) || !Array.isArray(report.symbol_indirect_impacts)) invalidResponse()
+        } else if (current.changeDomain === 'module') {
           checkFingerprint(report, current.projectFingerprint)
           if (report.change_domain !== 'module' || report.report_kind !== 'module_impact' || report.schema_version !== 1
             || !matchesModuleIntent(report.change, change) || report.validation?.valid !== true

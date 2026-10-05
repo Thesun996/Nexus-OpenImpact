@@ -1,4 +1,5 @@
 import ModuleReportView from './ModuleReportView.jsx';
+import SymbolReportView from './SymbolReportView.jsx';
 import { useRef, useState } from 'react';
 import { useWorkflow } from '../state/WorkflowContext.jsx';
 import { formatSignature } from '../state/workflow.js';
@@ -30,6 +31,10 @@ export function ChangeOverview({ change }) {
 // Keep selection scoped to one Analyze response. A replacement report immediately
 // starts at its first finding, without inheriting the previous report's index.
 export function ReportResults(props) {
+  if (props.report.change_domain === 'symbol') {
+    return props.report.report_kind === 'symbol_impact' && props.report.schema_version === 1
+      ? <SymbolReportView report={props.report} /> : <section className="state-message error" role="alert">符号报告版本不可识别，请检查后端契约。</section>;
+  }
   if (props.report.change_domain === 'module') {
     return props.report.report_kind === 'module_impact' && props.report.schema_version === 1
       ? <ModuleReportView report={props.report} /> : <section className="state-message error" role="alert">模块报告版本不可识别，请检查后端契约。</section>;
@@ -94,7 +99,7 @@ export default function ReportPage({ navigate }) {
   const { state } = useWorkflow();
   const report = state.report;
   return <div className="oi-report-page">
-    <section className="page-heading"><div><h1>分析报告</h1><p>{report ? report.change_domain === 'module' ? '从静态导入依赖追到真实源码，理解拟定模块变更。' : '从调用路径追到真实源码，理解这次变更的影响。' : '当前会话尚未产生分析报告。'}</p></div><div className="heading-actions"><span>覆盖状态 <b>{report?.coverage?.status || '尚未分析'}</b></span><button className="ghost-action" type="button" onClick={() => navigate('change')}>调整变更</button></div></section>
+    <section className="page-heading"><div><h1>分析报告</h1><p>{report ? report.change_domain === 'symbol' ? '从静态符号引用追到真实定义与源码证据。' : report.change_domain === 'module' ? '从静态导入依赖追到真实源码，理解拟定模块变更。' : '从调用路径追到真实源码，理解这次变更的影响。' : '当前会话尚未产生分析报告。'}</p></div><div className="heading-actions"><span>覆盖状态 <b>{report?.coverage?.status || '尚未分析'}</b></span><button className="ghost-action" type="button" onClick={() => navigate('change')}>调整变更</button></div></section>
     <details className="oi-report-process"><summary>分析流程与会话说明</summary><WorkflowSteps current={4} /><ModeNotice mode={state.mode} /></details>
     <ErrorNotice error={state.error} />
     {!report ? <EmptyWorkflow title="没有当前项目的报告" message="请先选择函数并校验变更。刷新浏览器后需重新选择 ZIP，演示样例只在明确开启演示模式后展示。" navigate={navigate} /> : <ReportResults report={report} mode={state.mode} />}

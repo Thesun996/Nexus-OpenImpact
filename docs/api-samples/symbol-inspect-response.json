@@ -1,0 +1,151 @@
+{
+  "symbol_inventory": {
+    "analysis_scope": "project_root_static_symbols",
+    "symbols": [
+      {
+        "symbol_id": "config.MAX_RETRIES",
+        "module_id": "config",
+        "name": "MAX_RETRIES",
+        "file": "config.py",
+        "source_hash": "ae62edbf0a6458c13f40ef141f5d046677adcc71dc97b12ebb4e4faf25d73092",
+        "line": 1,
+        "column": 0,
+        "end_line": 1,
+        "end_column": 15,
+        "definition": "MAX_RETRIES = 3",
+        "value_source": "3",
+        "annotation_source": null,
+        "kind": "constant",
+        "selectable": true,
+        "reason": null
+      }
+    ]
+  },
+  "symbol_coverage": {
+    "status": "complete",
+    "analysis_scope": "project_root_static_symbols",
+    "python_files": 4,
+    "supported_symbols": 1,
+    "message": "已覆盖受支持根模块的明确静态变量引用；不模拟运行时与动态反射。"
+  },
+  "symbol_diagnostics": {
+    "parse_errors": [],
+    "unsupported_modules": [],
+    "unsupported_symbols": [],
+    "syntax_diagnostics": [],
+    "import_syntax_diagnostics": [],
+    "manual_review_imports": [],
+    "unresolved_imports": [],
+    "manual_review_references": [],
+    "unresolved_references": []
+  },
+  "module_inventory": {
+    "analysis_scope": "project_root_static",
+    "modules": [
+      {
+        "module_id": "client",
+        "file": "client.py",
+        "source_hash": "f4b20848b3eee62402238482b947b6ca9f8a24e06227d88319e7527e259120b6",
+        "parse_status": "ok",
+        "selectable": true,
+        "reason": null,
+        "kind": "module"
+      },
+      {
+        "module_id": "config",
+        "file": "config.py",
+        "source_hash": "ae62edbf0a6458c13f40ef141f5d046677adcc71dc97b12ebb4e4faf25d73092",
+        "parse_status": "ok",
+        "selectable": true,
+        "reason": null,
+        "kind": "module"
+      },
+      {
+        "module_id": "dashboard",
+        "file": "dashboard.py",
+        "source_hash": "24c9314de54bb3936895c1560af9cd105e4e0f5090d33a3c73bb5aa611371299",
+        "parse_status": "ok",
+        "selectable": true,
+        "reason": null,
+        "kind": "module"
+      },
+      {
+        "module_id": "page",
+        "file": "page.py",
+        "source_hash": "e305cfd9f427672f8bc5ea2b15b079c958f69296fb7cef20e4278f285883cd62",
+        "parse_status": "ok",
+        "selectable": true,
+        "reason": null,
+        "kind": "module"
+      }
+    ],
+    "occupied_names": [
+      "client",
+      "config",
+      "dashboard",
+      "page"
+    ]
+  },
+  "module_coverage": {
+    "status": "complete",
+    "analysis_scope": "project_root_static",
+    "python_files": 4,
+    "supported_modules": 4,
+    "message": "已覆盖项目根下受支持的静态导入；不模拟运行时路径、外部同名提供者或初始化执行。"
+  },
+  "module_diagnostics": {
+    "parse_errors": [],
+    "import_diagnostics": [],
+    "unsupported_modules": [],
+    "unresolved_imports": [],
+    "manual_review_imports": []
+  },
+  "project_name": "project",
+  "project_fingerprint": "9ac9fe6e320ee960c005a84a8bdee0eb6eb55465b240cd4c5d9c82f38ad7c8b6",
+  "source_root": null,
+  "modules": [
+    {
+      "module": "client",
+      "file": "client.py",
+      "parse_status": "ok"
+    },
+    {
+      "module": "config",
+      "file": "config.py",
+      "parse_status": "ok"
+    },
+    {
+      "module": "dashboard",
+      "file": "dashboard.py",
+      "parse_status": "ok"
+    },
+    {
+      "module": "page",
+      "file": "page.py",
+      "parse_status": "ok"
+    }
+  ],
+  "symbols": [
+    {
+      "symbol_id": "client.read_limit",
+      "module": "client",
+      "file": "client.py",
+      "name": "read_limit",
+      "line": 2,
+      "parameters": []
+    }
+  ],
+  "coverage": {
+    "status": "complete",
+    "python_files": 4,
+    "indexed_modules": 4,
+    "indexed_functions": 1,
+    "files_with_parse_errors": 0
+  },
+  "diagnostics": {
+    "parse_errors": [],
+    "unresolved_imports": [],
+    "ambiguous_modules": [],
+    "ambiguous_symbols": []
+  }
+}

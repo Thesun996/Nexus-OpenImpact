@@ -34,7 +34,7 @@ OpenImpact 希望通过 AI 与静态分析结合，
 
 当前阶段：
 
-Phase 6.4 参数必填化：后端支持新增必填参数、删除普通参数、重命名参数、移除已有参数默认值。四类变更均复用修改前 / 修改后签名兼容性判定、有限间接传播、源码证据及中文解释。现有 CLI、API 和 add/remove/rename Demo 保持可用；本轮未修改 React。
+当前独立集成成果支持三个领域、八种变更：四种函数签名变更、模块重命名/删除、公开模块级变量或常量重命名/删除。CLI、ZIP Inspect / Validate / Analyze 与 Tracework React 均可使用。三个领域分别保持签名兼容性、静态导入绑定、静态符号引用的判定依据；上游传播只建议检查。V1.1 / V1.2 成果尚待负责人最终审核，未合并 main。详见 [两轮交付报告](docs/v1.1-v1.2-delivery.md)、[模块契约](docs/module-changes.md) 和 [符号契约](docs/symbol-changes.md)。
 
 目标：
 

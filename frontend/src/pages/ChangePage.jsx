@@ -1,4 +1,5 @@
 import ModuleChangeView from './ModuleChangeView.jsx';
+import SymbolChangeView from './SymbolChangeView.jsx';
 import { useWorkflow } from '../state/WorkflowContext.jsx';
 import { getSelectedSymbol } from '../state/workflow.js';
 import { CHANGE_TYPES, describeChange, getParameterChoices, previewSignature } from '../state/changeDraft.js';
@@ -47,7 +48,7 @@ function draftSummary(change, definition) {
 }
 
 export function ChangeView(props) {
-  return props.state.changeDomain === 'module' ? <ModuleChangeView {...props} /> : <FunctionChangeView {...props} />;
+  return props.state.changeDomain === 'symbol' ? <SymbolChangeView {...props} /> : props.state.changeDomain === 'module' ? <ModuleChangeView {...props} /> : <FunctionChangeView {...props} />;
 }
 
 function FunctionChangeView({ state, onSelectChangeType, onUpdateChange, onValidate, onAnalyze, navigate }) {

@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+from openimpact.analysis.symbol_syntax import VariableSyntax, ReadSyntax
 
 ParameterKind = Literal[
     "positional_only",
@@ -118,3 +119,8 @@ class ParsedModule:
     module_rebindings: frozenset[str] = frozenset()
     module_imports: tuple[ModuleImportSyntax, ...] = ()
     module_diagnostics: tuple[ModuleSyntaxDiagnostic, ...] = ()
+    variable_definitions: tuple[VariableSyntax, ...] = ()
+    symbol_reads: tuple[ReadSyntax, ...] = ()
+    symbol_bound_names: frozenset[str] = frozenset()
+    symbol_diagnostics: tuple = ()
+    symbol_binding_counts: tuple[tuple[str, int], ...] = ()

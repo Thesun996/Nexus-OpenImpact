@@ -1,5 +1,6 @@
 import DomainSelector from '../components/workflow/DomainSelector.jsx';
 import ModuleSelectView from './ModuleSelectView.jsx';
+import SymbolSelectView from './SymbolSelectView.jsx';
 import { useState } from 'react';
 import { useWorkflow } from '../state/WorkflowContext.jsx';
 import { getSelectedSymbol } from '../state/workflow.js';
@@ -38,6 +39,6 @@ export function FunctionSelectView({ state, query, onQueryChange, onSelect, onSe
 export default function FunctionSelectPage({ navigate }) {
   const { state, actions } = useWorkflow();
   const [query, setQuery] = useState('');
-  const View = state.changeDomain === 'module' ? ModuleSelectView : FunctionSelectView;
-  return <View state={state} query={query} onQueryChange={setQuery} onSelect={state.changeDomain === 'module' ? actions.selectModule : actions.selectSymbol} onSelectDomain={actions.selectDomain} onReset={() => { actions.reset(); navigate('upload'); }} navigate={navigate} />;
+  const View = state.changeDomain === 'symbol' ? SymbolSelectView : state.changeDomain === 'module' ? ModuleSelectView : FunctionSelectView;
+  return <View state={state} query={query} onQueryChange={setQuery} onSelectModule={actions.selectModule} onSelectVariableSymbol={actions.selectVariableSymbol} onSelect={state.changeDomain === 'module' ? actions.selectModule : actions.selectSymbol} onSelectDomain={actions.selectDomain} onReset={() => { actions.reset(); navigate('upload'); }} navigate={navigate} />;
 }

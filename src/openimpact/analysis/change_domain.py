@@ -24,8 +24,8 @@ def parse_domain_config(source: str) -> tuple[str, dict]:
     if not isinstance(config, dict):
         raise ChangeConfigError("invalid_change_config", "change 必须是 JSON 对象。")
     domain = config.get("change_domain", "function")
-    if not isinstance(domain, str) or domain not in {"function", "module"}:
-        raise ChangeConfigError("unsupported_change_domain", "仅支持 function 或 module 领域。")
+    if not isinstance(domain, str) or domain not in {"function", "module", "symbol"}:
+        raise ChangeConfigError("unsupported_change_domain", "仅支持 function、module 或 symbol 领域。")
     if "change_domain" in config:
         def unique_keys(pairs):
             result = {}

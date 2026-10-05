@@ -214,7 +214,10 @@ def _result(
                    or index.ambiguous_symbols)
     inventory = ModuleInventory.from_index(index, occupied_names)
     references = resolve_imports(index, inventory)
+    from openimpact.analysis.variable_symbols import VariableInventory
+    from openimpact.analysis.symbol_report import symbol_inspect
     return {
+        **symbol_inspect(index, VariableInventory.from_index(index, inventory)),
         "module_inventory": inventory.to_dict(),
         "module_coverage": module_coverage(index, inventory, references),
         "module_diagnostics": module_diagnostics(index, inventory, references),

@@ -1,0 +1,5 @@
+{
+  "change_domain": "symbol",
+  "change_type": "remove_module_symbol",
+  "target_symbol_id": "config.MAX_RETRIES"
+}

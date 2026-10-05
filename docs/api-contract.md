@@ -315,3 +315,9 @@ Phase 3.4 稳定性验收记录见 [backend-stability-audit.md](backend-stabilit
 ## V1.1 模块领域追加契约
 
 原 Function 请求与报告保持 v1。Inspect 追加 module_inventory / module_coverage / module_diagnostics；显式 module 请求沿用当前三个业务端点，输出独立 Module Report v1。详见 [模块变更契约](module-changes.md)。
+
+## V1.2 符号领域追加契约
+
+Inspect 再追加 `symbol_inventory`、`symbol_coverage`、`symbol_diagnostics`，原十个字段保持。Validate / Analyze 继续使用相同 multipart 字段、ZIP 和 fingerprint 规则；显式 `change_domain="symbol"` 接受 `rename_module_symbol` 或 `remove_module_symbol`。目标是当前 Inspect 返回的公开模块级变量/常量 ID。重命名另需 `new_symbol_name`，删除不接收该字段。
+
+Symbol 报告采用独立 `(symbol, symbol_impact, schema_version=1)`，Direct 是真实符号引用断裂，Indirect 是上游模块待检查关系；不能按 Function 报告的参数兼容性字段解析。名称、目标和不支持定义错误返回422的既有 validation 结构，指纹错误409，内部异常安全500。完整字段、覆盖范围、计数单位、Evidence 对应及实际样例见 [符号变更契约](symbol-changes.md)。原两领域请求、报告与公开路径没有不兼容修改。

@@ -1,4 +1,26 @@
 {
+  "symbol_inventory": {
+    "analysis_scope": "project_root_static_symbols",
+    "symbols": []
+  },
+  "symbol_coverage": {
+    "status": "complete",
+    "analysis_scope": "project_root_static_symbols",
+    "python_files": 4,
+    "supported_symbols": 0,
+    "message": "已覆盖受支持根模块的明确静态变量引用；不模拟运行时与动态反射。"
+  },
+  "symbol_diagnostics": {
+    "parse_errors": [],
+    "unsupported_modules": [],
+    "unsupported_symbols": [],
+    "syntax_diagnostics": [],
+    "import_syntax_diagnostics": [],
+    "manual_review_imports": [],
+    "unresolved_imports": [],
+    "manual_review_references": [],
+    "unresolved_references": []
+  },
   "module_inventory": {
     "analysis_scope": "project_root_static",
     "modules": [

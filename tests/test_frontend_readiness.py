@@ -67,7 +67,8 @@ def test_browser_form_contract_and_evidence_explanation_mapping(client, upload):
     assert fingerprint == sha256(upload).hexdigest()
     assert set(body) == {"project_name", "project_fingerprint", "source_root", "modules",
                          "symbols", "coverage", "diagnostics",
-                         "module_inventory", "module_coverage", "module_diagnostics"}
+                         "module_inventory", "module_coverage", "module_diagnostics",
+                         "symbol_inventory", "symbol_coverage", "symbol_diagnostics"}
     target = next(symbol for symbol in body["symbols"] if symbol["symbol_id"] == CHANGE["target_symbol_id"])
     assert target["parameters"][0]["name"] == "date"
     validated = form_post(client, VALIDATE, upload, fingerprint=fingerprint)
