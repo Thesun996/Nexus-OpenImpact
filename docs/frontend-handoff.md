@@ -393,3 +393,8 @@ Web MVP 准备核查（2026-10-03）运行这三个相关测试文件，实际�
 Symbol 使用 `symbol_coverage` / `symbol_diagnostics`，其他领域继续使用原字段。草稿不能代替 Validate 的实际 Before / After 定义；Analyze 必须复用同一原始 ZIP、Inspect 指纹及当前已校验 payload。切换任一领域、目标、操作或字段都会取消旧请求并清除旧 Validate、Analyze、Report；旧响应按 revision 和 snapshot 丢弃。
 
 报告根据 domain / report_kind / schema_version 分发。Symbol Direct 按真实引用位置计数，上游按模块去重；路径的终端符号引用独立于真实模块边。Evidence / Explanation 同序并核对 metadata，unavailable 明确显示，partial 提示保留。规则说明不标记为真实模型成功。详见 [Symbol 契约与响应样例](symbol-changes.md)。原始 ZIP 仍仅保留在当前会话，刷新后重新选择；本地 Vite `/api` 代理无需扩大后端 CORS。
+## 报告工作台追加接入
+
+报告底部增加推荐追问与自定义问题；右下角「项目源码」可浏览原 ZIP 内 Scanner 接受的 `.py` 文件，证据/回答引用可定位完整文件。两者共用当前原始 File、Inspect 指纹和 analysis_root，不改变既有 Workflow reducer、报告映射或 Evidence/Explanation 同序规则。
+
+新增请求与返回见 [API 契约](api-contract.md#只读源码与报告追问追加入口)，使用边界和来源判断见 [报告工作台说明](report-workspace.md)。完整 API 地址集中在现有 Client；仍通过 Vite `/api` 代理。报告追问仅当前变更范围，模型失败明确回退；演示模式不发送真实模型请求。

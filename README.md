@@ -1,5 +1,7 @@
 # Nexus OpenImpact
 
+网页已增加报告追问和只读项目源码目录：可从影响证据或回答引用打开完整 Python 文件并定位行号。追问依据当前变更报告，模型不可用时明确使用规则回答。详见 [报告工作台](docs/report-workspace.md)。后端与前端启动方式保持原流程。
+
 普通包支持已扩展：网页可显式选择源码根目录，支持普通包的静态相对导入。src 布局填写 `src`；默认 `.` 保留旧流程。详见 [使用方式与边界](docs/package-imports.md) 和 [包项目 Demo](examples/package_signature_change/README.md)。
 
 ## AI 驱动的代码变更影响分析助手

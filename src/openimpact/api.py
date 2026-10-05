@@ -48,6 +48,7 @@ class _ZipBodyLimit:
                 or scope["path"] not in {
                     "/api/v1/projects/inspect", "/api/v1/changes/validate",
                     "/api/v1/projects/analyze",
+                    "/api/v1/projects/source", "/api/v1/reports/questions",
                 }):
             await self.application(scope, receive, send)
             return
@@ -335,3 +336,7 @@ async def analyze_demo(request: Request) -> JSONResponse:
         return await run_in_threadpool(_demo_report)
     except (ChangeFileError, OSError):
         return _error(503, "demo_unavailable", "内置 Demo 文件不可用，无法完成分析。")
+
+
+from openimpact.workspace_api import router as workspace_router
+app.include_router(workspace_router)

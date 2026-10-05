@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { useWorkflow } from '../state/WorkflowContext.jsx'
 import MovingMarker from '../motion/MovingMarker.jsx'
+import SourceWorkspace from './workspace/SourceWorkspace.jsx'
 
 const navigation = [
   { label: '上传项目', page: 'upload' },
@@ -31,7 +32,7 @@ export default function AppShell({ page, navigate, children }) {
   }
 
   return (
-    <div className="oi-shell">
+    <SourceWorkspace><div className="oi-shell">
       <a className="oi-skip-link" href="#oi-main" onClick={(event) => {
         // Focus the content without changing the application's hash route.
         event.preventDefault()
@@ -86,6 +87,6 @@ export default function AppShell({ page, navigate, children }) {
         </div>
         <main id="oi-main" tabIndex={-1} className="content workflow-content oi-content">{children}</main>
       </section>
-    </div>
+    </div></SourceWorkspace>
   )
 }

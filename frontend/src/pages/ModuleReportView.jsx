@@ -1,3 +1,5 @@
+import ReportQuestions from '../components/workspace/ReportQuestions.jsx';
+import { SourceLink } from '../components/workspace/SourceWorkspace.jsx';
 import ExplanationText from '../components/report/ExplanationText.jsx';
 import { riskLabel, statusLabel, ruleLabel, reasonLabel } from '../components/report/presentation.js';
 import { moduleDiagnosticEntries } from './moduleReportData.js';
@@ -40,6 +42,7 @@ export default function ModuleReportView({ report }) {
           <p>代表性静态依赖路径，未展示完整项目图；上游模块仅建议检查。</p>
         </section>
         <div className="oi-reading-panes"><article className="oi-evidence-panel" aria-label="当前导入的源码证据"><header><div><h2>导入源码证据</h2><code>{evidence?.location?.file || finding.location?.file || '未提供'}:{evidence?.location?.line || finding.location?.line || '?'}</code></div><span>{statusLabel(evidence?.status || 'unavailable')}</span></header>
+          <SourceLink location={evidence?.location || finding.location} sourceHash={evidence?.source_hash} />
           {evidence?.status === 'available' && typeof evidence.source_snippet === 'string' ? <div className="oi-code-reading"><span className="oi-source-line">{evidence.location.line}</span><pre className="code-block" tabIndex={0} aria-label="导入源码片段"><code>{evidence.source_snippet}</code></pre></div> : <div className="oi-report-unavailable" role="status"><b>源码证据暂不可用</b><p>当前记录证据缺失或元数据不匹配，不借用其他项源码。</p></div>}
           <dl className="oi-static-facts"><div><dt>静态规则</dt><dd>{ruleLabel(evidence?.rule || finding.rule)}</dd></div><div><dt>判断依据</dt><dd>{reasonLabel(finding.reason)}</dd></div><div><dt>证据引用</dt><dd><details><summary>查看定位编号</summary><code>{evidence?.evidence_reference || finding.finding_id}</code></details></dd></div></dl>
           {finding.impact_type === 'direct_import' && <div className="oi-compatibility-proof"><h3>项目导入绑定变化</h3><p>变更前：{statusLabel(finding.before_resolution.status)} → {finding.before_resolution.target_module_id}</p><p>变更后：{statusLabel(finding.after_resolution.status)} · {reasonLabel(finding.after_resolution.reason)}</p></div>}
@@ -51,5 +54,6 @@ export default function ModuleReportView({ report }) {
         <section className="oi-review-section"><h2>分析边界与诊断</h2><p>条件、局部、动态、相对和复杂包导入保持人工检查或未解析，不参与确定传播。</p><DiagnosticsList diagnostics={moduleDiagnosticEntries(report.diagnostics)} /></section>
       </div>
     </div>
+    <ReportQuestions report={report} findingIndex={finding ? index : undefined} />
   </section>;
 }

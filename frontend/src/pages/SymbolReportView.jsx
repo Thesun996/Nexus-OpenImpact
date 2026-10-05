@@ -1,3 +1,5 @@
+import ReportQuestions from '../components/workspace/ReportQuestions.jsx';
+import { SourceLink } from '../components/workspace/SourceWorkspace.jsx';
 import ExplanationText from '../components/report/ExplanationText.jsx';
 import { riskLabel, statusLabel, ruleLabel, reasonLabel } from '../components/report/presentation.js';
 import { useState } from 'react';
@@ -21,6 +23,7 @@ export default function SymbolReportView({ report }) {
         <p className="oi-selected-record" aria-live="polite">当前记录：<b>{finding.impacted_module_id}</b><span>{symbolImpactLabel(finding.impact_type)}</span></p>
         <section className="oi-trace-view"><h2>上游模块依赖与终端引用</h2>{evidence?.status === 'available' ? evidence.propagation_path?.length ? evidence.propagation_path.map((path, slot) => <div className="oi-module-path" key={`${path.source_direct_impact}-${slot}`}><ol>{path.modules.map((module,step) => <li key={`${module}-${step}`}><code>{module}</code>{step < path.modules.length-1 && <span aria-hidden="true"> → </span>}</li>)}</ol><p>终端符号引用：<code>{path.terminal_reference.expression}</code> · {path.terminal_reference.file}:{path.terminal_reference.line}</p></div>) : <p>当前记录为直接符号引用：<code>{evidence.reference_expression}</code>。没有上游传播路径，不推测额外关系。</p> : <p>路径暂不可用：没有可匹配的当前证据。</p>}<p>代表性静态路径，未展示完整项目图；上游只需检查，不代表确定运行失败。</p></section>
         <div className="oi-reading-panes"><article className="oi-evidence-panel" aria-label="符号源码证据"><header><div><h2>源码证据</h2><code>{evidence?.location?.file || finding.location?.file || '未提供'}:{evidence?.location?.line || finding.location?.line || '?'}</code></div><span>{statusLabel(evidence?.status || 'unavailable')}</span></header>
+          <SourceLink location={evidence?.location || finding.location} sourceHash={evidence?.source_hash} />
           {evidence?.status === 'available' && typeof evidence.source_snippet === 'string' ? <div className="oi-code-reading"><span className="oi-source-line">{evidence.location.line}</span><pre className="code-block" tabIndex={0}><code>{evidence.source_snippet}</code></pre></div> : <div className="oi-report-unavailable" role="status"><b>源码证据暂不可用</b><p>证据缺失或元数据不匹配，不借用其他记录源码。</p></div>}
           <dl className="oi-static-facts"><div><dt>静态规则</dt><dd>{ruleLabel(evidence?.rule || finding.rule || 'upstream_symbol_dependency_review')}</dd></div><div><dt>判断依据</dt><dd>{reasonLabel(finding.reason)}</dd></div><div><dt>证据引用</dt><dd><details><summary>查看定位编号</summary><code>{finding.finding_id}</code></details></dd></div></dl>
           {finding.before_resolution && <div className="oi-compatibility-proof"><h3>静态符号绑定变化</h3><p>变更前：{statusLabel(finding.before_resolution.status)} → {finding.before_resolution.target_symbol_id}</p><p>变更后：{statusLabel(finding.after_resolution.status)} · {reasonLabel(finding.after_resolution.reason)}</p></div>}
@@ -30,5 +33,6 @@ export default function SymbolReportView({ report }) {
         <section className="oi-review-section"><h2>分析边界与诊断</h2><p>动态、遮蔽、重绑定、复杂作用域和无法解析的引用不升级为确定影响。</p><DiagnosticsList diagnostics={symbolDiagnosticEntries(report.diagnostics)} /></section>
       </div>
     </div>
+    <ReportQuestions report={report} findingIndex={finding ? index : undefined} />
   </section>;
 }

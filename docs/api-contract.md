@@ -329,3 +329,48 @@ Phase 3.4 稳定性验收记录见 [backend-stability-audit.md](backend-stabilit
 Inspect 再追加 `symbol_inventory`、`symbol_coverage`、`symbol_diagnostics`，原十个字段保持。Validate / Analyze 继续使用相同 multipart 字段、ZIP 和 fingerprint 规则；显式 `change_domain="symbol"` 接受 `rename_module_symbol` 或 `remove_module_symbol`。目标是当前 Inspect 返回的公开模块级变量/常量 ID。重命名另需 `new_symbol_name`，删除不接收该字段。
 
 Symbol 报告采用独立 `(symbol, symbol_impact, schema_version=1)`，Direct 是真实符号引用断裂，Indirect 是上游模块待检查关系；不能按 Function 报告的参数兼容性字段解析。名称、目标和不支持定义错误返回422的既有 validation 结构，指纹错误409，内部异常安全500。完整字段、覆盖范围、计数单位、Evidence 对应及实际样例见 [符号变更契约](symbol-changes.md)。原两领域请求、报告与公开路径没有不兼容修改。
+
+## 只读源码与报告追问（追加入口）
+
+原 Inspect / Validate / Analyze 路径、报告字段及 schema_version 均保持。下面两个 POST 使用 `multipart/form-data`，复用原 ZIP 大小、解压、防路径逃逸与清理规则。禁止 URL 查询字段、未知或重复表单字段。
+
+### POST /api/v1/projects/source
+
+| 字段 | 类型 | 必填 | 含义 |
+| --- | --- | --- | --- |
+| file | ZIP 文件 | 是 | 当前原始项目 ZIP |
+| expected_fingerprint | 64 位十六进制字符串 | 是 | Inspect 返回的 ZIP SHA-256 |
+| analysis_root | 字符串 | 否 | 与 Inspect 一致，默认 `.` |
+| path | 字符串 | 否 | Scanner 文件列表内的 POSIX 相对 `.py` 路径；省略时只列目录 |
+
+200 返回 `project_name`、`project_fingerprint`、`read_only=true`、`message`、`files` 和 `file`。`files[]` 为 `{path,size_bytes,source_hash}`；`file` 为 null 或 `{path,content,encoding,source_hash,line_count}`。哈希使用原始文件字节，编码遵循 Python 源码声明；内容以纯文本读取，包括存在 SyntaxError 的文件。读取范围与分析覆盖范围分别成立。
+
+### POST /api/v1/reports/questions
+
+| 字段 | 类型 | 必填 | 含义 |
+| --- | --- | --- | --- |
+| file / expected_fingerprint / analysis_root | 同上 | 前两者是 | 同一份 ZIP 与源码根目录 |
+| change | JSON 字符串 | 是 | 原 Validate / Analyze 简化配置，支持三个领域 |
+| question | 字符串 | 是 | 非空，最多 1000 字符 |
+| finding_index | 非负整数的十进制字符串 | 否 | 对应当前报告 `evidences[]` 序号；零记录时省略 |
+| history | JSON 数组字符串 | 否 | 默认 `[]`；最多六条 `{role,content}`，role 仅 user/assistant，content 最多 800 字符，总 JSON 最多 6000 字符 |
+
+200 返回 `answer`、`status`（answered / limited）、`provider`（rule / deepseek / fallback）、`fallback_reason`（安全原因码或 null）、`citations[]`（`id,file,line,column`）、`project_fingerprint`、`finding_index`（整数或 null）、`change_domain`、`coverage` 与 `scope=current_change_report`。
+
+引用来自后端重建的真实报告。每次最多十二个位置、三条代表性传播路径、4000 字符源码片段；模型上下文超过 24000 字符时回退。模型必须返回 `answer,status,citation_ids` 并只引用给定 ID，否则回退。此处明确返回调用来源，原有 Explanation 字段保持不变。追问无法改变静态结论；模型失败保持 HTTP 200 并明确 `provider=fallback`。
+
+### 错误响应
+
+沿用既有安全错误结构 `{"error":{"code":"...","message":"..."}}`，不暴露服务器路径、堆栈或 Key。ZIP 原错误状态和 Change 校验的既有 `validation` 错误结构继续适用。
+
+| HTTP | 典型情况 |
+| --- | --- |
+| 400 | 无效/危险 ZIP、未知/重复/查询输入 `unsupported_input` |
+| 404 | `source_not_found` |
+| 409 | `fingerprint_mismatch` |
+| 413 | 上传或解压限制，沿用 ZIP 错误码 |
+| 422 | 缺少必填字段、`invalid_fingerprint`、`invalid_source_path`、`source_encoding_error`、`invalid_question`、`invalid_question_context`，或原 Change 校验错误 |
+| 500 | `workspace_failed`，安全通用消息 |
+| 503 | `source_unavailable`，临时源码无法读取 |
+
+请求成功或失败均清理临时目录，不保留上传项目。客户端需在项目/变更/影响记录改变时取消并丢弃旧回答；参考 [使用与边界](report-workspace.md)。

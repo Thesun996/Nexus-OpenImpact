@@ -125,9 +125,13 @@ class DeepSeekProvider(ExplanationProvider):
         return RuleBasedProvider().explain(input)
 
     def _request_completion(self, input: ExplanationInput) -> str:
+        return self.complete_messages(_build_messages(input))
+
+    def complete_messages(self, messages: list[dict[str, str]]) -> str:
+        """Reuse the bounded JSON transport for evidence-grounded report questions."""
         body = json.dumps({
             "model": _MODEL,
-            "messages": _build_messages(input),
+            "messages": messages,
             "response_format": {"type": "json_object"},
             "thinking": {"type": "disabled"},
             "max_tokens": 1024,

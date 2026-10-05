@@ -14,6 +14,7 @@ import ReviewNotes, { ReportDiagnostics } from '../components/report/ReviewNotes
 import ImpactCounts from '../components/report/ImpactCounts.jsx';
 import { entries, impactLabel, statusLabel } from '../components/report/presentation.js';
 import '../components/report/report.css';
+import ReportQuestions from '../components/workspace/ReportQuestions.jsx';
 
 export function ChangeOverview({ change }) {
   const description = describeChange(change);
@@ -92,6 +93,7 @@ function FunctionReportResults({ report, mode = 'project', initialSelectedIndex 
         <ReportDiagnostics report={report} />
       </div>
     </div>
+    <ReportQuestions report={report} findingIndex={selected ? activeIndex : undefined} />
   </section>;
 }
 

@@ -1,12 +1,15 @@
 import { DiagnosticsList } from '../../pages/PageParts.jsx';
 import { entries, findingLocation, locationText, statusLabel, ruleLabel, reasonLabel } from './presentation.js';
 
+import { SourceLink } from '../workspace/SourceWorkspace.jsx';
+
 export default function EvidencePanel({ finding, evidence }) {
   const location = evidence?.location || findingLocation(finding);
   const available = evidence?.status === 'available' && typeof evidence.source_snippet === 'string';
   return (
     <article className="oi-evidence-panel" aria-label="当前影响的源码证据">
       <header><div><h2>源码证据</h2><code>{locationText(location)}</code></div><span className="oi-evidence-status">{available ? '可用' : '不可用'}</span></header>
+      <SourceLink location={location} sourceHash={evidence?.source_hash} />
       {available
         ? <div className="oi-code-reading"><span className="oi-source-line" aria-hidden="true">{location?.line ?? '—'}</span><pre className="code-block" tabIndex={0} aria-label="源码片段，可横向滚动"><code>{evidence.source_snippet}</code></pre></div>
         : <div className="oi-report-unavailable" role="status"><b>源码证据暂不可用</b><p>当前记录的源码证据不可用或对应关系不完整。影响记录与计数仍保留。</p></div>}

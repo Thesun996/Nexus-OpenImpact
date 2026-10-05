@@ -112,6 +112,18 @@ export function createApiClient({ fetchImpl = fetch } = {}) {
     analyze(file, change, fingerprint, { signal, analysisRoot = '.' } = {}) {
       return request('/projects/analyze', { method: 'POST', body: projectForm(file, change, fingerprint, analysisRoot), signal })
     },
+    source(file, fingerprint, { signal, analysisRoot = '.', path } = {}) {
+      const form = projectForm(file, undefined, fingerprint, analysisRoot)
+      if (path != null) form.append('path', path)
+      return request('/projects/source', { method: 'POST', body: form, signal })
+    },
+    question(file, change, fingerprint, { signal, analysisRoot = '.', question, findingIndex, history = [] } = {}) {
+      const form = projectForm(file, change, fingerprint, analysisRoot)
+      form.append('question', question)
+      form.append('history', JSON.stringify(history))
+      if (findingIndex != null) form.append('finding_index', String(findingIndex))
+      return request('/reports/questions', { method: 'POST', body: form, signal })
+    },
   }
 }
 
