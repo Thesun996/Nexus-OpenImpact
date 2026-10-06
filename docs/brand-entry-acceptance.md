@@ -50,3 +50,19 @@
 - ponytail：复用既有业务 Provider、路由与响应式结构；仅新增入口组件和一条可取消时间线，不引入认证体系或持久化账户。
 
 演示登录没有访问控制能力；接入真正账号体系需要独立设计后端认证与会话，当前页面不宣称具备该能力。
+
+## 登录到工作台的消散过渡（后续精修）
+
+基线：`57ecf47`。只调整入口展示，保持用户启动目录和现有业务实现。
+
+- 原先提交登录时直接替换页面；现在登录页使用渐变蒙版和透明度退场（380ms），结束后再挂载工作台并淡入（220ms）。没有新旧文字交叉叠放、逐字正文运动、缩放、模糊或布局动画。
+- 原生 Web Animations API 只控制当前登录页，退出被取消时旧回调失效。重复提交只进入一次；工作台外层持续保留，不因淡入结束或偏好改变而重挂载业务 Provider。
+- 进入后滚动到顶部并聚焦 `oi-main`。登录按钮退出中保留焦点，标记正在处理并拒绝重复提交。减少动态效果时跳过消散；退出中偏好改变会取消时间线并直接进入。
+- 本轮精确文件：`frontend/DESIGN.md`、`frontend/src/components/entry/EntryGate.jsx`、`frontend/src/components/entry/loginDissolve.js`、`frontend/src/components/entry/entry.css`、`frontend/src/tokens.css`、`frontend/tests/entry.test.js`、`docs/brand-entry-acceptance.md`。未改 App、API、业务状态、ZIP、请求保护、Core 或报告契约；没有新增依赖。
+- `npm run check`：236 passed（新增 3 个退出完成、取消回调和退出控件语义测试）。单独 `npm run build`、`git diff --check`：PASS。
+- 实际浏览器：1440×1000 与 390×900，采集消散开始、过程中、工作台显现及结束帧，无文字叠影和横向溢出。手机键盘 Enter 后焦点为 `oi-main`，滚动位置为 0。控制台无警告或错误。
+- 实际 rule Backend 8001 / Vite 5175：完整上传 → Inspect → Validate → Analyze → Report；format_date + timezone 为 1/1/1 完整，page.page + zone 为 0/0/0 完整，无旧证据和解释。服务记录为一次 Inspect、两次 Validate 和两次 Analyze，没有过渡引入的重复业务请求。
+- 受控 JS 偏好与生命周期测试页面：初始 reduce=true 无登录退出/工作台淡入；退出中切换为 reduce=true 能取消并完成进入；双击登录仍为一次进入、一次工作台挂载；进入后反复切换偏好不重挂载、不重播。该页面只在 `.local`，没有修改 Windows 系统偏好。
+- **native reduced-motion verification = pending**，保留负责人系统级补验事项；本轮未重新运行 Backend 全量测试，后端代码无修改，已验证上述真实 API 回归。
+
+真实帧序列、采样时间、桌面/手机 GIF 与截图保存在 `.local/login-dissolve/`，不纳入提交。GIF 为实际浏览器帧按采样间隔组合，没有补画动画帧。

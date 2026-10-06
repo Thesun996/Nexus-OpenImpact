@@ -68,6 +68,7 @@
   --oi-motion-feedback: 140ms;
   --oi-motion-enter: 220ms;
   --oi-motion-exit: 90ms;
+  --oi-motion-entry-exit: 380ms;
   --oi-motion-reading: 180ms;
   --oi-motion-trace: 260ms;
   --oi-motion-trace-step: 65ms;

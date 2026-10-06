@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useReducedMotionPreference } from '../../motion/reducedMotion.js'
 import { startBrandReveal } from './brandReveal.js'
+import { startLoginDissolve } from './loginDissolve.js'
 import './entry.css'
 
 export function BrandSplash({ onComplete }) {
@@ -17,10 +18,16 @@ export function BrandSplash({ onComplete }) {
   </main>
 }
 
-export function LoginView({ onEnter }) {
+export function LoginView({ onEnter, leaving = false, reducedMotion = false, onExited }) {
+  const view = useRef(null)
   const heading = useRef(null)
   useEffect(() => { heading.current?.focus({ preventScroll: true }) }, [])
-  return <main className="oi-entry oi-login" aria-labelledby="oi-login-title">
+  useEffect(() => {
+    if (!leaving) return
+    if (reducedMotion) { onExited(); return }
+    return startLoginDissolve(view.current, onExited)
+  }, [leaving, reducedMotion, onExited])
+  return <main ref={view} className={`oi-entry oi-login${leaving ? ' is-leaving' : ''}`} aria-labelledby="oi-login-title">
     <section className="oi-login-story" aria-label="项目介绍">
       <div className="oi-login-story-content">
         <p className="oi-entry-brand"><span className="oi-entry-brand-dot" aria-hidden="true" />Nexus OpenImpact</p>
@@ -34,7 +41,7 @@ export function LoginView({ onEnter }) {
       </div>
     </section>
     <section className="oi-login-form-region">
-      <form className="oi-login-form" onSubmit={(event) => { event.preventDefault(); onEnter() }}>
+      <form className="oi-login-form" onSubmit={(event) => { event.preventDefault(); if (!leaving) onEnter() }} aria-busy={leaving}>
         <p className="oi-login-product">代码变更影响分析</p>
         <h1 id="oi-login-title" ref={heading} tabIndex={-1}>进入项目工作台</h1>
         <p className="oi-login-intro">从你的 Python 项目开始。</p>
@@ -45,7 +52,7 @@ export function LoginView({ onEnter }) {
           <label htmlFor="oi-login-password">密码 <span>选填</span></label>
           <input id="oi-login-password" type="password" placeholder="可留空，请勿填写真实密码" autoComplete="off" aria-describedby="oi-login-demo-note" />
         </div>
-        <button className="oi-login-submit primary-action" type="submit">登录</button>
+        <button className="oi-login-submit primary-action" type="submit" aria-disabled={leaving}>登录</button>
         <p className="oi-login-footnote">点击登录即可进入。本页不验证或保存账号信息。</p>
       </form>
       <p className="oi-login-footer">Nexus OpenImpact<span>让代码变更有据可查</span></p>
@@ -56,12 +63,31 @@ export function LoginView({ onEnter }) {
 export default function EntryGate({ children, onEnter }) {
   const reducedMotion = useReducedMotionPreference()
   const [stage, setStage] = useState('splash')
+  const entered = useRef(false)
+  const enteredWithoutMotion = useRef(false)
+  const workbench = useRef(null)
   const showLogin = useCallback(() => setStage((current) => current === 'splash' ? 'login' : current), [])
+  const enterWorkbench = useCallback(() => {
+    if (entered.current) return
+    entered.current = true
+    enteredWithoutMotion.current = reducedMotion
+    onEnter()
+    setStage('workbench')
+  }, [onEnter, reducedMotion])
   useEffect(() => { if (reducedMotion) showLogin() }, [reducedMotion, showLogin])
   useEffect(() => {
-    if (stage === 'workbench') document.getElementById('oi-main')?.focus({ preventScroll: true })
+    if (stage === 'workbench') {
+      window.scrollTo({ top: 0, behavior: 'instant' })
+      document.getElementById('oi-main')?.focus({ preventScroll: true })
+    }
   }, [stage])
-  if (stage === 'workbench') return children
-  if (stage === 'login' || reducedMotion) return <LoginView onEnter={() => { onEnter(); setStage('workbench') }} />
+  useEffect(() => {
+    if (stage === 'workbench' && reducedMotion) workbench.current?.getAnimations().forEach(animation => animation.finish())
+  }, [stage, reducedMotion])
+  if (stage === 'workbench') return <div ref={workbench} className={`oi-entry-workbench${enteredWithoutMotion.current ? ' is-reduced' : ''}`}>{children}</div>
+  if (stage === 'login' || stage === 'leaving' || reducedMotion) return <div className="oi-entry-portal">
+    <LoginView leaving={stage === 'leaving'} reducedMotion={reducedMotion} onExited={enterWorkbench}
+      onEnter={() => { if (reducedMotion) enterWorkbench(); else setStage('leaving') }} />
+  </div>
   return <BrandSplash onComplete={showLogin} />
 }

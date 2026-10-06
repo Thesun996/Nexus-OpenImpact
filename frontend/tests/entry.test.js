@@ -5,6 +5,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createServer } from 'vite'
 import { startBrandReveal } from '../src/components/entry/brandReveal.js'
+import { startLoginDissolve } from '../src/components/entry/loginDissolve.js'
 
 let server, EntryGate, BrandSplash, LoginView
 before(async () => {
@@ -79,4 +80,45 @@ test('skip, preference change and unmount cancel only this timeline and suppress
   fake.finish()
   assert.equal(completed, 0)
   assert.deepEqual(fake.events, ['play', 'pause', ['remove', characters]])
+})
+
+function fakeDissolve() {
+  let frames, options, cancellations = 0
+  const exit = { cancel() { cancellations += 1 } }
+  return {
+    element: { animate(keyframes, timing) { frames = keyframes; options = timing; return exit } },
+    style: { getPropertyValue: () => '380ms' },
+    finish: () => exit.onfinish(), frames: () => frames, options: () => options, cancellations: () => cancellations,
+  }
+}
+
+test('login dissolves before completion and ignores repeated finish events', () => {
+  const fake = fakeDissolve()
+  let completed = 0
+  startLoginDissolve(fake.element, () => completed++, fake.style)
+  assert.equal(completed, 0)
+  assert.equal(fake.options().duration, 380)
+  assert.equal(fake.options().fill, 'forwards')
+  assert.equal(fake.frames()[0].opacity, 1)
+  assert.equal(fake.frames().at(-1).opacity, 0)
+  fake.finish()
+  fake.finish()
+  assert.equal(completed, 1)
+})
+
+test('cancelled login exit cannot enter a stale workbench', () => {
+  const fake = fakeDissolve()
+  let completed = 0
+  const cancel = startLoginDissolve(fake.element, () => completed++, fake.style)
+  cancel()
+  fake.finish()
+  assert.equal(fake.cancellations(), 1)
+  assert.equal(completed, 0)
+})
+
+test('outgoing login keeps its submit control focusable while preventing duplicate submissions', () => {
+  const html = renderToStaticMarkup(createElement(LoginView, { leaving: true, onEnter: () => {}, onExited: () => {} }))
+  assert.ok(html.includes('aria-busy="true"'))
+  assert.match(html, /<button[^>]*aria-disabled="true"[^>]*>登录<\/button>/)
+  assert.ok(!html.includes(' disabled=""'))
 })
