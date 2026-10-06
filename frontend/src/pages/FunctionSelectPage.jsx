@@ -24,10 +24,20 @@ export function FunctionSelectView({ state, query, onQueryChange, onSelect, onSe
           <header><h2>模块级函数</h2><span>{visible.length} / {symbols.length} 条</span></header>
           <label className="oi-symbol-search"><span>搜索函数或文件</span><input type="search" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="完整函数标识 或相对文件路径" /></label>
           <div className="oi-symbol-rows">
-            {visible.map((symbol) => <button className={`oi-symbol-row${symbol.symbol_id === state.selectedSymbolId ? ' is-selected' : ''}`} key={symbol.symbol_id} type="button" aria-pressed={symbol.symbol_id === state.selectedSymbolId} onClick={() => onSelect(symbol.symbol_id)}><span className="oi-symbol-location">{symbol.file}:{symbol.line}</span><b>{symbol.symbol_id}</b><span className="oi-symbol-signature"><SignatureText definition={symbol} /></span><span className="oi-symbol-selection">{symbol.symbol_id === state.selectedSymbolId ? '已选择' : '选择此函数'}</span></button>)}
+            {visible.map((symbol) => {
+              const isSelected = symbol.symbol_id === state.selectedSymbolId;
+              return <div className={`oi-symbol-row oi-function-row${isSelected ? ' is-selected' : ''}`} key={symbol.symbol_id}>
+                <button className="oi-function-select" type="button" aria-pressed={isSelected} onClick={() => onSelect(symbol.symbol_id)}>
+                  <span className="oi-symbol-location">{symbol.file}:{symbol.line}</span><b>{symbol.symbol_id}</b>
+                  <span className="oi-symbol-signature"><SignatureText definition={symbol} /></span>
+                  {!isSelected && <span className="oi-symbol-selection">选择此函数</span>}
+                </button>
+                {isSelected && <button className="primary-action oi-symbol-configure" type="button" disabled={busy} onClick={() => navigate('change')}>配置变更</button>}
+              </div>;
+            })}
             {!visible.length && <div className="oi-symbol-empty" role="status"><h3>{symbols.length ? '没有匹配的函数' : '未发现可支持的模块级函数'}</h3><p>{symbols.length ? '调整完整函数标识 或文件名，列表只筛选本次读取返回的函数。' : '请查看解析诊断，确认 ZIP 中包含模块级函数。当前不能继续配置变更。'}</p><button className="ghost-action" type="button" onClick={symbols.length ? () => onQueryChange('') : () => navigate('upload')}>{symbols.length ? '清空搜索' : '返回上传项目'}</button></div>}
           </div>
-          <footer className="oi-symbol-actions"><span>{selected ? `已选择 ${selected.symbol_id}` : '请选择一个函数'}</span><button className="primary-action" type="button" disabled={!selected || busy} onClick={() => navigate('change')}>配置变更</button></footer>
+          <footer className="oi-symbol-actions"><span>{selected ? `已选择 ${selected.symbol_id}` : '请选择一个函数'}</span>{!visible.some(symbol => symbol.symbol_id === selected?.symbol_id) && <button className="primary-action" type="button" disabled={!selected || busy} onClick={() => navigate('change')}>配置变更</button>}</footer>
         </section>
         <aside className={`oi-symbol-preview${selected ? ' has-selection' : ''}`} aria-label="当前选择"><h2>当前选择</h2>{selected ? <><b>{selected.symbol_id}</b><p><code>{selected.file}:{selected.line}</code></p><span className="oi-field-caption">原始签名</span><SignatureText definition={selected} /><p>来自本次读取的结构化参数。修改后签名将在下一步交由后端校验。</p></> : <p>选择列表中的完整函数标识，查看原始签名。不同模块中的同名函数分别保留。</p>}</aside>
       </div>

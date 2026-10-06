@@ -106,6 +106,34 @@ test('empty project and search with no matches have separate recovery actions', 
   assert.ok(!html.includes('清空搜索'))
 })
 
+test('selected function has its own configure action without nesting interactive controls', () => {
+  const state = project()
+  let html = render(FunctionSelectView, state)
+  const selectedRow = html.match(/<div class="oi-symbol-row oi-function-row is-selected">(.*?)<\/div>/s)?.[1]
+  assert.ok(selectedRow?.includes('utils.format_date'))
+  assert.match(selectedRow, /<button[^>]*aria-pressed="true"/)
+  assert.match(selectedRow, /<button[^>]*class="primary-action oi-symbol-configure"[^>]*>配置变更<\/button>/)
+  for (const [, content] of html.matchAll(/<button\b[^>]*>(.*?)<\/button>/gs)) assert.doesNotMatch(content, /<button\b/)
+  assert.equal((html.match(/>配置变更<\/button>/g) || []).length, 1)
+  assert.doesNotMatch(html.match(/<footer class="oi-symbol-actions">(.*?)<\/footer>/s)[1], /<button/)
+  state.loading.analyze = true
+  html = render(FunctionSelectView, state)
+  assert.match(html, /<button[^>]*class="primary-action oi-symbol-configure"[^>]*disabled=""[^>]*>配置变更<\/button>/)
+})
+
+test('configure remains reachable if search hides the selection and disabled without a selection', () => {
+  const state = project()
+  let html = render(FunctionSelectView, state, { query: 'dashboard' })
+  const footer = html.match(/<footer class="oi-symbol-actions">(.*?)<\/footer>/s)[1]
+  assert.match(footer, /<button[^>]*>配置变更<\/button>/)
+  assert.doesNotMatch(footer, /disabled=""/)
+  assert.equal((html.match(/>配置变更<\/button>/g) || []).length, 1)
+  state.selectedSymbolId = null
+  html = render(FunctionSelectView, state)
+  assert.doesNotMatch(html, /oi-symbol-configure/)
+  assert.match(html, /<button[^>]*disabled=""[^>]*>配置变更<\/button>/)
+})
+
 test('unvalidated no-argument candidate is labelled as a draft and cannot enable Analyze', () => {
   const state = project()
   state.selectedSymbolId = 'page.page'

@@ -67,13 +67,17 @@
 .oi-symbol-search { display: grid; gap: var(--oi-space-2); padding: 0 var(--oi-space-6) var(--oi-space-6); font-size: var(--oi-text-xs); color: var(--oi-muted); }
 .oi-symbol-search input, .oi-change-form :is(input, select) { width: 100%; min-width: 0; min-height: var(--oi-control-height); padding: var(--oi-space-2) var(--oi-space-3); font: 400 var(--oi-text-body)/1.5 var(--oi-font-ui); color: var(--oi-ink); background: var(--oi-surface); border: 1px solid var(--oi-rule); border-radius: var(--oi-radius-control); }
 .oi-symbol-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--oi-space-1) var(--oi-space-4); width: 100%; min-height: 5.5rem; padding: var(--oi-space-4) var(--oi-space-6); background: transparent; color: var(--oi-ink); text-align: left; border: 0; border-top: 1px solid var(--oi-line); border-left: var(--oi-selection) solid transparent; cursor: pointer; }
-.oi-symbol-row > b { font: 500 var(--oi-text-body)/1.5 var(--oi-font-code); overflow-wrap: anywhere; }
+.oi-symbol-row > b, .oi-function-select > b { font: 500 var(--oi-text-body)/1.5 var(--oi-font-code); overflow-wrap: anywhere; }
 .oi-symbol-location { grid-column: 1 / -1; font: 400 var(--oi-text-xs)/1.5 var(--oi-font-code); color: var(--oi-muted); overflow-wrap: anywhere; }
 .oi-symbol-signature { grid-column: 1; color: var(--oi-muted); overflow-wrap: anywhere; }
 .oi-symbol-selection { grid-column: 2; grid-row: 2 / 4; align-self: center; font-size: var(--oi-text-xs); color: var(--oi-muted); }
 .oi-symbol-row:hover { background: var(--oi-soft); }
 .oi-symbol-row.is-selected { border-left-color: var(--oi-trace); background: var(--oi-trace-soft); }
 .oi-symbol-row.is-selected .oi-symbol-selection { color: var(--oi-trace); }
+.oi-symbol-row.oi-function-row { padding: 0; column-gap: 0; align-items: center; cursor: default; }
+.oi-function-select { display: grid; grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) auto; gap: var(--oi-space-1) var(--oi-space-4); min-width: 0; width: 100%; padding: var(--oi-space-4) var(--oi-space-6); border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.oi-function-row.is-selected > .oi-function-select { grid-column: 1; }
+.oi-symbol-configure { grid-column: 2; margin-right: var(--oi-space-6); }
 .oi-symbol-actions { display: flex; align-items: center; gap: var(--oi-space-4); justify-content: space-between; padding: var(--oi-space-4) var(--oi-space-6); border-top: 1px solid var(--oi-line); }
 .oi-symbol-actions > span { font-size: var(--oi-text-xs); color: var(--oi-muted); overflow-wrap: anywhere; }
 .oi-symbol-actions button { flex-shrink: 0; }
@@ -172,6 +176,8 @@
   .oi-symbol-search { padding: 0 var(--oi-space-4) var(--oi-space-4); }
   .oi-symbol-row { grid-template-columns: minmax(0, 1fr); gap: var(--oi-space-2); padding: var(--oi-space-4); }
   .oi-symbol-selection { grid-column: 1; grid-row: auto; }
+  .oi-function-select { grid-template-columns: minmax(0, 1fr); gap: var(--oi-space-2); padding: var(--oi-space-4); }
+  .oi-symbol-configure { grid-column: 1; margin: 0 var(--oi-space-4) var(--oi-space-4); }
   .oi-symbol-actions { display: grid; gap: var(--oi-space-3); padding: var(--oi-space-4); }
   .oi-change-workspace { grid-template-columns: minmax(0, 1fr); }
   .oi-change-form select { font-size: var(--oi-text-body); }
