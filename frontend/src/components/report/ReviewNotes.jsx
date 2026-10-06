@@ -1,5 +1,5 @@
 import { DiagnosticsList } from '../../pages/PageParts.jsx';
-import { entries, locationText, statusLabel, ruleLabel, reasonLabel } from './presentation.js';
+import { entries, locationText, statusLabel, ruleLabel } from './presentation.js';
 
 function Assessments({ title, items, manual, sectionRef }) {
   if (!items.length) return null;
@@ -26,19 +26,21 @@ export default function ReviewNotes({ report, sectionRefs }) {
     {!!calls.length && <section className="oi-review-section" ref={sectionRefs.unresolved} tabIndex={-1} aria-label="未解析调用详情">
       <header><h2>未能静态解析的调用</h2><span>{calls.length} 条记录</span></header>
       <p>未解析调用不作为确定影响或传播路径。这里只展示接口提供的语法事实及未解析原因。</p>
-      {calls.map((call, index) => <div className="diagnostic-item" key={index}><b>{locationText(call)}</b>
-        <span>调用表达式：<code>{call.expression || '未提供'}</code></span><span>原因：{reasonLabel(call.reason)}</span><details><summary>技术详情</summary><code>{call.reason}</code></details>
-      </div>)}
+      <DiagnosticsList diagnostics={{ unresolved_calls: calls }} />
     </section>}
   </div>;
 }
 
 export function ReportDiagnostics({ report }) {
-  const count = Object.values(report.diagnostics || {}).reduce((total, values) => total + entries(values).length, 0);
+  // Calls already have their own indexed section above; do not repeat thousands
+  // of the same records in the import/source diagnostics.
+  const diagnostics = Object.fromEntries(Object.entries(report.diagnostics || {}).filter(([category]) => category !== 'unresolved_calls'));
+  const count = Object.values(diagnostics).reduce((total, values) => total + entries(values).length, 0);
   return <details className="oi-report-diagnostics" open={count > 0 || report.coverage?.status === 'partial'}>
     <summary>诊断与分析范围 <span>{count} 条诊断记录</span></summary>
     <p>直接影响表示本次变更使原本兼容的调用变得不兼容。间接影响表示位于上游调用路径，建议检查；静态路径不保证运行时失败。</p>
     <p>覆盖模块：{report.coverage?.indexed_modules ?? '未提供'} · 覆盖函数：{report.coverage?.indexed_functions ?? '未提供'} · 解析失败文件：{report.coverage?.files_with_parse_errors ?? '未提供'}</p>
-    <DiagnosticsList diagnostics={report.diagnostics} />
+    {!!entries(report.diagnostics?.unresolved_calls).length && <p>未确认调用已在上方单独分组；下方为导入、源码与其他诊断。</p>}
+    <DiagnosticsList diagnostics={diagnostics} />
   </details>;
 }

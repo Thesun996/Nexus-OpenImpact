@@ -1,0 +1,11 @@
+.oi-diagnostic-groups { min-width: 0; }
+.oi-diagnostic-groups > p { color: var(--oi-muted); font-size: var(--oi-text-sm); max-width: 48rem; }
+.oi-diagnostic-group { border-top: 1px solid var(--oi-line); margin-top: var(--oi-space-3); min-width: 0; }
+.oi-diagnostic-group > summary { display: flex; align-items: center; gap: var(--oi-space-3); min-height: var(--oi-control-height); cursor: pointer; padding: var(--oi-space-2) 0; }
+.oi-diagnostic-group > summary > b { font-weight: 500; overflow-wrap: anywhere; }
+.oi-diagnostic-group > summary > span { margin-left: auto; flex-shrink: 0; color: var(--oi-muted); font-size: var(--oi-text-xs); }
+.oi-diagnostic-group > summary::after { content: '+'; color: var(--oi-trace); font-family: var(--oi-font-code); }
+.oi-diagnostic-group[open] > summary::after { content: '−'; }
+.oi-diagnostic-group > p { max-width: 48rem; font-size: var(--oi-text-sm); color: var(--oi-muted); }
+.oi-diagnostic-group > summary:focus-visible { outline: var(--oi-selection) solid var(--oi-trace); outline-offset: var(--oi-focus-offset); }
+.oi-diagnostic-groups .diagnostic-item code { overflow-wrap: anywhere; white-space: pre-wrap; }

@@ -68,3 +68,15 @@ partial 的可选 `coverage.details` 展示源码解析成功/总文件、已确
 专项新增 47 项后端测试覆盖来源位置、哈希、别名、遮蔽、类命名空间、定义顺序、同一行多匿名函数、四种变更、星号人工检查、既有问题与传播边界；两项网页渲染测试确保说明不伪造外层路径。旧“整体排除”测试改为明确支持结果并保留确定性防护。15个既有 Demo 使用相同字节比较，完整 JSON 逐字段不变。
 
 最终回归：Backend 1,038 passed、2 skipped、7 subtests passed；Frontend 220 passed；npm run build 通过。真实 rule HTTP 与浏览器的标准 A=1/1/1 complete、B=0/0/0 complete，类体/匿名专项=2/0/0 complete，Boltons cachedmethod=3/0/0 partial；切换 Evidence 与解释同步，更换项目/目标后无旧统计或选择残留。Boltons 从第310行切至318行时展示各自真实装饰器源码，原“另有63个调用”排除提示消失，未确认调用及 partial 提示继续保留，浏览器无控制台错误。浏览器采用当前工作树的 Vite 生产预览及 /api 代理，开发热更新页面在内置验收浏览器中未加载，故未将其记为通过。Windows 系统级 reduced-motion 与独立 Benchmark 继续 pending。
+
+## 诊断原因分类（2026-10-06）
+
+网页共享诊断面板按真实 reason/code 分类，不修改 Core、API、报告 schema、状态、请求或覆盖计算。分类为：源码与分析范围、绑定歧义与名称遮蔽、对象属性与动态调用、已识别的项目外或内置目标、目标未确认（可能含项目外依赖）、其他诊断；没有记录的类别不显示。每组保留原有数量、源码位置、表达式、本地绑定名称及原始技术详情，提供检查说明。未知原因不会被丢弃或认定为无影响，同一位置的不同记录不自动合并。
+
+`module_not_in_project`、`import_binding_unresolved`、`name_not_indexed` 不足以证明某条记录属于标准库或第三方依赖，即使名字看起来熟悉，仍归入“目标未确认”。只有已有记录明确提供内置目标依据（如 `builtin`）才进入已识别类别。本轮不猜测候选目标，也不宣称已确定记录与当前变更的关联；分类不减少漏检风险，不把 partial 改成 complete。
+
+项目诊断采用原生 details/summary 展开，保留键盘操作、可见焦点和至少44px点击区域，不新增动效或依赖。源码解析错误默认展开；Validate/错误消息数组保持直接可见。函数报告的未确认调用在独立区域分组，下方诊断不再重复同一调用列表，其计数只包含该处实际展示的其他诊断；Core 原始统计不变。模块和符号页面复用相同分类展示，不改变 Evidence/Explanation 匹配。
+
+真实冻结 Boltons 的 human_readable_list 参数 delimiter → separator 经上传、Inspect、Validate、Analyze 后仍6/0/0、partial。5,809条未确认调用完整分布：源码与分析范围237、绑定歧义2,603、对象属性与动态调用371、目标未确认2,598；另297条未确认导入单独展示。全部为程序诊断数量，不是失败数、漏检数或准确率。
+
+验收：新增8项前端测试，完整Frontend 228 passed、check/build通过；Backend 1,038 passed、2 skipped、7 subtests passed，保留现有Starlette弃用提示。真实rule后端与当前工作树Vite /api代理浏览器标准A=1/1/1 complete、B=0/0/0 complete；从Boltons切换至标准项目及零影响后，无旧诊断、证据、解释残留。1440/768/390px无页面横向溢出；键盘Enter展开/关闭、手机点击、焦点和完整位置可读取，控制台无错误。未触发真实DeepSeek。截图仅保存在忽略目录.local，Windows系统级reduced-motion与独立Benchmark仍pending。

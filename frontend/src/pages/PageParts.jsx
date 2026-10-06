@@ -1,6 +1,8 @@
 import SharedWorkflowSteps from '../components/WorkflowSteps.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import { diagnosticLabel, reasonLabel } from '../presentation/labels.js';
+import { diagnosticEntries, groupDiagnostics } from '../presentation/diagnostics.js';
+import '../presentation/diagnostics.css';
 
 export function WorkflowSteps({ current }) {
   return <SharedWorkflowSteps page={['upload', 'functions', 'change', 'report'][current - 1]} />;
@@ -55,23 +57,33 @@ export function CoverageDetails({ coverage }) {
   </>;
 }
 
-export function DiagnosticsList({ diagnostics, showEmptyState = true }) {
-  const entries = Array.isArray(diagnostics)
-    ? diagnostics.map((entry) => ({ category: 'diagnostic', entry }))
-    : Object.entries(diagnostics || {}).flatMap(([category, values]) =>
-      Array.isArray(values) ? values.map((entry) => ({ category, entry })) : []);
+function DiagnosticItem({ category, detail }) {
+  return <div className="diagnostic-item">
+    <b>{diagnosticLabel(detail.code || detail.kind || category)}{detail.file ? ` · ${detail.file}${detail.line != null ? `:${detail.line}` : ''}${detail.column != null ? `:${detail.column}` : ''}` : ''}</b>
+    <span>{reasonLabel(detail.reason || detail.message)}</span>
+    {detail.expression && <span>调用或引用表达式：<code>{detail.expression}</code></span>}
+    {detail.import_expression && <code>{detail.import_expression}</code>}
+    {detail.local_name && <span>本地绑定名称：<code>{detail.local_name}</code></span>}
+    <details><summary>技术详情</summary><p><code>{JSON.stringify(detail)}</code></p></details>
+  </div>;
+}
+
+export function DiagnosticsList({ diagnostics, showEmptyState = true, grouped = !Array.isArray(diagnostics) }) {
+  const entries = diagnosticEntries(diagnostics);
   if (!entries.length) return showEmptyState ? <p>未发现诊断项。</p> : null;
-  return entries.map(({ category, entry }, index) => {
-    const detail = typeof entry === 'object' && entry !== null ? entry : { message: String(entry) };
-    return (
-      <div className="diagnostic-item" key={`${category}-${index}`}>
-        <b>{diagnosticLabel(detail.code || detail.kind || category)}{detail.file ? ` · ${detail.file}${detail.line != null ? `:${detail.line}` : ''}${detail.column != null ? `:${detail.column}` : ''}` : ''}</b>
-        <span>{reasonLabel(detail.reason || detail.message)}</span>
-        {detail.import_expression && <code>{detail.import_expression}</code>}
-        <details><summary>技术详情</summary><p><code>{JSON.stringify(detail)}</code></p></details>
-      </div>
-    );
-  });
+  const renderEntries = items => items.map((item, index) => <DiagnosticItem {...item} key={`${item.category}-${index}`} />);
+  // Validation/error arrays remain immediately visible. Project diagnostics
+  // use native disclosures: no animation or keyboard interaction dependency.
+  if (!grouped) return renderEntries(entries);
+  return <div className="oi-diagnostic-groups">
+    <p>按未确认原因分组，展开查看位置与检查说明。分组不改变影响数量或覆盖结论，也不代表这些记录都与本次变更有关。</p>
+    {groupDiagnostics(entries).map(group => <details className="oi-diagnostic-group" key={group.id}
+      open={group.entries.some(({ category, detail }) => ['parse_errors', 'parse_diagnostics', 'syntax_diagnostics'].includes(category)
+        || ['syntax_error', 'SyntaxError', 'read_error', 'encoding_error'].includes(detail.kind || detail.code))}>
+      <summary><b>{group.title}</b><span>{group.entries.length} 条记录</span></summary>
+      <p>{group.description}</p>{renderEntries(group.entries)}
+    </details>)}
+  </div>;
 }
 
 export function EmptyWorkflow({ title, message, navigate }) {
