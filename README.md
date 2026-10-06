@@ -1,5 +1,7 @@
 # Nexus OpenImpact
 
+当前完成内容、验收记录、能力边界与待办见 [现阶段项目报告（2026-10-06）](docs/project-status.md)。
+
 网页已增加报告追问和只读项目源码目录：可从影响证据或回答引用打开完整 Python 文件并定位行号。追问依据当前变更报告，模型不可用时明确使用规则回答。详见 [报告工作台](docs/report-workspace.md)。后端与前端启动方式保持原流程。
 
 普通包支持已扩展：网页可显式选择源码根目录，支持普通包的静态相对导入。src 布局填写 `src`；默认 `.` 保留旧流程。详见 [使用方式与边界](docs/package-imports.md) 和 [包项目 Demo](examples/package_signature_change/README.md)。
@@ -40,12 +42,11 @@ OpenImpact 希望通过 AI 与静态分析结合，
 
 当前阶段：
 
-当前独立集成成果支持三个领域、八种变更：四种函数签名变更、模块重命名/删除、公开模块级变量或常量重命名/删除。CLI、ZIP Inspect / Validate / Analyze 与 Tracework React 均可使用。三个领域分别保持签名兼容性、静态导入绑定、静态符号引用的判定依据；上游传播只建议检查。V1.1 / V1.2 成果尚待负责人最终审核，未合并 main。详见 [两轮交付报告](docs/v1.1-v1.2-delivery.md)、[模块契约](docs/module-changes.md) 和 [符号契约](docs/symbol-changes.md)。
+main 已集成三个领域、八种变更：四种函数签名变更、模块重命名/删除、公开模块级变量或常量重命名/删除。CLI、ZIP Inspect / Validate / Analyze 与 Tracework React 均可使用。三个领域分别保持签名兼容性、静态导入绑定、静态符号引用的判定依据；上游传播只建议检查。后续已补充普通包路径、更多调用作用域、源码阅读、报告追问、测试定位与黑紫登录体验。最新验收和剩余限制见 [现阶段项目报告](docs/project-status.md)；历史阶段记录见 [两轮交付报告](docs/v1.1-v1.2-delivery.md)。
 
 目标：
 
-完成项目基础结构搭建，
-并逐步实现 Python 代码变更影响分析能力。
+完成独立人工标注与效果评价、原生 reduced-motion 补验，并按真实项目证据改进当前支持范围。已有功能验收不代表完整 Python 语义覆盖或独立准确率达标。
 
 ---
 
