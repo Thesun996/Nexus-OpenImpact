@@ -4,6 +4,8 @@
 
 普通包支持已扩展：网页可显式选择源码根目录，支持普通包的静态相对导入。src 布局填写 `src`；默认 `.` 保留旧流程。详见 [使用方式与边界](docs/package-imports.md) 和 [包项目 Demo](examples/package_signature_change/README.md)。
 
+调用覆盖已补齐：类方法与嵌套函数中的明确模块级函数引用进入签名检查；报告分别展示源码解析、已确认调用和未确认调用数量，保留 partial 的真实边界。详见 [覆盖修订与 Boltons 实测](docs/call-coverage.md)。
+
 ## AI 驱动的代码变更影响分析助手
 
 ---

@@ -173,7 +173,7 @@ class CallGraphTests(unittest.TestCase):
             ["callee_module_name_rebound", "callee_module_name_rebound"],
         )
 
-    def test_parser_excludes_nested_and_class_method_calls(self):
+    def test_nested_and_method_scopes_resolve_only_the_known_module_function(self):
         self.source(
             "work.py",
             "def target():\n    pass\n"
@@ -181,7 +181,10 @@ class CallGraphTests(unittest.TestCase):
             "    def nested():\n        target()\n"
             "class C:\n    def method(self):\n        target()\n",
         )
-        self.assertEqual(self.graph().edges, set())
+        graph = self.graph()
+        self.assertEqual({(e.caller_symbol_id, e.callee_symbol_id) for e in graph.edges},
+            {('work.outer.<locals>.nested', 'work.target'), ('work.C.method', 'work.target')})
+        self.assertEqual(set(graph.index.symbols), {'work.target', 'work.outer'})
 
 
 if __name__ == "__main__":

@@ -50,6 +50,7 @@ class SymbolIndex:
         self.analysis_root = validate_analysis_root(self.scanner.project_path, analysis_root)
         self.modules: dict[str, Path] = {}
         self.symbols: dict[str, Symbol] = {}
+        self.callers: dict[str, Symbol] = {}
         self.bindings: dict[str, dict[str, ImportBinding]] = {}
         self.parsed_modules: dict[str, ParsedModule] = {}
         self.parsed_files: dict[Path, ParsedModule] = {}
@@ -60,6 +61,7 @@ class SymbolIndex:
     def build(self) -> "SymbolIndex":
         self.modules.clear()
         self.symbols.clear()
+        self.callers.clear()
         self.bindings.clear()
         self.parsed_modules.clear()
         self.parsed_files.clear()
@@ -99,6 +101,13 @@ class SymbolIndex:
                     symbol_id, module, function.name, relative_path, function
                 )
 
+            callers = parsed.caller_definitions or parsed.functions
+            caller_counts = Counter(function.name for function in callers)
+            for function in callers:
+                if caller_counts[function.name] == 1:
+                    symbol_id = f'{module}.{function.name}'
+                    self.callers[symbol_id] = Symbol(symbol_id, module, function.name, relative_path, function)
+
         for module, relative_path in self.modules.items():
             parsed = parsed_by_path[relative_path]
             self.bindings[module] = {}
@@ -118,7 +127,7 @@ class SymbolIndex:
         return module_name(relative_path, self.analysis_root)
 
     def unsupported_scope_diagnostics(self) -> list[dict]:
-        labels = {"class_body": "类及类方法", "nested_function": "嵌套函数", "lambda": "匿名函数"}
+        labels = {"class_body": "类定义体", "nested_function": "嵌套函数", "lambda": "匿名函数"}
         return [
             {"code": "unsupported_call_scope", "file": file.as_posix(),
              "line": scope.line, "column": scope.column, "scope": scope.scope,

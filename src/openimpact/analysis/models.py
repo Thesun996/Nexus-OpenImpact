@@ -50,7 +50,7 @@ class ImportReference:
 
 @dataclass(frozen=True)
 class FunctionCall:
-    """A call in module scope or a module-level function; callee stays unbound."""
+    """A call in module or named function scope; callee stays unbound."""
 
     file: Path
     lineno: int
@@ -134,3 +134,6 @@ class ParsedModule:
     symbol_diagnostics: tuple = ()
     symbol_binding_counts: tuple[tuple[str, int], ...] = ()
     unsupported_call_scopes: tuple[UnsupportedCallScope, ...] = ()
+    # These are callers only: methods/nested definitions are not change targets.
+    caller_definitions: tuple[FunctionDefinition, ...] = ()
+    attribute_rebindings: frozenset[tuple[str, ...]] = frozenset()

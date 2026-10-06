@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from openimpact.analysis.call_graph import CallEdge
+from openimpact.analysis.coverage import coverage_details
 from openimpact.analysis.change_file import change_spec_from_dict
 from openimpact.analysis.change_spec import ChangeSpec
 from openimpact.analysis.direct_impact import ImpactFinding
@@ -237,6 +238,7 @@ def build_report(
         },
         "coverage": {
             "status": "partial" if partial else "complete",
+            **({'details': coverage_details(run.index, run.graph)} if partial else {}),
             "indexed_modules": len(run.index.modules),
             "indexed_functions": len(run.index.symbols),
             "files_with_parse_errors": len(run.index.parse_diagnostics),

@@ -211,6 +211,7 @@ def _result(
          "parse_status": "error" if path in index.parse_diagnostics else "ok"}
         for module, path in sorted(index.modules.items())
     ]
+    from openimpact.analysis.coverage import coverage_details
     unsupported_scopes = index.unsupported_scope_diagnostics()
     partial = bool(parse_errors or unresolved_imports or unsupported_scopes or index.ambiguous_modules
                    or index.ambiguous_symbols)
@@ -231,6 +232,7 @@ def _result(
         "symbols": symbols,
         "coverage": {
             "status": "partial" if partial else "complete",
+            **({'details': coverage_details(index)} if partial else {}),
             "python_files": source_count,
             "indexed_modules": len(index.modules),
             "indexed_functions": len(index.symbols),

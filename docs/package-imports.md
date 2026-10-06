@@ -1,6 +1,6 @@
 # 普通 Python 包与显式源码根目录
 
-本轮补齐真实项目静态包路径，不扩大类方法、运行时导入或模块/变量变更范围。兼容性判断仍使用真实 Before/After 签名，上游传播复用原调用图算法。
+普通包静态路径支持保留。后续覆盖修订已纳入类方法及嵌套函数中对明确模块级函数的引用，但没有增加方法/嵌套函数变更目标，也不推断对象方法分派；详见 [调用覆盖](call-coverage.md)。兼容性判断仍使用真实 Before/After 签名，上游传播复用原调用图算法。
 
 ## 操作
 
@@ -23,7 +23,9 @@ CLI 可选 `--analysis-root src`；省略保留旧项目根映射。示例见 [p
 | tests 位于 src 之外 | 保留项目相对模块标识与文件位置，可明确导入 src 包 |
 | namespace 相对导入 | unresolved，不推断运行环境 |
 | 包初始化重导出、复杂副作用、搜索路径动态写入 | 不追踪重导出；已识别搜索路径重绑定时拒绝绑定 |
-| 类、嵌套函数、lambda 内调用 | 不生成函数调用边；返回排除作用域诊断、partial |
+| 类方法、嵌套函数内明确调用项目模块级函数 | 记录限定调用方，核对局部/闭包遮蔽后解析；不解析 self 方法分派 |
+| 显式 `import pkg.utils` 后的 `pkg.utils.f()` | 核对项目模块、显式 import 和已知属性重绑定后解析；仅 import pkg 不足以证明子模块暴露 |
+| 类定义体、lambda 内调用 | 仍返回排除作用域诊断、partial |
 | 外部依赖、动态导入、函数对象转发、复杂属性链 | 保留 unresolved / conservative 边界 |
 | Module / Symbol 变更目标 | 仍仅支持项目根普通文件，src 内嵌套文件不可选 |
 
@@ -43,7 +45,7 @@ CLI 可选 `--analysis-root src`；省略保留旧项目根映射。示例见 [p
 
 有未支持调用作用域时，Inspect 和函数 Report 追加 `diagnostics.unsupported_scopes[]`：项目相对 file、line、column、scope、name、excluded_call_count、中文 message。这些区域不计入 Direct 或 manual_review 调用数；它们是范围缺口，coverage=partial。无记录时省略该字段。排除调用计数不等于目标的实际漏报数量。
 
-## 真实项目复验
+## 真实项目复验（包路径支持时的历史快照）
 
 固定 python-dotenv v1.1.1、commit `16e660d384b942b11879b44500afbbe021650448`，只读取 19 个 Python 文件。
 
@@ -60,4 +62,4 @@ python scripts/audit_python_dotenv.py .local/real-project-audit/python-dotenv-v1
 | dotenv.main.find_dotenv | 2 / 3 / 0 | partial |
 | dotenv.main.load_dotenv | 0 / 0 / 0 | partial，公开重导出尚未解析 |
 
-parse_stream 的确定调用在 main.py:185、main.py:218、tests/test_parser.py:169。DotEnv.parse 方法调用仍明确排除。全部证据哈希正确；HTTP 与本地一致；10 个临时目录清理；错误指纹 409；嵌套 Module 操作 422。
+当时 parse_stream 的确定调用在 main.py:185、main.py:218、tests/test_parser.py:169；当时 DotEnv.parse 方法调用被排除。此处保留历史观察，不代表当前修订后的数量。全部证据哈希正确；HTTP 与本地一致；10 个临时目录清理；错误指纹 409；嵌套 Module 操作 422。

@@ -84,15 +84,22 @@ class _BoundNames(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         self.names.add(node.name)
+        for expression in (*node.decorator_list, *node.args.defaults, *node.args.kw_defaults):
+            if expression is not None:
+                self.visit(expression)
         # A nested body has a different scope.
 
     visit_AsyncFunctionDef = visit_FunctionDef
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         self.names.add(node.name)
+        for expression in (*node.decorator_list, *node.bases, *(k.value for k in node.keywords)):
+            self.visit(expression)
 
     def visit_Lambda(self, node: ast.Lambda) -> None:
-        pass
+        for expression in (*node.args.defaults, *node.args.kw_defaults):
+            if expression is not None:
+                self.visit(expression)
 
     def visit_Import(self, node: ast.Import) -> None:
         self.names.update(alias.asname or alias.name.split(".")[0] for alias in node.names)
@@ -105,6 +112,25 @@ class _BoundNames(ast.NodeVisitor):
 
     def visit_Nonlocal(self, node: ast.Nonlocal) -> None:
         self.names.update(node.names)
+
+    def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
+        if node.name:
+            self.names.add(node.name)
+        self.generic_visit(node)
+
+    def visit_MatchAs(self, node: ast.MatchAs) -> None:
+        if node.name:
+            self.names.add(node.name)
+        self.generic_visit(node)
+
+    def visit_MatchStar(self, node: ast.MatchStar) -> None:
+        if node.name:
+            self.names.add(node.name)
+
+    def visit_MatchMapping(self, node: ast.MatchMapping) -> None:
+        if node.rest:
+            self.names.add(node.rest)
+        self.generic_visit(node)
 
 
 def _bound_names(statements: list[ast.stmt]) -> frozenset[str]:
@@ -121,6 +147,10 @@ class _CallCollector(ast.NodeVisitor):
         self.calls: list[FunctionCall] = []
         self.enclosing_function: str | None = None
         self.unsupported_scopes: list[UnsupportedCallScope] = []
+        self.caller_definitions: list[FunctionDefinition] = []
+        self.scope_kind = 'module'
+        self.scope_name = ''
+        self.lexical_bindings: frozenset[str] = frozenset()
 
     def _excluded(self, node: ast.AST, scope: str, bodies: list[ast.AST]) -> None:
         count = sum(isinstance(child, ast.Call) for body in bodies for child in ast.walk(body))
@@ -136,22 +166,42 @@ class _CallCollector(ast.NodeVisitor):
         for expression in node.args.kw_defaults:
             if expression is not None:
                 self.visit(expression)
-        if self.enclosing_function is not None:
-            self._excluded(node, "nested_function", node.body)
-            return  # Nested function body is outside the supported scope.
-        self.enclosing_function = node.name
+        previous = (self.enclosing_function, self.scope_kind, self.scope_name, self.lexical_bindings)
+        qualified = (f'{self.scope_name}.<locals>.{node.name}' if self.scope_kind == 'function'
+                     else f'{self.scope_name}.{node.name}' if self.scope_kind == 'class' else node.name)
+        parameters = _parameters(node.args)
+        bindings = self.lexical_bindings | _bound_names(node.body) | frozenset(
+            parameter.name for parameter in parameters)
+        if self.scope_kind == 'class':
+            bindings |= frozenset({'__class__'})  # Compiler-provided method closure.
+        bindings |= frozenset(p.name for p in getattr(node, 'type_params', ()))
+        self.caller_definitions.append(FunctionDefinition(
+            qualified, node.lineno, getattr(node, 'end_lineno', None), parameters,
+            isinstance(node, ast.AsyncFunctionDef), bindings,
+            ast.unparse(node.returns) if node.returns is not None else None))
+        self.enclosing_function = self.scope_name = qualified
+        self.scope_kind = 'function'
+        self.lexical_bindings = bindings
         for statement in node.body:
             self.visit(statement)
-        self.enclosing_function = None
+        self.enclosing_function, self.scope_kind, self.scope_name, self.lexical_bindings = previous
 
     visit_AsyncFunctionDef = visit_FunctionDef
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
-        # Class methods and class body calls are outside this release's scope.
-        self._excluded(node, "class_body", node.body)
-        if self.enclosing_function is None:
-            for expression in (*node.decorator_list, *node.bases):
-                self.visit(expression)
+        for expression in (*node.decorator_list, *node.bases, *(k.value for k in node.keywords)):
+            self.visit(expression)
+        previous = (self.enclosing_function, self.scope_kind, self.scope_name, self.lexical_bindings)
+        self.scope_name = (f'{self.scope_name}.<locals>.{node.name}' if self.scope_kind == 'function'
+                           else f'{self.scope_name}.{node.name}' if self.scope_name else node.name)
+        self.scope_kind = 'class'
+        self.enclosing_function = None
+        self.lexical_bindings |= frozenset(p.name for p in getattr(node, 'type_params', ()))
+        # Class attributes are not a lexical closure for methods. Retain outer
+        # function bindings, but do not add the class namespace to method lookup.
+        for statement in node.body:
+            self.visit(statement)
+        self.enclosing_function, self.scope_kind, self.scope_name, self.lexical_bindings = previous
 
     def visit_Lambda(self, node: ast.Lambda) -> None:
         # A lambda body has its own scope; defaults evaluate in the parent scope.
@@ -161,6 +211,11 @@ class _CallCollector(ast.NodeVisitor):
         self._excluded(node, "lambda", [node.body])
 
     def visit_Call(self, node: ast.Call) -> None:
+        if self.scope_kind == 'class':
+            self.unsupported_scopes.append(UnsupportedCallScope(
+                'class_body', self.scope_name, node.lineno, node.col_offset, 1))
+            self.generic_visit(node)
+            return
         expression_type, callee_path = _callee_syntax(node.func)
         self.calls.append(
             FunctionCall(
@@ -280,4 +335,10 @@ class ASTParser:
             symbol_diagnostics=symbol_diagnostics,
             symbol_binding_counts=symbol_binding_counts,
             unsupported_call_scopes=tuple(collector.unsupported_scopes),
+            caller_definitions=tuple(collector.caller_definitions),
+            attribute_rebindings=frozenset(
+                path for node in ast.walk(tree)
+                if isinstance(node, ast.Attribute) and isinstance(node.ctx, (ast.Store, ast.Del))
+                if (path := _callee_syntax(node)[1]) is not None
+            ),
         )

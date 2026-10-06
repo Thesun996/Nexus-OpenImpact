@@ -1,5 +1,11 @@
 # Nexus OpenImpact API 契约
 
+## 调用覆盖的兼容追加
+
+函数签名分析增加类方法和嵌套函数中的明确模块级函数引用；Inspect 的可选函数仍为原模块级目标。调用方标识可包含 `Class.method` 或 `outer.<locals>.inner`，必须按报告原值显示，不能据此推断对象分派。旧路径、请求、schema_version、指纹与 Evidence 顺序不变。
+
+partial 时 Inspect / Validate / 函数 Analyze 的 `coverage` 可追加 `details`：`python_files`、`parsed_python_files`、`named_caller_count`、`excluded_call_count`；Analyze 另有 `resolved_call_count` 和 `unresolved_call_count`。均为非负整数。文件数为 Scanner 范围内的 Python 源码；调用数为静态记录，不能转换为本次变更的准确率或漏检数。缺省时沿用旧提示，complete 响应不增加这些字段。Module / Symbol 报告保持原契约。详见 [调用覆盖](call-coverage.md)。
+
 ## 解释文字的兼容增强
 
 报告版本、公开字段和 Evidence 保持不变。解释层读取既有路径上下文，生成按真实位置排序的检查建议；上下文不作为新的公开字段。`why_affected` 和 `suggested_check` 允许换行，前端应安全按文本呈现，不能解析文字决定影响。证据不可用时解释为 `null`。详见 [检查建议](explanation-check-guidance.md)。

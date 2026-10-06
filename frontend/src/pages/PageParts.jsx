@@ -36,8 +36,23 @@ export function CoverageNotice({ coverage }) {
   return (
     <section className="state-message" role="alert">
       <b>分析范围不完整。</b> {coverage.message || '部分源码或调用未解析，当前结果只覆盖能够确认的代码。'} 零条影响也不表示整个项目确定无影响；已经确定的影响仍可查看。
+      <CoverageDetails coverage={coverage} />
     </section>
   );
+}
+
+export function CoverageDetails({ coverage }) {
+  const details = coverage?.details;
+  if (!details) return null;
+  const count = (value) => Number.isSafeInteger(value) && value >= 0;
+  return <>
+    {count(details.parsed_python_files) && count(details.python_files) &&
+      <p>源码解析：{details.parsed_python_files} / {details.python_files} 个 Python 文件成功解析。源码解析成功不代表所有调用关系均已确认。</p>}
+    {count(details.resolved_call_count) && count(details.unresolved_call_count) &&
+      <p>调用关系：已确认 {details.resolved_call_count} 处，尚未确认 {details.unresolved_call_count} 处。未确认的记录包含外部依赖、对象方法与动态调用，数量不等于本次变更的漏检数。</p>}
+    {count(details.excluded_call_count) && details.excluded_call_count > 0 &&
+      <p>另有 {details.excluded_call_count} 个调用处于暂未支持的作用域，请查看下方诊断。类方法与嵌套函数中对明确模块级函数的调用已纳入检查。</p>}
+  </>;
 }
 
 export function DiagnosticsList({ diagnostics, showEmptyState = true }) {

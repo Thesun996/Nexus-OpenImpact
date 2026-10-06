@@ -52,7 +52,7 @@ class CallGraph:
                 reason: str | None = None
                 if caller_id is None:
                     reason = "module_level_call"
-                elif caller_id not in self.index.symbols:
+                elif caller_id not in self.index.callers:
                     reason = "caller_not_indexed"
                 else:
                     callee_id, basis, reason = self._resolve(module, caller_id, call)
@@ -77,16 +77,33 @@ class CallGraph:
         if call.callee_path is None:
             return None, None, "unsupported_callee_expression"
         path = call.callee_path
-        if len(path) > 2:
-            return None, None, "attribute_chain_unsupported"
         root = path[0]
-        definition = self.index.symbols[caller_id].definition
+        definition = self.index.callers[caller_id].definition
         if root in definition.local_bindings or any(
             parameter.name == root for parameter in definition.parameters
         ):
             return None, None, "local_name_shadows_target"
         if root in self.index.parsed_modules[module].module_rebindings:
             return None, None, "module_name_rebound"
+
+        if len(path) > 2:
+            binding = self.index.bindings[module].get(root)
+            if binding is None or binding.status != 'resolved' or binding.kind != 'module':
+                return None, None, 'attribute_chain_unsupported'
+            target_module = '.'.join((binding.target_module, *path[1:-1]))
+            # An uploaded child file alone does not prove pkg.child is exposed.
+            # Only an explicit dotted import proves this supported attribute chain.
+            explicit = any(item.import_type == 'import' and item.alias is None
+                and (item.module == target_module or item.module.startswith(target_module + '.'))
+                for item in self.index.parsed_modules[module].imports)
+            target = f'{target_module}.{path[-1]}'
+            if explicit and not self.index._module_reason(target_module) and target in self.index.symbols:
+                if self._dotted_path_is_rebound(module, binding.target_module, path):
+                    return None, None, 'attribute_chain_unsupported'
+                if self._callee_is_rebound(target):
+                    return None, None, 'callee_module_name_rebound'
+                return target, 'module_import', None
+            return None, None, 'attribute_chain_unsupported'
 
         binding = self.index.bindings[module].get(root)
         if len(path) == 1:
@@ -117,6 +134,17 @@ class CallGraph:
                 return None, None, "callee_module_name_rebound"
             return target, "module_import", None
         return None, None, "attribute_target_not_indexed"
+
+    def _dotted_path_is_rebound(self, module: str, root_module: str, path: tuple[str, ...]) -> bool:
+        parsed = self.index.parsed_modules[module]
+        if any(path[:len(written)] == written for written in parsed.attribute_rebindings):
+            return True
+        parts = (root_module, *path[1:-1])
+        for depth in range(1, len(parts)):
+            parent = self.index.parsed_modules.get('.'.join(parts[:depth]))
+            if parent is not None and parts[depth] in parent.module_rebindings:
+                return True
+        return False
 
     def _callee_is_rebound(self, symbol_id: str) -> bool:
         symbol = self.index.symbols[symbol_id]

@@ -143,16 +143,19 @@ def test_other_domains_keep_flat_root_scope_and_return_the_selected_layout(clien
     assert "openimpact-zip-" not in json.dumps(report)
 
 
-def test_method_calls_are_visible_as_excluded_scope_not_definite_impact(client):
+def test_method_reference_to_a_relative_import_has_real_direct_evidence(client):
     sources = {**SOURCES, "src/pkg/method.py": "from .utils import f\nclass Example:\n    def method(self):\n        return f(1)\n"}
     response = client.post("/api/v1/projects/analyze", files={"file": ("project.zip", packed(sources))},
                            data={"analysis_root": "src", "change": json.dumps(CHANGE)})
     assert response.status_code == 200
     report = response.json()
-    assert report["summary"]["direct_impact_count"] == 1
-    assert report["coverage"]["status"] == "partial"
-    scope = report["diagnostics"]["unsupported_scopes"][0]
-    assert scope["file"] == "src/pkg/method.py" and scope["excluded_call_count"] == 1
+    assert report["summary"]["direct_impact_count"] == 2
+    assert report["coverage"]["status"] == "complete"
+    assert 'unsupported_scopes' not in report['diagnostics']
+    method = next(f for f in report['direct_impacts'] if f['caller_symbol_id'] == 'pkg.method.Example.method')
+    assert method['file'] == 'src/pkg/method.py' and method['line'] == 4
+    evidence = next(e for e in report['evidences'] if e['location']['file'] == method['file'])
+    assert evidence['status'] == 'available' and 'return f(1)' in evidence['source_snippet']
 
 
 def test_cli_explicit_root_uses_same_signature_and_safe_error(client, tmp_path, monkeypatch):

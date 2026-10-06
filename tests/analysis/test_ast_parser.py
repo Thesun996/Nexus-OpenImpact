@@ -97,7 +97,7 @@ class ASTParserTests(unittest.TestCase):
         )
         self.assertEqual([item.module for item in result.imports], ["top_level"])
 
-    def test_calls_are_locations_only_and_methods_are_out_of_scope(self):
+    def test_calls_preserve_named_scope_locations_without_resolving_targets(self):
         result = self.parse(
             "started()\n"
             "from utils import format_date\n"
@@ -113,10 +113,13 @@ class ASTParserTests(unittest.TestCase):
         )
         self.assertEqual(
             [(item.expression, item.lineno, item.enclosing_function) for item in result.calls],
-            [("started", 1, None), ("format_date", 4, "report"), ("report", 8, "wrapper")],
+            [("started", 1, None), ("format_date", 4, "report"),
+             ("hidden", 7, "wrapper.<locals>.nested"), ("report", 8, "wrapper"),
+             ("hidden_method", 11, "C.method")],
         )
+        self.assertEqual([f.name for f in result.functions], ['report', 'wrapper'])
 
-    def test_unsupported_scopes_do_not_enter_supported_calls(self):
+    def test_nested_and_method_callers_have_distinct_qualified_names(self):
         result = self.parse(
             "def outer():\n"
             "    def inner():\n"
@@ -128,8 +131,10 @@ class ASTParserTests(unittest.TestCase):
         )
         self.assertEqual(
             [(call.expression, call.enclosing_function) for call in result.calls],
-            [("direct_call", "outer")],
+            [("nested_call", "outer.<locals>.inner"), ("direct_call", "outer"),
+             ("method_call", "Example.method")],
         )
+        self.assertEqual(result.unsupported_call_scopes, ())
 
     def test_direct_attribute_and_aliased_calls_keep_argument_shapes(self):
         result = self.parse(

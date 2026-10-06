@@ -31,7 +31,7 @@
 命名采用 [pytest 官方默认发现规则](https://docs.pytest.org/en/stable/explanation/goodpractices.html#conventions-for-python-test-discovery) 的模块级函数子集：文件名为 `test_*.py` / `*_test.py`，函数名以 `test` 开头。这只是静态候选筛选；项目可能改变配置、忽略函数、使用插件或跳过标记。
 
 - 只从确定 Direct 来源及原两层上游结果生成候选；manual_review、unresolved、pre-existing 和 compatibility_improved 不作为来源。名字相似、目录相同不构成关联依据。
-- 不扩大类方法、fixture、动态调用或重导出解析；不处理自定义测试框架与运行参数，不执行配置文件、conftest.py 或装饰器。源码中的条件和测试标记可能改变执行路径。
+- 测试候选仍只筛选模块级测试函数，尚未增加测试类候选；后续调用覆盖修订可在影响列表中记录类方法中的明确模块级函数调用，但不会因此自动生成 pytest 类方法 node_id。不处理 fixture 分派、自定义框架与运行参数，不执行配置文件、conftest.py 或装饰器。源码中的条件和测试标记可能改变执行路径。
 - 原图之外、更深的测试和业务断言不会被穷尽；上游关联不保证测试执行到该位置。partial 下定位也不完整。
 - 原始报告不含测试字段、空候选或所有建议测试通过，都不能证明项目无需测试或改动安全。当前功能没有独立的测试推荐准确率或召回率评测。
 - 默认 DeepSeek Prompt 不接收这些候选作为新的事实；报告追问仍只引用原 Evidence。以后如加入模型解释，应先补齐候选引用契约，不允许模型编造测试。
