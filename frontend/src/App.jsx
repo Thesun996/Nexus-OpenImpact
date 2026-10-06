@@ -8,6 +8,7 @@ import FunctionSelectPage from './pages/FunctionSelectPage.jsx'
 import ChangePage from './pages/ChangePage.jsx'
 import ReportPage from './pages/ReportPage.jsx'
 import PlannedPage from './pages/PlannedPage.jsx'
+import EntryGate from './components/entry/EntryGate.jsx'
 
 const pages = { upload: UploadPage, functions: FunctionSelectPage, change: ChangePage, report: ReportPage, planned: PlannedPage }
 function currentPage() {
@@ -31,5 +32,5 @@ export default function App() {
     moveTo(currentPage())
   }
   const Page = pages[page]
-  return <WorkflowProvider><AppShell page={page} navigate={navigate}><WorkflowPages {...route}><Page navigate={navigate} /></WorkflowPages></AppShell></WorkflowProvider>
+  return <EntryGate onEnter={() => navigate('upload')}><WorkflowProvider><AppShell page={page} navigate={navigate}><WorkflowPages {...route}><Page navigate={navigate} /></WorkflowPages></AppShell></WorkflowProvider></EntryGate>
 }

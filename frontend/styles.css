@@ -16,7 +16,7 @@ code, pre { font-family: var(--oi-font-code); font-size: var(--oi-text-sm); }
 code { overflow-wrap: anywhere; }
 mark { color: inherit; background: none; }
 :focus-visible { outline: var(--oi-selection) solid var(--oi-trace); outline-offset: var(--oi-focus-offset); }
-::selection { color: var(--oi-surface); background: var(--oi-trace); }
+::selection { color: var(--oi-on-accent); background: var(--oi-trace); }
 
 /* The shell is persistent across the four existing hash routes. */
 .oi-shell { display: grid; grid-template-columns: var(--oi-rail-width) minmax(0, 1fr); min-height: 100dvh; }
@@ -34,7 +34,8 @@ mark { color: inherit; background: none; }
 .oi-scope-link { display: grid; place-items: center; min-height: var(--oi-control-height); width: 100%; margin-top: auto; font-size: .75rem; color: var(--oi-muted); text-decoration: none; }
 .oi-scope-link:hover { color: var(--oi-trace); text-decoration: underline; }
 .oi-rail-caption { margin-top: var(--oi-space-4); color: var(--oi-muted); font-size: .625rem; line-height: 1.7; }
-.oi-workspace { min-width: 0; }
+.oi-workspace { min-width: 0; background: linear-gradient(155deg, color-mix(in srgb, var(--oi-brand-purple) 12%, var(--oi-canvas)), var(--oi-canvas) 30%, color-mix(in srgb, var(--oi-ink) 3%, var(--oi-canvas))); }
+.oi-workspace::before { content: ''; display: block; height: 3px; background: linear-gradient(90deg, var(--oi-canvas), var(--oi-brand-purple) 50%, var(--oi-ink)); }
 .oi-topbar { min-height: 72px; display: flex; align-items: center; gap: var(--oi-space-8); padding: var(--oi-space-3) var(--oi-space-8); background: var(--oi-surface); border-bottom: 1px solid var(--oi-line); }
 .oi-wordmark { display: flex; flex-direction: column; flex-shrink: 0; }
 .oi-wordmark strong { font-size: var(--oi-text-brand); line-height: 1.2; letter-spacing: -.035em; }
@@ -66,7 +67,7 @@ mark { color: inherit; background: none; }
 .heading-actions b { color: var(--oi-ink); }
 .mock-pill { padding: var(--oi-space-1) var(--oi-space-2); border: 1px solid var(--oi-line); border-radius: var(--oi-radius-control); color: var(--oi-ink); background: var(--oi-surface); font-size: var(--oi-text-xs); }
 .primary-action, .ghost-action { display: inline-flex; align-items: center; justify-content: center; gap: var(--oi-space-2); min-height: var(--oi-control-height); padding: var(--oi-space-2) var(--oi-space-4); border: 1px solid var(--oi-rule); border-radius: var(--oi-radius-control); background: var(--oi-surface); color: var(--oi-ink); font-size: var(--oi-text-sm); font-weight: 500; text-decoration: none; transition: background-color var(--oi-motion), border-color var(--oi-motion); }
-.primary-action { background: var(--oi-trace); border-color: var(--oi-trace); color: var(--oi-surface); }
+.primary-action { background: var(--oi-trace); border-color: var(--oi-trace); color: var(--oi-on-accent); }
 .primary-action:hover:not(:disabled) { background: var(--oi-ink); border-color: var(--oi-ink); }
 .ghost-action:hover:not(:disabled) { background: var(--oi-trace-soft); border-color: var(--oi-trace); color: var(--oi-trace); }
 button:disabled { cursor: not-allowed; color: var(--oi-muted); background: var(--oi-soft); border-color: var(--oi-rule); }
@@ -84,7 +85,7 @@ input::placeholder { color: var(--oi-muted); }
 .oi-progress-steps li > span { grid-row: span 2; align-self: center; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--oi-rule); border-radius: 50%; font-family: var(--oi-font-code); background: var(--oi-surface); }
 .oi-progress-steps small { color: var(--oi-muted); }
 .oi-progress-steps .current { border-bottom: var(--oi-selection) solid var(--oi-trace); padding-bottom: calc(var(--oi-space-3) - 2px); }
-.oi-progress-steps .current > span { color: var(--oi-surface); background: var(--oi-trace); border-color: var(--oi-trace); }
+.oi-progress-steps .current > span { color: var(--oi-on-accent); background: var(--oi-trace); border-color: var(--oi-trace); }
 .oi-progress-steps .done > span { color: var(--oi-trace); border-color: var(--oi-trace); }
 .oi-workflow-note { margin-bottom: var(--oi-space-6); color: var(--oi-muted); font-size: var(--oi-text-sm); }
 .oi-workflow-note summary { width: fit-content; min-height: var(--oi-control-height); display: list-item; align-content: center; padding: var(--oi-space-2) var(--oi-space-1); cursor: pointer; color: var(--oi-ink); }

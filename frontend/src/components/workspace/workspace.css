@@ -11,7 +11,7 @@
   border:1px solid var(--oi-trace);
   background:var(--oi-surface);
   color:var(--oi-trace);
-  box-shadow:0 4px 16px #18343d26;
+  box-shadow:0 4px 16px var(--oi-shadow);
   min-height:48px
 }
 .oi-source-launcher svg {
@@ -51,7 +51,7 @@
   flex-shrink:0
 }
 .oi-source-dialog::backdrop {
-  background:#18343d59
+  background:var(--oi-backdrop)
 }
 .oi-source-dialog>header,.oi-report-questions>header {
   display:flex;
@@ -204,7 +204,7 @@
   user-select:none
 }
 .oi-full-source .is-target-line {
-  background:#006d771f;
+  background:var(--oi-trace-soft);
   border-left-color:var(--oi-trace);
   animation:oi-source-mark .8s ease-out
 }
@@ -280,10 +280,10 @@
 }
 @keyframes oi-source-mark {
   from {
-    background:#006d773b
+    background:color-mix(in srgb, var(--oi-trace) 24%, var(--oi-surface))
   }
   to {
-    background:#006d771f
+    background:var(--oi-trace-soft)
   }
 }
 @media(max-width:768px) {

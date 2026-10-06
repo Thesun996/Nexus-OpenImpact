@@ -21,18 +21,22 @@
 }
 
 :root {
-  color-scheme: light;
-  --oi-canvas: #E8F0F3;
-  --oi-surface: #FFFFFF;
-  --oi-ink: #18343D;
-  --oi-rule: #7B949C;
-  --oi-trace: #006D77;
-  --oi-change: #A8432D;
+  color-scheme: dark;
+  --oi-canvas: #09070E;
+  --oi-surface: #141019;
+  --oi-ink: #F5F1FF;
+  --oi-rule: #81728F;
+  --oi-trace: #AC86FF;
+  --oi-change: #F2B5EA;
+  --oi-brand-purple: #7134C6;
+  --oi-on-accent: var(--oi-canvas);
+  --oi-shadow: #00000040;
+  --oi-backdrop: #09070EBF;
   --oi-muted: color-mix(in srgb, var(--oi-ink) 76%, var(--oi-surface));
   --oi-line: color-mix(in srgb, var(--oi-rule) 38%, var(--oi-surface));
-  --oi-soft: color-mix(in srgb, var(--oi-canvas) 38%, var(--oi-surface));
-  --oi-trace-soft: color-mix(in srgb, var(--oi-trace) 7%, var(--oi-surface));
-  --oi-change-soft: color-mix(in srgb, var(--oi-change) 5%, var(--oi-surface));
+  --oi-soft: color-mix(in srgb, var(--oi-ink) 4%, var(--oi-surface));
+  --oi-trace-soft: color-mix(in srgb, var(--oi-trace) 12%, var(--oi-surface));
+  --oi-change-soft: color-mix(in srgb, var(--oi-change) 9%, var(--oi-surface));
   --oi-font-ui: 'IBM Plex Sans', 'Source Han Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
   --oi-font-code: 'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', 'Source Han Sans SC', 'Microsoft YaHei', monospace;
   --oi-text-xs: .8125rem;

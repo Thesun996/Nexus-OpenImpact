@@ -11,6 +11,7 @@
     "check": "npm run test && npm run build"
   },
   "dependencies": {
+    "animejs": "3.2.2",
     "motion": "14.0.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
