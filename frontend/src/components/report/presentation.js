@@ -23,4 +23,10 @@ export function impactLabel(type) {
     : type === 'indirect_2hop' ? '2 层间接影响' : '其他影响记录';
 }
 
+export function callScopeHint(symbol) {
+  if (symbol?.includes('<class_body@')) return '这是类定义体中的调用，通常在执行类定义时发生；它与实例方法调用不同。';
+  if (symbol?.includes('<lambda@')) return '这是匿名函数体中的调用；是否及何时执行仍需结合实际调用方式检查，没有据此推测外层调用路径。';
+  return null;
+}
+
 export { statusLabel, riskLabel, reasonLabel, ruleLabel } from '../../presentation/labels.js';

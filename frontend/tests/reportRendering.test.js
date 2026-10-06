@@ -12,6 +12,7 @@ let ReportResults
 let ErrorNotice
 let ImpactCounts
 let ChangeOverview
+let TraceView
 const changeSpecs = JSON.parse(readFileSync(new URL('./fixtures/change-specs.json', import.meta.url)))
 
 before(async () => {
@@ -30,6 +31,7 @@ before(async () => {
   ChangeOverview = module.ChangeOverview
   ErrorNotice = (await server.ssrLoadModule('/src/pages/PageParts.jsx')).ErrorNotice
   ImpactCounts = (await server.ssrLoadModule('/src/components/report/ImpactCounts.jsx')).default
+  TraceView = (await server.ssrLoadModule('/src/components/report/TraceView.jsx')).default
 })
 
 after(async () => { await server?.close() })
@@ -39,6 +41,19 @@ function render(report, index = 0) {
 }
 
 function clone() { return structuredClone(fixture) }
+
+for (const [caller, hint] of [
+  ['caller.Client.<class_body@2:0>', '通常在执行类定义时发生'],
+  ['caller.<lambda@2:11>', '是否及何时执行仍需结合实际调用方式检查'],
+]) test(`source call context ${caller} is explicit without inventing an invocation path`, () => {
+  const finding = { ...fixture.direct_impacts[0], caller_symbol_id: caller }
+  const snapshot = JSON.stringify(finding)
+  const html = renderToStaticMarkup(createElement(TraceView, { finding, evidence: fixture.evidences[0] }))
+  assert.ok(html.includes(hint))
+  assert.ok(html.includes(renderToStaticMarkup(createElement('code', null, caller))))
+  assert.ok(!html.includes('dashboard.dashboard'))
+  assert.equal(JSON.stringify(finding), snapshot)
+})
 
 test('student-facing labels are Chinese while identifiers, source and canonical report remain intact', () => {
   const report = clone()
@@ -75,7 +90,7 @@ test('statistics keep all five independent summary counts in three semantic grou
   const original = JSON.stringify(summary)
   const html = renderToStaticMarkup(createElement(ImpactCounts, { summary }))
   assert.deepEqual([...html.matchAll(/<h2[^>]*>(.*?)<\/h2>/g)].map((match) => match[1]), ['确定影响', '影响传播', '分析边界'])
-  assert.deepEqual([...html.matchAll(/<strong>(.*?)<\/strong><span>(.*?)<\/span>/g)].map((match) => [match[1], match[2]]), [['3', '调用点'], ['5', '上游函数'], ['8', '上游函数'], ['13', '记录'], ['21', '记录']])
+  assert.deepEqual([...html.matchAll(/<strong>(.*?)<\/strong><span>(.*?)<\/span>/g)].map((match) => [match[1], match[2]]), [['3', '调用点'], ['5', '上游调用方'], ['8', '上游调用方'], ['13', '记录'], ['21', '记录']])
   assert.equal(JSON.stringify(summary), original)
 })
 

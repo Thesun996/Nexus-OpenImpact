@@ -181,7 +181,7 @@ def test_package_member_cannot_be_guessed_to_be_a_matching_child_module(package,
     assert not any(e.caller_symbol_id == "consumer.call" for e in CallGraph(index).build().edges)
 
 
-def test_named_scopes_gain_evidence_while_lambda_remains_explicitly_excluded(tmp_path):
+def test_named_and_lambda_scopes_gain_evidence_without_inventing_callback_edges(tmp_path):
     write(tmp_path, **{"module.py": "def target():\n    return 1\n"
         "class Example:\n    def method(self):\n        return target()\n"
         "def outer():\n    def nested():\n        return target()\n    return 1\n"
@@ -190,12 +190,11 @@ def test_named_scopes_gain_evidence_while_lambda_remains_explicitly_excluded(tmp
     spec = build_change_spec(index, {"target_symbol_id": "module.target",
         "added_parameter": {"name": "strict", "kind": "keyword_only"}})
     report = build_report(analyze_project(tmp_path, spec))
-    assert report["summary"]["direct_impact_count"] == 2
-    assert report["coverage"]["status"] == "partial"
-    scopes = report["diagnostics"]["unsupported_scopes"]
-    assert {s["scope"] for s in scopes} == {"lambda"}
-    assert sum(s["excluded_call_count"] for s in scopes) == 1
+    assert report["summary"]["direct_impact_count"] == 3
+    assert report["coverage"]["status"] == "complete"
+    assert not report["diagnostics"].get("unsupported_scopes")
     assert {f['caller_symbol_id'] for f in report['direct_impacts']} == {
-        'module.Example.method', 'module.outer.<locals>.nested'}
-    assert len(report['evidences']) == 2
+        'module.Example.method', 'module.outer.<locals>.nested', 'module.<lambda@10:11>'}
+    assert not report['indirect_impacts']
+    assert len(report['evidences']) == 3
     assert all(e['status'] == 'available' for e in report['evidences'])

@@ -1,4 +1,4 @@
-import { entries, impactLabel, locationText } from './presentation.js';
+import { entries, impactLabel, locationText, callScopeHint } from './presentation.js';
 
 function TracePath({ path, number, direct }) {
   const symbols = entries(path.symbols);
@@ -31,6 +31,7 @@ function TracePath({ path, number, direct }) {
 
 export default function TraceView({ finding, evidence }) {
   const direct = finding?.impact_type === 'direct';
+  const scopeHint = callScopeHint(finding?.caller_symbol_id || finding?.impacted_symbol_id);
   // A Direct finding already records one confirmed edge. It has no Indirect
   // propagation_path; show that exact edge without inventing upstream nodes.
   const paths = direct && finding.caller_symbol_id && finding.target_symbol_id ? [{
@@ -42,6 +43,7 @@ export default function TraceView({ finding, evidence }) {
     <section className="oi-trace-view" aria-label="当前影响的调用路径">
       <header><h2>调用追踪</h2><span className={direct ? 'oi-impact-type is-direct' : 'oi-impact-type'}>{impactLabel(finding?.impact_type)}</span></header>
       <p className="oi-trace-scope">{direct ? '该调用因本次变更从兼容变为不兼容。' : '位于确定直接影响的上游，建议检查；静态路径不保证运行时失败。'} 范围仅限当前影响记录。</p>
+      {scopeHint && <p className="oi-trace-scope">{scopeHint}</p>}
       {!paths.length
         ? <div className="oi-report-unavailable" role="status"><b>路径暂不可用</b><p>当前记录没有可对应的传播路径，不能推测调用关系。</p></div>
         : paths.map((path, index) => <TracePath key={index} path={path} number={index + 1} direct={direct} />)}

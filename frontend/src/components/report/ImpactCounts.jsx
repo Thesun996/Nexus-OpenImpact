@@ -5,8 +5,8 @@ const groups = [
     { title: '直接影响', key: 'direct_impact_count', unit: '调用点', help: '修改前兼容、修改后出现确定性调用不兼容的位置。系统只统计本次变更新引入的问题。' },
   ] },
   { title: '影响传播', metrics: [
-    { title: '1 层间接影响', key: 'indirect_1hop_count', unit: '上游函数', help: '这些函数调用了存在直接影响的函数，建议进一步检查。这表示一层上游调用关系，不代表一定会运行失败。' },
-    { title: '2 层间接影响', key: 'indirect_2hop_count', unit: '上游函数', help: '这些函数通过另一层调用关联到直接影响，建议进一步检查。这表示两层上游调用关系，不代表一定会运行失败。' },
+    { title: '1 层间接影响', key: 'indirect_1hop_count', unit: '上游调用方', help: '这些调用方调用了存在直接影响的函数，建议进一步检查。这表示一层上游调用关系，不代表一定会运行失败。' },
+    { title: '2 层间接影响', key: 'indirect_2hop_count', unit: '上游调用方', help: '这些调用方通过另一层调用关联到直接影响，建议进一步检查。这表示两层上游调用关系，不代表一定会运行失败。' },
   ] },
   { title: '分析边界', className: 'is-boundary', metrics: [
     { title: '人工检查', key: 'manual_review_count', unit: '记录', help: '现有代码信息不足以判断这些调用是否受本次变更影响，请结合代码和实际传入的参数人工检查。' },
@@ -15,7 +15,7 @@ const groups = [
 ];
 
 // Presentation state only: one help message at a time, independent of report
-// selection. Counts retain the original summary keys, units and missing value.
+// selection. Counts retain the original summary keys and missing value.
 export default function ImpactCounts({ summary }) {
   const id = useId();
   const root = useRef(null);

@@ -4,8 +4,8 @@ import { findingLocation, impactLabel, locationText } from './presentation.js';
 
 const groups = [
   ['direct', '直接影响', '调用点'],
-  ['indirect_1hop', '1 层间接影响', '上游函数'],
-  ['indirect_2hop', '2 层间接影响', '上游函数'],
+  ['indirect_1hop', '1 层间接影响', '上游调用方'],
+  ['indirect_2hop', '2 层间接影响', '上游调用方'],
   ['other', '其他记录', '记录'],
 ];
 

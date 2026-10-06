@@ -29,7 +29,7 @@ export default function EvidencePanel({ finding, evidence }) {
         <dl className="oi-static-facts">
           <div><dt>原始规则编号</dt><dd><code>{evidence?.rule || finding?.rule_id || '未提供'}</code></dd></div>
           <div><dt>变更目标</dt><dd><code>{evidence?.target_symbol || finding?.target_symbol_id || '未提供'}</code></dd></div>
-          <div><dt>影响函数</dt><dd><code>{finding?.caller_symbol_id || finding?.impacted_symbol_id || '未提供'}</code></dd></div>
+          <div><dt>影响调用方</dt><dd><code>{finding?.caller_symbol_id || finding?.impacted_symbol_id || '未提供'}</code></dd></div>
           <div><dt>调用表达式</dt><dd><code>{evidence?.call_expression || '未提供'}</code></dd></div>
           <div><dt>源码位置</dt><dd>{locationText(location)}{location?.end_line != null && <small>结束行：{location.end_line}</small>}<small>行号从 1 开始，列偏移从 0 开始。</small></dd></div>
           <div><dt>源码 SHA256</dt><dd><code>{evidence?.source_hash || '未提供'}</code><small>完整源码文件原始字节的 SHA-256。</small></dd></div>

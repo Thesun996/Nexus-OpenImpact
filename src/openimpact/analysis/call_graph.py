@@ -1,10 +1,10 @@
-"""Create only statically resolved function-to-function call edges."""
+"""Create only statically resolved caller-context to module-function edges."""
 
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from openimpact.analysis.models import FunctionCall
+from openimpact.analysis.models import CallScope, FunctionCall, FunctionDefinition
 from openimpact.analysis.symbol_index import SymbolIndex
 
 ResolutionBasis = Literal["same_module", "from_import", "module_import"]
@@ -79,15 +79,27 @@ class CallGraph:
         path = call.callee_path
         root = path[0]
         definition = self.index.callers[caller_id].definition
-        if root in definition.local_bindings or any(
+        if isinstance(definition, CallScope) and definition.namespace_uncertain:
+            return None, None, 'class_namespace_unresolved'
+        if root in definition.local_bindings or isinstance(definition, FunctionDefinition) and any(
             parameter.name == root for parameter in definition.parameters
         ):
             return None, None, "local_name_shadows_target"
         if root in self.index.parsed_modules[module].module_rebindings:
             return None, None, "module_name_rebound"
 
+        binding = self.index.bindings[module].get(root)
+        if isinstance(definition, CallScope) and definition.module_evaluation:
+            # Class bodies/defaults run during definition, unlike a deferred
+            # function body. A later import/definition cannot justify that call.
+            local_target = self.index.symbols.get(f'{module}.{root}')
+            if binding is not None and binding.lineno > call.lineno or (
+                binding is None and local_target is not None
+                and local_target.definition.lineno > call.lineno
+            ):
+                return None, None, 'call_before_binding'
+
         if len(path) > 2:
-            binding = self.index.bindings[module].get(root)
             if binding is None or binding.status != 'resolved' or binding.kind != 'module':
                 return None, None, 'attribute_chain_unsupported'
             target_module = '.'.join((binding.target_module, *path[1:-1]))
@@ -105,7 +117,6 @@ class CallGraph:
                 return target, 'module_import', None
             return None, None, 'attribute_chain_unsupported'
 
-        binding = self.index.bindings[module].get(root)
         if len(path) == 1:
             if binding is not None:
                 if binding.status != "resolved":

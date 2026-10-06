@@ -7,6 +7,7 @@ from typing import Literal
 
 from openimpact.analysis.ast_parser import ASTParser
 from openimpact.analysis.models import (
+    CallScope,
     FunctionDefinition,
     ImportReference,
     ParseDiagnostic,
@@ -22,7 +23,7 @@ class Symbol:
     module: str
     qualified_name: str
     file: Path
-    definition: FunctionDefinition
+    definition: FunctionDefinition | CallScope
 
 
 @dataclass(frozen=True)
@@ -101,7 +102,7 @@ class SymbolIndex:
                     symbol_id, module, function.name, relative_path, function
                 )
 
-            callers = parsed.caller_definitions or parsed.functions
+            callers = (*(parsed.caller_definitions or parsed.functions), *parsed.call_scopes)
             caller_counts = Counter(function.name for function in callers)
             for function in callers:
                 if caller_counts[function.name] == 1:

@@ -77,6 +77,8 @@ const REASONS = {
   attribute_target_not_indexed: '属性目标不在已确认的函数索引中',
   module_level_call: '模块顶层调用未纳入函数调用图', caller_not_indexed: '调用方未纳入函数索引',
   unknown_target: '无法确认调用目标',
+  class_namespace_unresolved: '类的继承、元类或动态命名空间使调用目标无法可靠确认，请人工检查',
+  call_before_binding: '类定义执行到此处时，目标名称尚未完成导入或定义，无法归因于本次变更',
 };
 
 const MESSAGES = {

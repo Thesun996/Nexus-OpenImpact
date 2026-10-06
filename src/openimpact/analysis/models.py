@@ -38,6 +38,19 @@ class FunctionDefinition:
 
 
 @dataclass(frozen=True)
+class CallScope:
+    """Source-addressed caller context, never a selectable signature target."""
+
+    name: str
+    lineno: int
+    end_lineno: int | None
+    kind: Literal['class_body', 'lambda']
+    local_bindings: frozenset[str] = frozenset()
+    namespace_uncertain: bool = False
+    module_evaluation: bool = False
+
+
+@dataclass(frozen=True)
 class ImportReference:
     import_type: ImportType
     module: str | None
@@ -50,7 +63,7 @@ class ImportReference:
 
 @dataclass(frozen=True)
 class FunctionCall:
-    """A call in module or named function scope; callee stays unbound."""
+    """An unbound call; enclosing_function also identifies source call scopes."""
 
     file: Path
     lineno: int
@@ -137,3 +150,4 @@ class ParsedModule:
     # These are callers only: methods/nested definitions are not change targets.
     caller_definitions: tuple[FunctionDefinition, ...] = ()
     attribute_rebindings: frozenset[tuple[str, ...]] = frozenset()
+    call_scopes: tuple[CallScope, ...] = ()

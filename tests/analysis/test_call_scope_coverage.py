@@ -117,17 +117,16 @@ def test_duplicate_named_methods_cannot_create_certain_edges(tmp_path):
     assert all(c.reason == 'caller_not_indexed' for c in run.graph.unresolved_calls)
 
 
-def test_lambda_and_class_body_keep_explicit_remaining_boundaries(tmp_path):
+def test_lambda_and_class_body_have_separate_source_contexts(tmp_path):
     project(tmp_path, 'class Client:\n    value = target(1, option=2)\n'
         '    def fetch(self):\n        return target(1, option=2)\n'
         'callback = lambda: target(1, option=2)\n')
     report = build_report(analyze(tmp_path))
-    assert report['summary']['direct_impact_count'] == 1
-    assert report['coverage']['status'] == 'partial'
-    assert {s['scope'] for s in report['diagnostics']['unsupported_scopes']} == {'class_body', 'lambda'}
-    details = report['coverage']['details']
-    assert details['parsed_python_files'] == details['python_files'] == 2
-    assert details['excluded_call_count'] == 2
+    assert report['summary']['direct_impact_count'] == 3
+    assert report['coverage']['status'] == 'complete'
+    assert not report['diagnostics'].get('unsupported_scopes')
+    assert len({item['caller_symbol_id'] for item in report['direct_impacts']}) == 3
+    assert len(report['evidences']) == 3
 
 
 def test_explicit_dotted_module_import_supports_qualified_calls(tmp_path):

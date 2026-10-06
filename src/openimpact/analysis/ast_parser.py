@@ -2,16 +2,17 @@
 
 import ast
 import tokenize
+from dataclasses import replace
 from pathlib import Path
 
 from openimpact.analysis.models import (
+    CallScope,
     FunctionCall,
     FunctionDefinition,
     ImportReference,
     Parameter,
     ParseDiagnostic,
     ParsedModule,
-    UnsupportedCallScope,
 )
 from openimpact.analysis.module_syntax import collect_module_imports
 from openimpact.analysis.symbol_syntax import collect_symbol_facts
@@ -146,18 +147,11 @@ class _CallCollector(ast.NodeVisitor):
         self.source = source
         self.calls: list[FunctionCall] = []
         self.enclosing_function: str | None = None
-        self.unsupported_scopes: list[UnsupportedCallScope] = []
         self.caller_definitions: list[FunctionDefinition] = []
+        self.call_scopes: list[CallScope] = []
         self.scope_kind = 'module'
         self.scope_name = ''
         self.lexical_bindings: frozenset[str] = frozenset()
-
-    def _excluded(self, node: ast.AST, scope: str, bodies: list[ast.AST]) -> None:
-        count = sum(isinstance(child, ast.Call) for body in bodies for child in ast.walk(body))
-        if count:
-            self.unsupported_scopes.append(UnsupportedCallScope(
-                scope, getattr(node, "name", None), node.lineno, node.col_offset, count,
-            ))
 
     def visit_FunctionDef(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         # Decorators and defaults execute when a definition is evaluated.
@@ -195,12 +189,25 @@ class _CallCollector(ast.NodeVisitor):
         self.scope_name = (f'{self.scope_name}.<locals>.{node.name}' if self.scope_kind == 'function'
                            else f'{self.scope_name}.{node.name}' if self.scope_name else node.name)
         self.scope_kind = 'class'
-        self.enclosing_function = None
+        self.enclosing_function = f'{self.scope_name}.<class_body@{node.lineno}:{node.col_offset}>'
         self.lexical_bindings |= frozenset(p.name for p in getattr(node, 'type_params', ()))
+        class_scope_index = len(self.call_scopes)
+        self.call_scopes.append(CallScope(
+            self.enclosing_function, node.lineno, getattr(node, 'end_lineno', None),
+            'class_body', self.lexical_bindings | _bound_names(node.body),
+            namespace_uncertain=bool(node.bases or node.keywords),
+            module_evaluation=(previous[1] == 'module' or previous[1] == 'class' and any(
+                scope.name == previous[0] and scope.module_evaluation for scope in self.call_scopes))))
         # Class attributes are not a lexical closure for methods. Retain outer
         # function bindings, but do not add the class namespace to method lookup.
+        first_class_call = len(self.calls)
         for statement in node.body:
             self.visit(statement)
+        if any(call.enclosing_function == self.enclosing_function
+               and call.callee_path in {('locals',), ('globals',), ('exec',), ('eval',)}
+               for call in self.calls[first_class_call:]):
+            self.call_scopes[class_scope_index] = replace(
+                self.call_scopes[class_scope_index], namespace_uncertain=True)
         self.enclosing_function, self.scope_kind, self.scope_name, self.lexical_bindings = previous
 
     def visit_Lambda(self, node: ast.Lambda) -> None:
@@ -208,14 +215,34 @@ class _CallCollector(ast.NodeVisitor):
         for expression in (*node.args.defaults, *node.args.kw_defaults):
             if expression is not None:
                 self.visit(expression)
-        self._excluded(node, "lambda", [node.body])
+        previous = (self.enclosing_function, self.scope_kind, self.scope_name, self.lexical_bindings)
+        name = f'<lambda@{node.lineno}:{node.col_offset}>'
+        qualified = f'{self.scope_name}.{name}' if self.scope_name else name
+        bindings = self.lexical_bindings | _bound_names([node.body]) | frozenset(
+            parameter.name for parameter in _parameters(node.args))
+        if self.scope_kind == 'class':
+            bindings |= frozenset({'__class__'})
+        self.call_scopes.append(CallScope(
+            qualified, node.lineno, getattr(node, 'end_lineno', None), 'lambda', bindings))
+        self.enclosing_function = self.scope_name = qualified
+        self.scope_kind = 'function'
+        self.lexical_bindings = bindings
+        self.visit(node.body)
+        self.enclosing_function, self.scope_kind, self.scope_name, self.lexical_bindings = previous
+
+    def visit_ListComp(self, node: ast.ListComp | ast.SetComp | ast.DictComp | ast.GeneratorExp) -> None:
+        # A lambda in a comprehension closes over its iteration bindings, even
+        # inside a class. Do not confuse that captured name with a global target.
+        previous = self.lexical_bindings
+        self.lexical_bindings |= _bound_names([generator.target for generator in node.generators])
+        self.generic_visit(node)
+        self.lexical_bindings = previous
+
+    visit_SetComp = visit_ListComp
+    visit_DictComp = visit_ListComp
+    visit_GeneratorExp = visit_ListComp
 
     def visit_Call(self, node: ast.Call) -> None:
-        if self.scope_kind == 'class':
-            self.unsupported_scopes.append(UnsupportedCallScope(
-                'class_body', self.scope_name, node.lineno, node.col_offset, 1))
-            self.generic_visit(node)
-            return
         expression_type, callee_path = _callee_syntax(node.func)
         self.calls.append(
             FunctionCall(
@@ -334,8 +361,8 @@ class ASTParser:
             symbol_bound_names=symbol_bound_names,
             symbol_diagnostics=symbol_diagnostics,
             symbol_binding_counts=symbol_binding_counts,
-            unsupported_call_scopes=tuple(collector.unsupported_scopes),
             caller_definitions=tuple(collector.caller_definitions),
+            call_scopes=tuple(collector.call_scopes),
             attribute_rebindings=frozenset(
                 path for node in ast.walk(tree)
                 if isinstance(node, ast.Attribute) and isinstance(node.ctx, (ast.Store, ast.Del))
