@@ -15,6 +15,7 @@ import ImpactCounts from '../components/report/ImpactCounts.jsx';
 import { entries, impactLabel, statusLabel } from '../components/report/presentation.js';
 import '../components/report/report.css';
 import ReportQuestions from '../components/workspace/ReportQuestions.jsx';
+import RelatedTests from '../components/report/RelatedTests.jsx';
 
 export function ChangeOverview({ change }) {
   const description = describeChange(change);
@@ -93,6 +94,7 @@ function FunctionReportResults({ report, mode = 'project', initialSelectedIndex 
         <ReportDiagnostics report={report} />
       </div>
     </div>
+    <RelatedTests report={report} />
     <ReportQuestions report={report} findingIndex={selected ? activeIndex : undefined} />
   </section>;
 }

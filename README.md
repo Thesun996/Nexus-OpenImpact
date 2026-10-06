@@ -211,7 +211,9 @@ print(graph.unresolved_calls)
 
 CLI 的 `text` 格式为中文终端报告，`json` 格式包含 `change`、`validation`、`coverage`、`summary`、Direct / Indirect 结果与 `diagnostics`。`change.json` 使用显式的 `before`、`after` 参数数组及 `added_parameter`；每个参数至少提供 `name`、`kind`、`has_default`。无效输入返回非零退出码；部分 Python 文件无法解析时，仍输出其余可分析结果，并标记 `coverage.status=partial`。
 
-测试推荐、完整源码片段证据、LLM、源码哈希与资源限额尚未实现。
+报告已包含源码片段、源码 SHA-256、中文解释和明确的不可用状态；ZIP 导入设置上传与解压限制。DeepSeek 可用于证据解释与报告追问，真实模型成功需要有效密钥和调用来源核验。
+
+函数签名报告可追加 `related_tests`：从已有确定影响及最多两层上游路径中，定位符合 pytest 默认命名的模块级测试函数，展示相对文件、候选测试定位、实际调用路径与源码依据。没有测试文件的旧报告保持原样；空候选不代表无需回归测试。服务不会导入或运行上传测试，类方法、fixture、自定义收集配置、更深路径以及 Module / Symbol 领域的测试定位暂未覆盖。详见 [相关测试定位契约](docs/related-tests.md)。
 
 
 ## V1.1 本地模块变更

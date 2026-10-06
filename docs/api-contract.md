@@ -386,3 +386,9 @@ Symbol 报告采用独立 `(symbol, symbol_impact, schema_version=1)`，Direct �
 | 503 | `source_unavailable`，临时源码无法读取 |
 
 请求成功或失败均清理临时目录，不保留上传项目。客户端需在项目/变更/影响记录改变时取消并丢弃旧回答；参考 [使用与边界](report-workspace.md)。
+
+## 函数报告的可选相关测试定位
+
+`POST /api/v1/projects/analyze` 的请求和原响应字段不变。函数签名报告在项目含 pytest 默认命名测试文件时，可追加 `related_tests`，schema_version 仍为 1；没有测试文件的旧样例不新增字段。模块、符号报告保持原样。旧消费者可忽略该可选字段，新消费者必须支持缺省、空候选和 unavailable。
+
+候选仅来自已有确定影响与两层上游路径，提供实际测试函数、源码位置和检查理由。服务未实际收集或运行测试；manual_review / unresolved 不作为确定关联来源，partial 时不能将空候选解释为无需回归。具体字段和限制见 [相关测试定位契约](related-tests.md)。

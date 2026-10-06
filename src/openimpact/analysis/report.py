@@ -16,6 +16,7 @@ from openimpact.explanation.context import build_explanation_context
 from openimpact.explanation.provider import ExplanationProvider, explain_safely
 from openimpact.reporting.evidence import EvidenceBuilder, ImpactEvidence
 from openimpact.repository.layout import layout_metadata
+from openimpact.reporting.related_tests import build_related_tests, unavailable_tests
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -224,7 +225,7 @@ def build_report(
     unsupported_scopes = run.index.unsupported_scope_diagnostics()
     partial = bool(parse_errors or unresolved_calls or unresolved_imports or unsupported_scopes
                    or run.index.ambiguous_modules or run.index.ambiguous_symbols)
-    return {
+    report = {
         **({"analysis_layout": layout_metadata(run.index.analysis_root)}
            if run.index.analysis_root != "." else {}),
         "schema_version": 1,
@@ -265,6 +266,14 @@ def build_report(
             "unresolved_imports": unresolved_imports,
         },
     }
+    try:
+        related = build_related_tests(run)
+    except Exception:
+        _LOGGER.warning("Related test enrichment unavailable")
+        related = unavailable_tests()
+    if related is not None:
+        report["related_tests"] = related
+    return report
 
 
 def _path_text(edges: list[dict[str, Any]]) -> str:
@@ -340,4 +349,12 @@ def render_chinese_report(report: dict[str, Any]) -> str:
                      f"{item['local_name']} [{item['reason']}]")
     for item in diagnostics.get("unsupported_scopes", []):
         lines.append(f"- 分析范围 {item['file']}:{item['line']}：{item['message']}")
+    if report.get("related_tests") is not None:
+        related = report["related_tests"]
+        lines.append(f"相关测试候选（{len(related['candidates'])}）：未实际收集或运行测试。")
+        for item in related["candidates"]:
+            lines.append(f"- {item['node_id']} @ {item['file']}:{item['line']}：{item['reason']}")
+            for path in item["paths"]:
+                lines.append("  关联路径：" + _path_text(path["call_sites"]))
+        lines.extend(f"  {text}" for text in related["limitations"])
     return "\n".join(lines)

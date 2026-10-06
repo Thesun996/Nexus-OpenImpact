@@ -193,6 +193,19 @@
   .oi-stat-tooltip:not([hidden]) { animation: none; }
 }
 
+/* Test candidates keep the established source-first reading hierarchy. */
+.oi-related-tests { border-top: 1px solid var(--oi-rule); margin-top: var(--oi-space-8); padding-top: var(--oi-space-6); min-width: 0; }
+.oi-related-tests header, .oi-related-tests h3 { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--oi-space-2); }
+.oi-related-tests header > span, .oi-related-tests h3 > span { color: var(--oi-muted); font-size: var(--oi-text-sm); }
+.oi-related-tests h2, .oi-related-tests h3 { margin: 0; }
+.oi-related-tests code { overflow-wrap: anywhere; }
+.oi-test-candidates { padding: 0; list-style: none; }
+.oi-test-candidates > li { border-top: 1px solid var(--oi-line); padding-block: var(--oi-space-6); min-width: 0; }
+.oi-test-path { border-left: 3px solid var(--oi-trace); padding-left: var(--oi-space-4); margin-top: var(--oi-space-4); }
+.oi-test-path ol { padding-left: var(--oi-space-6); }
+.oi-test-path pre { overflow-x: auto; max-width: 100%; padding: var(--oi-space-3); background: var(--oi-surface); border: 1px solid var(--oi-line); }
+.oi-test-path pre code { white-space: pre; overflow-wrap: normal; }
+.oi-test-limits { margin-block: var(--oi-space-3); }
 /* Independent module units share the established Tracework reading hierarchy. */
 .oi-domain-selector .oi-change-type-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .oi-delete-confirm { display: flex !important; flex-direction: row !important; align-items: flex-start; gap: 12px; }
