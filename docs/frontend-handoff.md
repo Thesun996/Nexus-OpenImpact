@@ -180,7 +180,7 @@ const report = await postForm(
 | Analyze，HTTP 200 | [analyze-response.json](api-samples/analyze-response.json) |
 | 修改 ZIP 后沿用旧指纹，HTTP 409 | [error-response.json](api-samples/error-response.json) |
 
-本样例 ZIP 的 SHA-256 为 `9ab9885be3f7e7f5285a6e976ed02dc57e25bac055d0ecaa8701fca94f276d9e`。它只用于核对这四份响应，前端运行时应使用当前 inspect 的实际指纹。
+本样例 ZIP 的 SHA-256 为 `5f2bb40697ffc7b1eccd7bc7879b9b2faf7b25defdc86b87cb622cf4afe70917`。它只用于核对这四份响应，前端运行时应使用当前 inspect 的实际指纹。
 
 ## Phase 4.1 验收记录（历史）
 
