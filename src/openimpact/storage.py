@@ -16,6 +16,14 @@ from typing import Any
 
 SCHEMA_VERSION = 1
 DEFAULT_DATABASE = Path(".openimpact") / "openimpact.sqlite3"
+REPORT_SEARCH_COLUMNS = (
+    "project_name",
+    "source_filename",
+    "change_domain",
+    "change_type",
+    "target_id",
+    "coverage_status",
+)
 
 
 def database_path(path: str | Path | None = None) -> Path:
@@ -108,19 +116,23 @@ def save_report(
     return record
 
 
-def list_reports(*, limit: int = 20, offset: int = 0, path: str | Path | None = None) -> list[dict[str, Any]]:
+def list_reports(
+    *, limit: int = 20, offset: int = 0, query: str | None = None, path: str | Path | None = None
+) -> list[dict[str, Any]]:
     initialize_database(path)
+    where_sql, query_params = _search_clause(query)
     with connect(path) as connection:
         rows = connection.execute(
-            """
+            f"""
             SELECT id, created_at, project_name, project_fingerprint, source_filename,
                    analysis_root, change_domain, change_type, target_id, coverage_status,
                    summary_json
             FROM analysis_reports
+            {where_sql}
             ORDER BY created_at DESC, rowid DESC
             LIMIT ? OFFSET ?
             """,
-            (limit, offset),
+            (*query_params, limit, offset),
         ).fetchall()
     return [_row_to_record(row) for row in rows]
 
@@ -168,6 +180,24 @@ def _target_id(change: dict[str, Any]) -> str | None:
         if isinstance(value, str) and value:
             return value
     return None
+
+
+def _search_clause(query: str | None) -> tuple[str, tuple[str, ...]]:
+    terms = [term for term in (query or "").strip().split() if term]
+    if not terms:
+        return "", ()
+    clauses: list[str] = []
+    params: list[str] = []
+    for term in terms:
+        pattern = f"%{_escape_like(term)}%"
+        column_clauses = [f"{column} LIKE ? ESCAPE '\\'" for column in REPORT_SEARCH_COLUMNS]
+        clauses.append(f"({' OR '.join(column_clauses)})")
+        params.extend([pattern] * len(REPORT_SEARCH_COLUMNS))
+    return f"WHERE {' AND '.join(clauses)}", tuple(params)
+
+
+def _escape_like(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def _row_to_record(row: sqlite3.Row) -> dict[str, Any]:

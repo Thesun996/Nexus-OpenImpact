@@ -115,8 +115,9 @@ export function createApiClient({ fetchImpl = fetch } = {}) {
     saveReport(file, change, fingerprint, { signal, analysisRoot = '.' } = {}) {
       return request('/reports', { method: 'POST', body: projectForm(file, change, fingerprint, analysisRoot), signal })
     },
-    listReports({ signal, limit = 20, offset = 0 } = {}) {
+    listReports({ signal, limit = 20, offset = 0, query } = {}) {
       const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+      if (query?.trim()) params.set('q', query.trim())
       return request(`/reports?${params}`, { method: 'GET', signal })
     },
     getReport(reportId, { signal } = {}) {

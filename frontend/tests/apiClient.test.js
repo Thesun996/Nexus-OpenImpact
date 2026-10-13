@@ -66,7 +66,11 @@ test('report history API saves, lists, reads, and deletes persisted reports', as
     }
     if (url === '/api/v1/reports?limit=5&offset=2' && options.method === 'GET') {
       assert.equal(options.body, undefined)
-      return jsonResponse({ items: [{ id: 'abc123' }], limit: 5, offset: 2 })
+      return jsonResponse({ items: [{ id: 'abc123' }], limit: 5, offset: 2, has_more: false })
+    }
+    if (url === '/api/v1/reports?limit=5&offset=2&q=format_date' && options.method === 'GET') {
+      assert.equal(options.body, undefined)
+      return jsonResponse({ items: [{ id: 'abc123' }], limit: 5, offset: 2, query: 'format_date', has_more: true })
     }
     if (url === '/api/v1/reports/report%2Fid' && options.method === 'GET') {
       assert.equal(options.body, undefined)
@@ -80,9 +84,12 @@ test('report history API saves, lists, reads, and deletes persisted reports', as
   } })
   assert.equal((await client.saveReport(zip, change, fingerprint)).record.id, 'abc123')
   assert.equal((await client.listReports({ limit: 5, offset: 2 })).items[0].id, 'abc123')
+  const filtered = await client.listReports({ limit: 5, offset: 2, query: ' format_date ' })
+  assert.equal(filtered.query, 'format_date')
+  assert.equal(filtered.has_more, true)
   assert.equal((await client.getReport('report/id')).id, 'report/id')
   assert.equal((await client.deleteReport('report/id')).deleted, true)
-  assert.deepEqual(seen.map(({ url }) => url), ['/api/v1/reports', '/api/v1/reports?limit=5&offset=2', '/api/v1/reports/report%2Fid', '/api/v1/reports/report%2Fid'])
+  assert.deepEqual(seen.map(({ url }) => url), ['/api/v1/reports', '/api/v1/reports?limit=5&offset=2', '/api/v1/reports?limit=5&offset=2&q=format_date', '/api/v1/reports/report%2Fid', '/api/v1/reports/report%2Fid'])
 })
 
 test('every project operation forwards cancellation without retrying', async () => {

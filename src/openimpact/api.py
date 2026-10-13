@@ -381,11 +381,22 @@ async def analyze_and_save_report(
 
 
 @app.get("/api/v1/reports")
-def saved_reports(limit: int = 20, offset: int = 0) -> JSONResponse:
+def saved_reports(limit: int = 20, offset: int = 0, q: str | None = None) -> JSONResponse:
     if limit < 1 or limit > 50 or offset < 0:
         return _error(422, "invalid_pagination", "limit 必须在 1 到 50 之间，offset 不能为负数。")
+    if q is not None and len(q) > 80:
+        return _error(422, "invalid_query", "q 最多支持 80 个字符。")
     try:
-        return JSONResponse(content={"items": list_reports(limit=limit, offset=offset), "limit": limit, "offset": offset})
+        query = q.strip() if q is not None else None
+        rows = list_reports(limit=limit + 1, offset=offset, query=query)
+        items = rows[:limit]
+        return JSONResponse(content={
+            "items": items,
+            "limit": limit,
+            "offset": offset,
+            "query": query or None,
+            "has_more": len(rows) > limit,
+        })
     except (OSError, sqlite3.Error):
         _LOGGER.exception("Report list failed")
         return _error(503, "database_unavailable", "本地数据库暂时不可用。")

@@ -3,13 +3,13 @@
 from openimpact.storage import delete_report, get_report, initialize_database, list_reports, save_report
 
 
-def report(project="signature_change"):
+def report(project="signature_change", target="utils.format_date"):
     return {
         "project_name": project,
         "project_fingerprint": "a" * 64,
         "change": {
             "change_type": "add_required_parameter",
-            "target_symbol_id": "utils.format_date",
+            "target_symbol_id": target,
         },
         "coverage": {"status": "complete"},
         "summary": {
@@ -60,6 +60,16 @@ def test_list_reports_uses_newest_first_and_limit_offset(tmp_path):
 
     assert [item["id"] for item in list_reports(path=path, limit=1)] == [second["id"]]
     assert [item["id"] for item in list_reports(path=path, limit=1, offset=1)] == [first["id"]]
+
+
+def test_list_reports_filters_saved_metadata(tmp_path):
+    path = tmp_path / "openimpact.sqlite3"
+    target = save_report(report("signature_change"), source_filename="signature_change.zip", path=path)
+    save_report(report("other_project", target="other.render"), source_filename="other.zip", path=path)
+
+    assert [item["id"] for item in list_reports(path=path, query="format_date")] == [target["id"]]
+    assert [item["id"] for item in list_reports(path=path, query="signature zip")] == [target["id"]]
+    assert list_reports(path=path, query="missing") == []
 
 
 def test_missing_report_returns_none(tmp_path):
