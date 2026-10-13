@@ -34,7 +34,7 @@ OpenImpact 希望通过 AI 与静态分析结合，
 
 当前阶段：
 
-Phase 3.3 解释报告集成：Core MVP v0.1.0 的 CLI 和现有 API 保持可用；ZIP 项目检查、ChangeSpec 校验、完整影响分析、源码证据和中文解释已进入报告；前端尚未实现。
+Phase 3.4 前端工作流接入：Core MVP v0.1.0 的 CLI 和现有 API 保持可用；ZIP 项目检查、ChangeSpec 校验、完整影响分析、源码证据和中文解释已进入报告；`frontend/` 已提供第一版上传 ZIP、选择函数、配置新增必填参数、校验变更和查看报告的 Web 流程。
 
 目标：
 
@@ -92,7 +92,9 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" http://127.0.0.1:80
 
 使用同样的表单字段调用 `POST /api/v1/projects/analyze`，即可对本次上传的 ZIP 生成 Core JSON 影响报告。报告中的 `project_path` 为相对根目录 `.`；`coverage.status=partial` 时需结合诊断查看未覆盖代码，零条影响不代表整个项目确定无影响。调用示例和状态码见 [API 契约](docs/api-contract.md)。
 
-前端开发可直接使用 [前端交接说明](docs/frontend-handoff.md) 与 [真实 HTTP 响应样例](docs/api-samples/inspect-response.json)。V1 每一步均需重新上传 ZIP；服务器不保留用户项目。
+前端开发可直接使用 [前端交接说明](docs/frontend-handoff.md) 与 [真实 HTTP 响应样例](docs/api-samples/inspect-response.json)。V1 每个业务接口都会重新提交 ZIP；服务器不保留用户项目。当前前端会用浏览器本地 IndexedDB 暂存本次上传的 ZIP，用于串起一次 inspect、validate、analyze 工作流。
+
+本地预览前端时，先启动上面的 FastAPI 服务，再在 `frontend/` 目录用 Vite 启动静态页面。`frontend/vite.config.js` 会把 `/api` 代理到 `http://127.0.0.1:8000`，避免浏览器跨域问题。
 
 ---
 

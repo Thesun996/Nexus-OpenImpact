@@ -1,6 +1,6 @@
 const MOCK_INSPECT = {
   project_name: "signature_change",
-  project_fingerprint: "9ab9885be3f7e7f5285a6e976ed02dc57e25bac055d0ecaa8701fca94f276d9e",
+  project_fingerprint: "5f2bb40697ffc7b1eccd7bc7879b9b2faf7b25defdc86b87cb622cf4afe70917",
   coverage: {
     status: "complete",
     python_files: 4,
@@ -76,6 +76,11 @@ const MOCK_REPORT = {
 const STORAGE_KEY = "openimpact.frontend.state";
 const LANGUAGE_KEY = "openimpact.frontend.language";
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const API_BASE = (window.OPENIMPACT_API_BASE || "/api/v1").replace(/\/+$/, "");
+const SAMPLE_ZIP_PATH = "./samples/signature_change.zip";
+const ZIP_DB_NAME = "openimpact.frontend.workflow";
+const ZIP_STORE_NAME = "files";
+const ZIP_RECORD_ID = "current";
 
 const I18N_EN = {
   "Nexus OpenImpact - 变更影响分析": "Nexus OpenImpact - Change Impact Analysis",
@@ -116,7 +121,8 @@ const I18N_EN = {
     "Identify the impact scope of this change from code semantics, call relationships, and dependency graphs.",
   分析时间: "Analysis time",
   "Mock 数据": "Mock Data",
-  "Mock inspect": "Mock inspect",
+  "后端 inspect": "Backend inspect",
+  真实接口: "Real API",
   "⟳ 重新分析": "⟳ Re-run",
   "上传 Python ZIP": "Upload Python ZIP",
   "请上传小型 Python 项目 ZIP。系统不会运行你的代码，只读取源码做静态分析。":
@@ -143,8 +149,13 @@ const I18N_EN = {
   判断: "Decision",
   后端静态分析: "Backend static analysis",
   说明: "Note",
-  "当前前端先使用样例 inspect 数据跑通页面流程。后续接真实接口时，只需要替换 inspectProject / validateChange / analyzeProject。":
-    "The frontend currently uses sample inspect data to run the page flow. When real APIs are connected, replace inspectProject / validateChange / analyzeProject.",
+  "上传会请求后端 inspect。浏览器会在本地保存本次 ZIP，用于后续 validate 和 analyze；V1 后端不保存用户项目或历史报告。":
+    "Upload calls backend inspect. The browser stores this ZIP locally for validate and analyze; the V1 backend does not persist user projects or historical reports.",
+  "无法读取内置样例 ZIP。": "Cannot read the bundled sample ZIP.",
+  "无法连接后端接口。请确认 FastAPI 已启动，并通过同源代理访问 /api/v1。":
+    "Cannot reach the backend API. Make sure FastAPI is running and /api/v1 is available through the same-origin proxy.",
+  "当前浏览器无法读取上次上传的 ZIP。请重新上传同一个 ZIP，或使用内置样例 ZIP。":
+    "The browser cannot read the previously uploaded ZIP. Re-upload the same ZIP or use the bundled sample ZIP.",
   "请先选择 ZIP 文件。": "Choose a ZIP file first.",
   "只支持 .zip 文件。": "Only .zip files are supported.",
   "ZIP 文件不能超过 5MB。": "ZIP files must be 5MB or smaller.",
@@ -263,6 +274,9 @@ const I18N_EN = {
   覆盖完整: "Complete coverage",
   影响列表: "Impact List",
   调用路径: "Call Paths",
+  位置: "Location",
+  原因: "Reason",
+  路径: "Path",
   "位置：report.py:5": "Location: report.py:5",
   "原因：新增必填参数 timezone，但这里仍然只传了 date。":
     "Reason: the new required parameter timezone was added, but this call still only passes date.",
@@ -429,9 +443,127 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function apiUrl(path) {
+  const suffix = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE}${suffix}`;
+}
+
+function apiErrorMessage(payload, fallback) {
+  const error = payload?.error;
+  if (error?.message) return error.message;
+  if (payload?.validation?.diagnostics?.length) return diagnosticsToText(payload.validation.diagnostics, fallback);
+  if (Array.isArray(payload?.detail)) return payload.detail.map((item) => item.msg || String(item)).join(" ");
+  if (typeof payload?.detail === "string") return payload.detail;
+  return fallback;
+}
+
+async function parseJsonResponse(response) {
+  const text = await response.text();
+  let payload = null;
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = { detail: text };
+    }
+  }
+  if (!response.ok) {
+    throw new Error(apiErrorMessage(payload, `${response.status} ${response.statusText}`));
+  }
+  return payload;
+}
+
+async function requestJson(path, options) {
+  try {
+    return await parseJsonResponse(await fetch(apiUrl(path), options));
+  } catch (error) {
+    if (error instanceof TypeError) throw new Error("无法连接后端接口。请确认 FastAPI 已启动，并通过同源代理访问 /api/v1。");
+    throw error;
+  }
+}
+
+function buildForm(file, change, fingerprint) {
+  const form = new FormData();
+  form.append("file", file, file.name || "project.zip");
+  if (change) form.append("change", JSON.stringify(change));
+  if (fingerprint) form.append("expected_fingerprint", fingerprint);
+  return form;
+}
+
+function fileFromBlob(blob, name) {
+  return new File([blob], name, { type: blob.type || "application/zip" });
+}
+
+async function loadSampleZipFile() {
+  const response = await fetch(SAMPLE_ZIP_PATH);
+  if (!response.ok) throw new Error("无法读取内置样例 ZIP。");
+  return fileFromBlob(await response.blob(), "signature_change.zip");
+}
+
+function openZipDatabase() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) {
+      reject(new Error("IndexedDB unavailable"));
+      return;
+    }
+    const request = window.indexedDB.open(ZIP_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(ZIP_STORE_NAME)) db.createObjectStore(ZIP_STORE_NAME, { keyPath: "id" });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function saveWorkflowFile(file) {
+  try {
+    const db = await openZipDatabase();
+    await new Promise((resolve, reject) => {
+      const transaction = db.transaction(ZIP_STORE_NAME, "readwrite");
+      transaction.objectStore(ZIP_STORE_NAME).put({
+        id: ZIP_RECORD_ID,
+        name: file.name,
+        type: file.type || "application/zip",
+        lastModified: file.lastModified || Date.now(),
+        blob: file,
+      });
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+    });
+    db.close();
+  } catch (error) {
+    console.warn("Failed to persist workflow ZIP", error);
+  }
+}
+
+async function loadWorkflowFile() {
+  try {
+    const db = await openZipDatabase();
+    const record = await new Promise((resolve, reject) => {
+      const request = db.transaction(ZIP_STORE_NAME, "readonly").objectStore(ZIP_STORE_NAME).get(ZIP_RECORD_ID);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+    if (record?.blob) return fileFromBlob(record.blob, record.name || "project.zip");
+  } catch (error) {
+    console.warn("Failed to load workflow ZIP", error);
+  }
+  return null;
+}
+
+async function fileForFollowupRequest(state) {
+  const storedFile = await loadWorkflowFile();
+  if (storedFile) return storedFile;
+  if (state.zipSource === "browser_file" || state.zipSource === "uploaded_once") throw new Error("当前浏览器无法读取上次上传的 ZIP。请重新上传同一个 ZIP，或使用内置样例 ZIP。");
+  return loadSampleZipFile();
+}
+
 function defaultState() {
   return {
     fileName: null,
+    zipSource: "sample",
     uploadStatus: "idle",
     inspect: clone(MOCK_INSPECT),
     selectedSymbolId: "utils.format_date",
@@ -500,14 +632,119 @@ function collectDiagnostics(report) {
   );
 }
 
+function pathFromEdges(edges) {
+  if (!Array.isArray(edges) || edges.length === 0) return "";
+  return [edges[0].caller_symbol_id, ...edges.map((edge) => edge.callee_symbol_id)].filter(Boolean).join(" → ");
+}
+
+function indirectPath(item) {
+  if (item.path) return item.path;
+  const source = item.sources?.[0];
+  const edges = source?.propagation_path;
+  return pathFromEdges(edges) || item.impacted_symbol_id || "-";
+}
+
+function impactLabel(type) {
+  if (type === "indirect_1hop") return "1-hop Indirect";
+  if (type === "indirect_2hop") return "2-hop Indirect";
+  return "Direct Impact";
+}
+
+function renderImpactList(report) {
+  const list = document.querySelector(".impact-list");
+  if (!list) return;
+
+  const directItems = (report.direct_impacts || []).map(
+    (item) => `
+      <section class="impact-item direct">
+        <header><mark>${impactLabel("direct")}</mark><b>${escapeHtml(item.caller_symbol_id || "-")} → ${escapeHtml(item.target_symbol_id || "-")}</b></header>
+        <p>${escapeHtml(t("位置"))}：${escapeHtml(item.file || "-")}:${escapeHtml(item.line ?? "-")}</p>
+        <p>${escapeHtml(t("原因"))}：${escapeHtml(item.reason || item.after_reason || "-")}</p>
+      </section>`,
+  );
+
+  const indirectItems = (report.indirect_impacts || []).map((item) => {
+    const isTwoHop = item.impact_type === "indirect_2hop";
+    return `
+      <section class="impact-item indirect${isTwoHop ? " two-hop" : ""}">
+        <header><mark>${impactLabel(item.impact_type)}</mark><b>${escapeHtml(item.impacted_symbol_id || "-")}</b></header>
+        <p>${escapeHtml(t("路径"))}：${escapeHtml(indirectPath(item))}</p>
+      </section>`;
+  });
+
+  list.innerHTML = [...directItems, ...indirectItems].join("") || `<p class="empty-state">${escapeHtml(t("未发现诊断项"))}</p>`;
+}
+
+function primaryEvidence(report) {
+  if (report.evidence) {
+    return {
+      impactType: "direct",
+      file: report.evidence.file,
+      line: report.evidence.line,
+      snippet: report.evidence.snippet,
+      reason: report.evidence.explanation,
+      rule: "required_parameter_added_breaks_call",
+      target: report.change?.target_symbol_id || "utils.format_date",
+      caller: report.direct_impacts?.[0]?.caller_symbol_id || "report.report",
+      resolutionBasis: report.direct_impacts?.[0]?.resolution_basis || "from_import",
+    };
+  }
+
+  const evidence = (report.evidences || []).find((item) => item.impact_type === "direct") || report.evidences?.[0];
+  const explanation = (report.explanations || []).find(
+    (item) => item.evidence?.evidence_reference && item.evidence.evidence_reference === evidence?.evidence_reference,
+  );
+  const direct = (report.direct_impacts || []).find(
+    (item) => item.file === evidence?.location?.file && item.line === evidence?.location?.line,
+  );
+  return {
+    impactType: evidence?.impact_type || "direct",
+    file: evidence?.location?.file || direct?.file || "-",
+    line: evidence?.location?.line ?? direct?.line ?? "-",
+    snippet: (evidence?.source_snippet || evidence?.call_expression || "-").trim(),
+    reason: explanation?.explanation?.why_affected || explanation?.explanation?.summary || evidence?.reason || direct?.reason || "-",
+    rule: evidence?.rule || direct?.rule_id || "-",
+    target: evidence?.target_symbol || direct?.target_symbol_id || report.change?.target_symbol_id || "-",
+    caller: direct?.caller_symbol_id || "-",
+    resolutionBasis: direct?.resolution_basis || "-",
+  };
+}
+
+function renderEvidence(report) {
+  const evidence = primaryEvidence(report);
+  const evidenceCard = document.querySelector(".evidence-card");
+  if (evidenceCard) {
+    const title = evidenceCard.querySelector(".detail-title");
+    const tag = evidenceCard.querySelector(".tag");
+    const code = evidenceCard.querySelector("code");
+    const explanation = evidenceCard.querySelector(".explanation-panel p");
+    if (title) title.innerHTML = `<b>▤</b> ${escapeHtml(evidence.file)}:${escapeHtml(evidence.line)}`;
+    if (tag) tag.textContent = impactLabel(evidence.impactType);
+    if (code) code.textContent = evidence.snippet;
+    if (explanation) explanation.textContent = evidence.reason;
+  }
+
+  const metaList = document.querySelector(".evidence-meta-card .info-list");
+  if (metaList) {
+    metaList.innerHTML = `
+      <div><span>${escapeHtml(t("规则"))}</span><b>${escapeHtml(evidence.rule)}</b></div>
+      <div><span>${escapeHtml(t("目标"))}</span><b>${escapeHtml(evidence.target)}</b></div>
+      <div><span>${escapeHtml(t("调用者"))}</span><b>${escapeHtml(evidence.caller)}</b></div>
+      <div><span>${escapeHtml(t("解析依据"))}</span><mark class="tag change">${escapeHtml(evidence.resolutionBasis)}</mark></div>`;
+  }
+}
+
 function projectNameFromFile(fileName) {
   return (fileName || "signature_change.zip").replace(/\.zip$/i, "") || "signature_change";
 }
 
 async function inspectProject(file) {
-  const inspect = clone(MOCK_INSPECT);
-  if (file?.name) inspect.project_name = projectNameFromFile(file.name);
-  await new Promise((resolve) => window.setTimeout(resolve, 250));
+  const uploadFile = file || (await loadSampleZipFile());
+  const inspect = await requestJson("/projects/inspect", {
+    method: "POST",
+    body: buildForm(uploadFile),
+  });
+  if (!inspect.project_name) inspect.project_name = projectNameFromFile(uploadFile.name);
   return inspect;
 }
 
@@ -549,6 +786,16 @@ function buildChangeSpec(state) {
   };
 }
 
+function buildApiChange(state) {
+  return {
+    target_symbol_id: state.selectedSymbolId,
+    added_parameter: {
+      name: (state.parameterName || "").trim(),
+      kind: state.parameterKind || "positional_or_keyword",
+    },
+  };
+}
+
 function validateParameterName(state) {
   const symbol = findSymbol(state);
   const parameterName = (state.parameterName || "").trim();
@@ -559,30 +806,32 @@ function validateParameterName(state) {
 }
 
 async function validateChange(state) {
-  await new Promise((resolve) => window.setTimeout(resolve, 250));
   const diagnostic = validateParameterName(state);
-  const response = clone(MOCK_VALIDATE);
-  response.project_name = state.inspect?.project_name || response.project_name;
-  response.project_fingerprint = state.inspect?.project_fingerprint || response.project_fingerprint;
-  response.coverage = clone(state.inspect?.coverage || response.coverage);
-  response.change_spec = buildChangeSpec(state);
-  response.validation = {
-    valid: !diagnostic,
-    diagnostics: diagnostic ? [{ code: "invalid_change_spec", message: diagnostic }] : [],
-  };
-  response.diagnostics = clone(state.inspect?.diagnostics || response.diagnostics || {});
-  return response;
+  if (diagnostic) {
+    const response = clone(MOCK_VALIDATE);
+    response.project_name = state.inspect?.project_name || response.project_name;
+    response.project_fingerprint = state.inspect?.project_fingerprint || response.project_fingerprint;
+    response.coverage = clone(state.inspect?.coverage || response.coverage);
+    response.change_spec = buildChangeSpec(state);
+    response.validation = { valid: false, diagnostics: [{ code: "invalid_change_config", message: diagnostic }] };
+    response.diagnostics = clone(state.inspect?.diagnostics || response.diagnostics || {});
+    return response;
+  }
+
+  const file = await fileForFollowupRequest(state);
+  return requestJson("/changes/validate", {
+    method: "POST",
+    body: buildForm(file, buildApiChange(state), state.inspect?.project_fingerprint),
+  });
 }
 
 async function analyzeProject(state) {
-  await new Promise((resolve) => window.setTimeout(resolve, 320));
   if (!state.validation?.validation?.valid) throw new Error("请先通过校验。");
-  const report = clone(MOCK_REPORT);
-  report.change = buildChangeSpec(state);
-  report.validation = clone(state.validation.validation);
-  report.coverage = clone(state.inspect?.coverage || report.coverage);
-  report.diagnostics = clone(state.inspect?.diagnostics || report.diagnostics);
-  return report;
+  const file = await fileForFollowupRequest(state);
+  return requestJson("/projects/analyze", {
+    method: "POST",
+    body: buildForm(file, buildApiChange(state), state.inspect?.project_fingerprint),
+  });
 }
 
 window.OpenImpactApi = { inspectProject, validateChange, analyzeProject };
@@ -611,10 +860,12 @@ function setUploadUi(status, message) {
   if (messageNode) messageNode.textContent = t(message);
 }
 
-function resetFlowAfterInspect(state, file, inspect) {
+async function resetFlowAfterInspect(state, file, inspect) {
   const firstSymbol = inspect.symbols?.[0]?.symbol_id || "utils.format_date";
+  await saveWorkflowFile(file);
   Object.assign(state, {
     fileName: file.name,
+    zipSource: file.name === "signature_change.zip" ? "sample" : "browser_file",
     uploadStatus: "success",
     inspect,
     selectedSymbolId: firstSymbol,
@@ -699,15 +950,17 @@ function initUpload(state) {
     setUploadUi("读取中", "只接受 ZIP。上传后会读取函数列表，不会运行项目代码。");
     try {
       const inspect = await window.OpenImpactApi.inspectProject(selectedFile);
-      resetFlowAfterInspect(state, selectedFile, inspect);
+      await resetFlowAfterInspect(state, selectedFile, inspect);
       setUploadUi("读取完成", "已读取项目，即将进入函数选择。");
       showToast("已读取项目，即将进入函数选择。");
       window.setTimeout(() => {
         window.location.href = "./function-select.html";
       }, 450);
-    } catch {
+    } catch (error) {
       submit.disabled = false;
-      setUploadUi("读取失败", "读取失败");
+      const message = error?.message || "读取失败";
+      setUploadUi("读取失败", message);
+      showToast(message);
     } finally {
       dropzone?.classList.remove("loading");
     }
@@ -791,13 +1044,9 @@ function initFunctionSelect(state) {
     item.textContent = state.selectedSymbolId;
   });
   document.querySelector("[data-reset-flow]")?.addEventListener("click", async () => {
-    const inspect = await window.OpenImpactApi.inspectProject();
-    Object.assign(state, defaultState(), {
-      fileName: "signature_change.zip",
-      uploadStatus: "success",
-      inspect,
-      selectedSymbolId: inspect.symbols?.[0]?.symbol_id || "utils.format_date",
-    });
+    const sampleFile = await loadSampleZipFile();
+    const inspect = await window.OpenImpactApi.inspectProject(sampleFile);
+    await resetFlowAfterInspect(state, sampleFile, inspect);
     saveState(state);
     renderProjectSummary(state);
     renderFunctionTable(state);
@@ -929,17 +1178,20 @@ function initReport(state) {
     item.textContent = state.parameterName;
   });
   const summaryMap = {
-    direct: report.summary.direct_impact_count,
-    hop1: report.summary.indirect_1hop_count,
-    hop2: report.summary.indirect_2hop_count,
-    manual: report.summary.manual_review_count,
-    unresolved: report.summary.unresolved_call_count,
+    direct: report.summary?.direct_impact_count ?? 0,
+    hop1: report.summary?.indirect_1hop_count ?? 0,
+    hop2: report.summary?.indirect_2hop_count ?? 0,
+    manual: report.summary?.manual_review_count ?? 0,
+    unresolved: report.summary?.unresolved_call_count ?? 0,
   };
   Object.entries(summaryMap).forEach(([key, value]) => {
     document.querySelectorAll(`[data-summary='${key}']`).forEach((item) => {
       item.textContent = value;
     });
   });
+
+  renderImpactList(report);
+  renderEvidence(report);
 
   const diagnostics = collectDiagnostics(report);
   const diagnosticsList = document.querySelector("[data-diagnostics-list]");

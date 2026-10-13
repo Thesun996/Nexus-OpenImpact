@@ -76,7 +76,7 @@
             </div>
             <div class="heading-actions">
               <span>大小限制&nbsp;&nbsp;5MB</span>
-              <span class="mock-pill">Mock inspect</span>
+              <span class="mock-pill">真实接口</span>
             </div>
           </section>
 
@@ -105,7 +105,7 @@
 
               <section class="upload-meta">
                 <div><span>当前文件</span><b data-upload-file>未选择文件</b></div>
-                <div><span>读取方式</span><b>Mock inspect</b></div>
+                <div><span>读取方式</span><b>后端 inspect</b></div>
                 <div><span>大小限制</span><b>5MB</b></div>
               </section>
 
@@ -132,7 +132,7 @@
                 <header>
                   <div class="detail-title"><b>!</b> 说明</div>
                 </header>
-                <p>当前前端先使用样例 inspect 数据跑通页面流程。后续接真实接口时，只需要替换 inspectProject / validateChange / analyzeProject。</p>
+                <p>上传会请求后端 inspect。浏览器会在本地保存本次 ZIP，用于后续 validate 和 analyze；V1 后端不保存用户项目或历史报告。</p>
               </article>
             </aside>
           </section>
