@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import re
+import sqlite3
 from collections import deque
 from dataclasses import asdict
 from pathlib import Path
@@ -29,6 +30,7 @@ from openimpact.analysis.symbol_report import build_symbol_report
 from openimpact.api_change import ChangeConfigError, build_change_spec, parse_change_config
 from openimpact.repository import zip_inspector
 from openimpact.repository.layout import AnalysisRootError
+from openimpact.storage import delete_report, get_report, list_reports, save_report
 
 _DEMO_DIR = Path(__file__).resolve().parents[2] / "examples" / "signature_change"
 _DEMO_CHANGE = _DEMO_DIR / "change.json"
@@ -48,6 +50,7 @@ class _ZipBodyLimit:
                 or scope["path"] not in {
                     "/api/v1/projects/inspect", "/api/v1/changes/validate",
                     "/api/v1/projects/analyze",
+                    "/api/v1/reports",
                     "/api/v1/projects/source", "/api/v1/reports/questions",
                     "/api/v1/reports/question-suggestions",
                 }):
@@ -238,6 +241,29 @@ def _analyze_zip(
             return _error(500, "analysis_failed", "项目影响分析失败，请重试。")
 
 
+def _analyze_and_save_zip(
+    data: bytes, filename: str | None, change: str, expected_fingerprint: str | None, *, analysis_root: str = "."
+) -> JSONResponse:
+    response = _analyze_zip(data, filename, change, expected_fingerprint, analysis_root=analysis_root)
+    if response.status_code != 200:
+        return response
+    report = json.loads(response.body.decode("utf-8"))
+    if "project_name" not in report or "project_fingerprint" not in report:
+        inspection = zip_inspector.inspect_python_zip(data, filename, analysis_root=analysis_root)
+        report = {
+            **report,
+            "project_name": inspection["project_name"],
+            "project_fingerprint": inspection["project_fingerprint"],
+            **({"analysis_layout": inspection["analysis_layout"]} if "analysis_layout" in inspection else {}),
+        }
+    try:
+        record = save_report(report, source_filename=filename, analysis_root=analysis_root)
+    except (OSError, sqlite3.Error):
+        _LOGGER.exception("Report persistence failed")
+        return _error(503, "database_unavailable", "分析完成，但报告无法写入本地数据库。")
+    return JSONResponse(content={"record": record, "report": report})
+
+
 def _demo_report() -> JSONResponse:
     change = load_change_spec(_DEMO_CHANGE)
     report = build_report(analyze_project(_DEMO_DIR, change))
@@ -326,6 +352,71 @@ async def analyze_uploaded_project(
         return _error(503, "inspection_unavailable", "临时导入或源码读取失败。")
     finally:
         await file.close()
+
+
+@app.post("/api/v1/reports")
+async def analyze_and_save_report(
+    request: Request,
+    file: UploadFile = File(...),
+    change: str = Form(...),
+    expected_fingerprint: str | None = Form(None),
+    analysis_root: str = Form("."),
+) -> JSONResponse:
+    if error := await _change_input_error(request, file, expected_fingerprint):
+        return error
+
+    try:
+        analysis_root = (await request.form()).get("analysis_root", analysis_root)
+        data = await _read_zip(file)
+        return await run_in_threadpool(_analyze_and_save_zip, data, file.filename, change, expected_fingerprint,
+                                      **({"analysis_root": analysis_root} if analysis_root != "." else {}))
+    except AnalysisRootError as error:
+        return _error(422, error.code, str(error))
+    except zip_inspector.ZipInspectionError as error:
+        return _error(error.status_code, error.code, str(error))
+    except OSError:
+        return _error(503, "inspection_unavailable", "临时导入或源码读取失败。")
+    finally:
+        await file.close()
+
+
+@app.get("/api/v1/reports")
+def saved_reports(limit: int = 20, offset: int = 0) -> JSONResponse:
+    if limit < 1 or limit > 50 or offset < 0:
+        return _error(422, "invalid_pagination", "limit 必须在 1 到 50 之间，offset 不能为负数。")
+    try:
+        return JSONResponse(content={"items": list_reports(limit=limit, offset=offset), "limit": limit, "offset": offset})
+    except (OSError, sqlite3.Error):
+        _LOGGER.exception("Report list failed")
+        return _error(503, "database_unavailable", "本地数据库暂时不可用。")
+
+
+@app.get("/api/v1/reports/{report_id}")
+def saved_report(report_id: str) -> JSONResponse:
+    if not re.fullmatch(r"[0-9a-f]{32}", report_id):
+        return _error(404, "report_not_found", "没有找到该历史报告。")
+    try:
+        record = get_report(report_id)
+    except (OSError, sqlite3.Error):
+        _LOGGER.exception("Report read failed")
+        return _error(503, "database_unavailable", "本地数据库暂时不可用。")
+    if record is None:
+        return _error(404, "report_not_found", "没有找到该历史报告。")
+    return JSONResponse(content=record)
+
+
+@app.delete("/api/v1/reports/{report_id}")
+def delete_saved_report(report_id: str) -> JSONResponse:
+    if not re.fullmatch(r"[0-9a-f]{32}", report_id):
+        return _error(404, "report_not_found", "没有找到该历史报告。")
+    try:
+        deleted = delete_report(report_id)
+    except (OSError, sqlite3.Error):
+        _LOGGER.exception("Report delete failed")
+        return _error(503, "database_unavailable", "本地数据库暂时不可用。")
+    if not deleted:
+        return _error(404, "report_not_found", "没有找到该历史报告。")
+    return JSONResponse(content={"deleted": True, "id": report_id})
 
 
 @app.post("/api/v1/demo/analyze")

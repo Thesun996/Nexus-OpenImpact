@@ -23,8 +23,14 @@ Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 
 | POST | `/api/v1/projects/inspect` | `multipart/form-data` | 检查上传 ZIP 的模块、Symbol 与覆盖情况 | 200 |
 | POST | `/api/v1/changes/validate` | `multipart/form-data` | 从上传源码构建并校验 ChangeSpec | 200 |
 | POST | `/api/v1/projects/analyze` | `multipart/form-data` | 在本次上传项目上生成完整影响报告 | 200 |
+| POST | `/api/v1/reports` | `multipart/form-data` | 生成影响报告并保存到本地 SQLite 历史记录 | 200 |
+| GET | `/api/v1/reports` | 无 | 分页读取已保存报告摘要 | 200 |
+| GET | `/api/v1/reports/{report_id}` | 无 | 读取单条已保存报告及完整 report JSON | 200 |
+| DELETE | `/api/v1/reports/{report_id}` | 无 | 删除一条本机已保存报告 | 200 |
 
-三个正式业务接口都需要重新上传 ZIP。V1 不保留用户项目，也不提供项目 ID；每次请求在独立临时目录完成并清理。`expected_fingerprint` 是 ZIP 原始字节的 SHA-256 校验值，不是服务端项目查找键。同一源码重新打包也可能产生不同指纹；修改或重新打包后应重新 inspect。文件名只用于展示项目名称的回退值，不参与指纹计算。不接受服务器本地路径、查询参数或额外表单字段。
+三个核心业务接口都需要重新上传 ZIP。V1 不保留用户项目，也不提供项目 ID；每次请求在独立临时目录完成并清理。`expected_fingerprint` 是 ZIP 原始字节的 SHA-256 校验值，不是服务端项目查找键。同一源码重新打包也可能产生不同指纹；修改或重新打包后应重新 inspect。文件名只用于展示项目名称的回退值，不参与指纹计算。不接受服务器本地路径、查询参数或额外表单字段。
+
+报告历史接口只保存分析报告 JSON 和摘要元数据，不保存上传 ZIP 或源码压缩包。默认 SQLite 路径为 `.openimpact/openimpact.sqlite3`，可用 `OPENIMPACT_DB_PATH` 覆盖；该目录不应提交到版本库。删除历史报告只移除本地保存的报告记录，不修改源码或上传 ZIP。原 `/api/v1/projects/analyze` 保持无持久化行为，避免破坏冻结契约。
 
 三个接口的 `file` 均为 multipart 文件字段，建议浏览器以 `application/zip` 上传；服务以 ZIP 内容及安全规则判断，不依赖客户端声明的 MIME。每个请求的 multipart 总量最多 5 MiB + 64 KiB，其中 ZIP 文件最多 5 MiB。其余 ZIP 条目和解压限额见下文。前端交接示例见 [frontend-handoff.md](frontend-handoff.md)，真实响应见 [api-samples](api-samples)。
 
@@ -317,9 +323,12 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" -F "change=<change.
 | 422 | `invalid_fingerprint` | `expected_fingerprint` 不是 64 位十六进制值 |
 | 422 | `validation.valid=false` | ChangeSpec 配置、目标或 Core 签名校验失败；详见 `validation.diagnostics` 的 `code`、`message` |
 | 500 | `analysis_failed` | 上传项目通过 ZIP 与 ChangeSpec 校验后，内部影响分析失败 |
+| 503 | `database_unavailable` | 报告历史数据库无法写入或读取 |
+| 404 | `report_not_found` | 历史报告 ID 不存在 |
+| 422 | `invalid_pagination` | 历史报告分页参数不合法 |
 | 500 | `internal_error` | 未被既有错误分支处理的后端异常（例如建立上传项目索引失败）；仅返回固定安全消息 |
 
-缺少必填字段或 multipart 格式错误时，FastAPI 返回标准 `detail` 格式的 422 / 400；未知路径或 HTTP 方法返回标准 404 / 405。当前接口无认证、项目持久化、Worker 或任意服务器路径输入能力。
+缺少必填字段或 multipart 格式错误时，FastAPI 返回标准 `detail` 格式的 422 / 400；未知路径或 HTTP 方法返回标准 404 / 405。当前接口无认证、上传项目持久化、Worker 或任意服务器路径输入能力；报告历史只保存 report JSON 和摘要元数据。
 
 普通 ZIP/输入错误和 HTTP 500 使用 `{"error":{"code":"...","message":"..."}}`；ChangeSpec 配置或校验错误使用 422 的 `validation.valid=false` 与 `validation.diagnostics[]`；FastAPI 对缺字段等框架级错误使用 `{"detail": ...}`。前端需按响应形状和状态码分支处理，不能假设所有非 200 响应都有相同结构。
 

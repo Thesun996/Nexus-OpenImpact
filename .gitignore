@@ -9,6 +9,7 @@ dist/
 .env.*
 !.env.example
 .local/
+.openimpact/
 node_modules/
 .DS_Store
 .idea/

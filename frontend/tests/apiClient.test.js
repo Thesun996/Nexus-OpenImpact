@@ -53,6 +53,38 @@ test('optional fingerprint is omitted rather than replaced by a demo fingerprint
   await client.analyze(zip, change, '')
 })
 
+test('report history API saves, lists, reads, and deletes persisted reports', async () => {
+  const seen = []
+  const client = createApiClient({ fetchImpl: async (url, options) => {
+    seen.push({ url, options })
+    if (url === '/api/v1/reports' && options.method === 'POST') {
+      assert.ok(options.body instanceof FormData)
+      assert.equal(options.body.get('file'), zip)
+      assert.deepEqual(JSON.parse(options.body.get('change')), change)
+      assert.equal(options.body.get('expected_fingerprint'), fingerprint)
+      return jsonResponse({ record: { id: 'abc123', project_name: 'signature_change' }, report: { summary: {} } })
+    }
+    if (url === '/api/v1/reports?limit=5&offset=2' && options.method === 'GET') {
+      assert.equal(options.body, undefined)
+      return jsonResponse({ items: [{ id: 'abc123' }], limit: 5, offset: 2 })
+    }
+    if (url === '/api/v1/reports/report%2Fid' && options.method === 'GET') {
+      assert.equal(options.body, undefined)
+      return jsonResponse({ id: 'report/id', report: { summary: {} } })
+    }
+    if (url === '/api/v1/reports/report%2Fid' && options.method === 'DELETE') {
+      assert.equal(options.body, undefined)
+      return jsonResponse({ deleted: true, id: 'report/id' })
+    }
+    return jsonResponse({ error: { code: 'unexpected_path', message: url } }, 500)
+  } })
+  assert.equal((await client.saveReport(zip, change, fingerprint)).record.id, 'abc123')
+  assert.equal((await client.listReports({ limit: 5, offset: 2 })).items[0].id, 'abc123')
+  assert.equal((await client.getReport('report/id')).id, 'report/id')
+  assert.equal((await client.deleteReport('report/id')).deleted, true)
+  assert.deepEqual(seen.map(({ url }) => url), ['/api/v1/reports', '/api/v1/reports?limit=5&offset=2', '/api/v1/reports/report%2Fid', '/api/v1/reports/report%2Fid'])
+})
+
 test('every project operation forwards cancellation without retrying', async () => {
   const controller = new AbortController()
   let calls = 0

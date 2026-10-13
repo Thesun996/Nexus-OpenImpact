@@ -112,6 +112,19 @@ export function createApiClient({ fetchImpl = fetch } = {}) {
     analyze(file, change, fingerprint, { signal, analysisRoot = '.' } = {}) {
       return request('/projects/analyze', { method: 'POST', body: projectForm(file, change, fingerprint, analysisRoot), signal })
     },
+    saveReport(file, change, fingerprint, { signal, analysisRoot = '.' } = {}) {
+      return request('/reports', { method: 'POST', body: projectForm(file, change, fingerprint, analysisRoot), signal })
+    },
+    listReports({ signal, limit = 20, offset = 0 } = {}) {
+      const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+      return request(`/reports?${params}`, { method: 'GET', signal })
+    },
+    getReport(reportId, { signal } = {}) {
+      return request(`/reports/${encodeURIComponent(reportId)}`, { method: 'GET', signal })
+    },
+    deleteReport(reportId, { signal } = {}) {
+      return request(`/reports/${encodeURIComponent(reportId)}`, { method: 'DELETE', signal })
+    },
     source(file, fingerprint, { signal, analysisRoot = '.', path } = {}) {
       const form = projectForm(file, undefined, fingerprint, analysisRoot)
       if (path != null) form.append('path', path)

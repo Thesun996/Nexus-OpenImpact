@@ -1,6 +1,7 @@
 import ModuleReportView from './ModuleReportView.jsx';
 import SymbolReportView from './SymbolReportView.jsx';
 import { useRef, useState } from 'react';
+import { apiClient } from '../api/client.js';
 import { useWorkflow } from '../state/WorkflowContext.jsx';
 import { formatSignature } from '../state/workflow.js';
 import { describeChange } from '../state/changeDraft.js';
@@ -102,8 +103,26 @@ function FunctionReportResults({ report, mode = 'project', initialSelectedIndex 
 export default function ReportPage({ navigate }) {
   const { state } = useWorkflow();
   const report = state.report;
+  const [saveState, setSaveState] = useState({ status: 'idle', record: null, error: null });
+  const canSaveReport = state.mode === 'project' && !!report && !!state.file && !!state.projectFingerprint && !!state.validatedChange?.payload;
+
+  async function saveCurrentReport() {
+    if (!canSaveReport || saveState.status === 'saving') return;
+    setSaveState((previous) => ({ ...previous, status: 'saving', error: null }));
+    try {
+      const payload = await apiClient.saveReport(state.file, structuredClone(state.validatedChange.payload), state.projectFingerprint, { analysisRoot: state.analysisRoot });
+      if (!payload?.record?.id || !payload?.report) throw new Error('后端保存响应缺少报告记录。');
+      setSaveState({ status: 'saved', record: payload.record, error: null });
+    } catch (error) {
+      if (error?.name === 'AbortError') return;
+      setSaveState((previous) => ({ status: 'error', record: previous.record, error: error?.message || '保存报告失败，请检查后端服务。' }));
+    }
+  }
+
   return <div className="oi-report-page">
-    <section className="page-heading"><div><h1>分析报告</h1><p>{report ? report.change_domain === 'symbol' ? '从静态符号引用追到真实定义与源码证据。' : report.change_domain === 'module' ? '从静态导入依赖追到真实源码，理解拟定模块变更。' : '从调用路径追到真实源码，理解这次变更的影响。' : '当前会话尚未产生分析报告。'}</p></div><div className="heading-actions"><span>覆盖状态 <b>{report ? statusLabel(report.coverage?.status) : '尚未分析'}</b></span><button className="ghost-action" type="button" onClick={() => navigate('change')}>调整变更</button></div></section>
+    <section className="page-heading"><div><h1>分析报告</h1><p>{report ? report.change_domain === 'symbol' ? '从静态符号引用追到真实定义与源码证据。' : report.change_domain === 'module' ? '从静态导入依赖追到真实源码，理解拟定模块变更。' : '从调用路径追到真实源码，理解这次变更的影响。' : '当前会话尚未产生分析报告。'}</p></div><div className="heading-actions"><span>覆盖状态 <b>{report ? statusLabel(report.coverage?.status) : '尚未分析'}</b></span><button className="ghost-action" type="button" onClick={() => navigate('history')}>历史报告</button><button className="ghost-action" type="button" onClick={() => navigate('change')}>调整变更</button><button className="primary-action" type="button" onClick={() => void saveCurrentReport()} disabled={!canSaveReport || saveState.status === 'saving'} title={state.mode === 'demo' ? '演示模式不写入本地数据库。' : !report ? '请先完成一次分析。' : undefined}>{saveState.status === 'saving' ? '保存中…' : '保存到历史'}</button></div></section>
+    {saveState.status === 'saved' && <section className="state-message" role="status">已保存到历史：<b>{saveState.record?.project_name || '未命名项目'}</b></section>}
+    {saveState.status === 'error' && <section className="state-message error" role="alert">{saveState.error}</section>}
     <details className="oi-report-process"><summary>分析流程与会话说明</summary><WorkflowSteps current={4} /><ModeNotice mode={state.mode} /></details>
     <ErrorNotice error={state.error} />
     {!report ? <EmptyWorkflow title="没有当前项目的报告" message="请先选择函数并校验变更。刷新浏览器后需重新选择 ZIP，演示样例只在明确开启演示模式后展示。" navigate={navigate} /> : <ReportResults report={report} mode={state.mode} />}
