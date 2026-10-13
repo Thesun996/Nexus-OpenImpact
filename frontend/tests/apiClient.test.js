@@ -92,6 +92,37 @@ test('report history API saves, lists, reads, and deletes persisted reports', as
   assert.deepEqual(seen.map(({ url }) => url), ['/api/v1/reports', '/api/v1/reports?limit=5&offset=2', '/api/v1/reports?limit=5&offset=2&q=format_date', '/api/v1/reports/report%2Fid', '/api/v1/reports/report%2Fid'])
 })
 
+test('project library API creates, lists, reads, and lists snapshots', async () => {
+  const seen = []
+  const client = createApiClient({ fetchImpl: async (url, options) => {
+    seen.push({ url, options })
+    if (url === '/api/v1/projects' && options.method === 'POST') {
+      assert.ok(options.body instanceof FormData)
+      assert.equal(options.body.get('file'), zip)
+      return jsonResponse({ project: { id: 'project-1', name: 'signature_change' }, snapshot: { id: 'snapshot-1' }, inspect: { symbols: [] } })
+    }
+    if (url === '/api/v1/projects?limit=5&offset=2&q=signature' && options.method === 'GET') {
+      assert.equal(options.body, undefined)
+      return jsonResponse({ items: [{ id: 'project-1' }], limit: 5, offset: 2, query: 'signature', has_more: false })
+    }
+    if (url === '/api/v1/projects/project%2Fid' && options.method === 'GET') {
+      assert.equal(options.body, undefined)
+      return jsonResponse({ id: 'project/id', latest_snapshot: { id: 'snapshot-1' } })
+    }
+    if (url === '/api/v1/projects/project%2Fid/snapshots?limit=3&offset=1' && options.method === 'GET') {
+      assert.equal(options.body, undefined)
+      return jsonResponse({ items: [{ id: 'snapshot-1' }], limit: 3, offset: 1, has_more: false })
+    }
+    return jsonResponse({ error: { code: 'unexpected_path', message: url } }, 500)
+  } })
+  assert.equal((await client.createProject(zip)).project.id, 'project-1')
+  const projects = await client.listProjects({ limit: 5, offset: 2, query: ' signature ' })
+  assert.equal(projects.items[0].id, 'project-1')
+  assert.equal((await client.getProject('project/id')).id, 'project/id')
+  assert.equal((await client.listProjectSnapshots('project/id', { limit: 3, offset: 1 })).items[0].id, 'snapshot-1')
+  assert.deepEqual(seen.map(({ url }) => url), ['/api/v1/projects', '/api/v1/projects?limit=5&offset=2&q=signature', '/api/v1/projects/project%2Fid', '/api/v1/projects/project%2Fid/snapshots?limit=3&offset=1'])
+})
+
 test('every project operation forwards cancellation without retrying', async () => {
   const controller = new AbortController()
   let calls = 0
@@ -101,9 +132,11 @@ test('every project operation forwards cancellation without retrying', async () 
     return jsonResponse({ ok: true })
   } })
   await client.inspect(zip, { signal: controller.signal })
+  await client.createProject(zip, { signal: controller.signal })
   await client.validate(zip, change, fingerprint, { signal: controller.signal })
   await client.analyze(zip, change, fingerprint, { signal: controller.signal })
-  assert.equal(calls, 3)
+  await client.listProjects({ signal: controller.signal })
+  assert.equal(calls, 5)
 })
 
 test('409 fingerprint mismatch preserves the backend error for a clear UI failure', async () => {

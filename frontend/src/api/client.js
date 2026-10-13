@@ -106,6 +106,21 @@ export function createApiClient({ fetchImpl = fetch } = {}) {
     inspect(file, { signal, analysisRoot = '.' } = {}) {
       return request('/projects/inspect', { method: 'POST', body: projectForm(file, undefined, undefined, analysisRoot), signal })
     },
+    createProject(file, { signal, analysisRoot = '.' } = {}) {
+      return request('/projects', { method: 'POST', body: projectForm(file, undefined, undefined, analysisRoot), signal })
+    },
+    listProjects({ signal, limit = 20, offset = 0, query } = {}) {
+      const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+      if (query?.trim()) params.set('q', query.trim())
+      return request(`/projects?${params}`, { method: 'GET', signal })
+    },
+    getProject(projectId, { signal } = {}) {
+      return request(`/projects/${encodeURIComponent(projectId)}`, { method: 'GET', signal })
+    },
+    listProjectSnapshots(projectId, { signal, limit = 20, offset = 0 } = {}) {
+      const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+      return request(`/projects/${encodeURIComponent(projectId)}/snapshots?${params}`, { method: 'GET', signal })
+    },
     validate(file, change, fingerprint, { signal, analysisRoot = '.' } = {}) {
       return request('/changes/validate', { method: 'POST', body: projectForm(file, change, fingerprint, analysisRoot), signal })
     },

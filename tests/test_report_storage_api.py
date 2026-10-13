@@ -80,6 +80,71 @@ def test_analyze_and_save_report_then_list_and_read(tmp_path, monkeypatch):
     assert missing_after_delete.status_code == 404
 
 
+def test_create_project_snapshot_then_list_and_read(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENIMPACT_DB_PATH", str(tmp_path / "openimpact.sqlite3"))
+    monkeypatch.setenv("OPENIMPACT_SNAPSHOT_DIR", str(tmp_path / "snapshots"))
+    data = demo_zip()
+    fingerprint = hashlib.sha256(data).hexdigest()
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/v1/projects",
+            files={"file": ("signature_change.zip", data, "application/zip")},
+        )
+        listed = client.get("/api/v1/projects?q=signature")
+
+    assert created.status_code == 200
+    body = created.json()
+    project = body["project"]
+    snapshot = body["snapshot"]
+    assert project["id"]
+    assert project["name"] == "signature_change"
+    assert project["latest_snapshot"] == snapshot
+    assert snapshot["project_id"] == project["id"]
+    assert snapshot["project_fingerprint"] == fingerprint
+    assert snapshot["source_filename"] == "signature_change.zip"
+    assert snapshot["python_file_count"] == 4
+    assert snapshot["function_count"] == 4
+    assert snapshot["coverage_status"] == "complete"
+    assert body["inspect"]["project_fingerprint"] == fingerprint
+    assert (tmp_path / "snapshots" / f"{fingerprint}.zip").read_bytes() == data
+
+    assert listed.status_code == 200
+    assert listed.json()["items"] == [project]
+    assert listed.json()["has_more"] is False
+
+    with TestClient(app) as client:
+        loaded = client.get(f"/api/v1/projects/{project['id']}")
+        snapshots = client.get(f"/api/v1/projects/{project['id']}/snapshots")
+    assert loaded.status_code == 200
+    assert loaded.json() == project
+    assert snapshots.status_code == 200
+    assert snapshots.json()["items"] == [snapshot]
+
+
+def test_project_storage_errors_are_bounded(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENIMPACT_DB_PATH", str(tmp_path / "openimpact.sqlite3"))
+    monkeypatch.setenv("OPENIMPACT_SNAPSHOT_DIR", str(tmp_path / "snapshots"))
+
+    with TestClient(app) as client:
+        bad_zip = client.post(
+            "/api/v1/projects",
+            files={"file": ("bad.zip", b"not a zip", "application/zip")},
+        )
+        bad_page = client.get("/api/v1/projects?limit=0")
+        bad_query = client.get(f"/api/v1/projects?q={'x' * 81}")
+        missing = client.get(f"/api/v1/projects/{'f' * 32}")
+
+    assert bad_zip.status_code == 400
+    assert bad_zip.json()["error"]["code"] == "invalid_zip"
+    assert bad_page.status_code == 422
+    assert bad_page.json()["error"]["code"] == "invalid_pagination"
+    assert bad_query.status_code == 422
+    assert bad_query.json()["error"]["code"] == "invalid_query"
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "project_not_found"
+
+
 def test_report_storage_reuses_existing_analysis_errors(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENIMPACT_DB_PATH", str(tmp_path / "openimpact.sqlite3"))
 

@@ -1,6 +1,16 @@
-"""SQLite persistence for saved reports."""
+"""SQLite persistence for saved projects and reports."""
 
-from openimpact.storage import delete_report, get_report, initialize_database, list_reports, save_report
+from openimpact.storage import (
+    delete_report,
+    get_project,
+    get_report,
+    initialize_database,
+    list_project_snapshots,
+    list_projects,
+    list_reports,
+    save_project_snapshot,
+    save_report,
+)
 
 
 def report(project="signature_change", target="utils.format_date"):
@@ -23,12 +33,56 @@ def report(project="signature_change", target="utils.format_date"):
     }
 
 
+def inspect_report(project="signature_change"):
+    return {
+        "project_name": project,
+        "project_fingerprint": "b" * 64,
+        "source_root": project,
+        "coverage": {
+            "status": "complete",
+            "python_files": 4,
+            "indexed_modules": 4,
+            "indexed_functions": 4,
+        },
+    }
+
+
 def test_initialize_database_creates_expected_tables(tmp_path):
     path = tmp_path / "openimpact.sqlite3"
     initialize_database(path)
 
     assert path.exists()
     assert list_reports(path=path) == []
+    assert list_projects(path=path) == []
+
+
+def test_save_list_and_read_project_snapshot_round_trip(tmp_path):
+    path = tmp_path / "openimpact.sqlite3"
+    snapshots = tmp_path / "snapshots"
+    saved = save_project_snapshot(
+        inspect_report(),
+        b"zip-bytes",
+        source_filename="signature_change.zip",
+        path=path,
+        snapshot_dir=snapshots,
+    )
+
+    project = saved["project"]
+    snapshot = saved["snapshot"]
+    assert project["id"]
+    assert project["name"] == "signature_change"
+    assert project["latest_snapshot"] == snapshot
+    assert snapshot["project_id"] == project["id"]
+    assert snapshot["source_filename"] == "signature_change.zip"
+    assert snapshot["python_file_count"] == 4
+    assert snapshot["function_count"] == 4
+    assert snapshot["coverage_status"] == "complete"
+    assert (snapshots / f"{'b' * 64}.zip").read_bytes() == b"zip-bytes"
+
+    assert list_projects(path=path) == [project]
+    assert list_projects(path=path, query="signature complete") == [project]
+    assert get_project(project["id"], path=path) == project
+    assert list_project_snapshots(project["id"], path=path) == [snapshot]
 
 
 def test_save_list_and_read_report_round_trip(tmp_path):

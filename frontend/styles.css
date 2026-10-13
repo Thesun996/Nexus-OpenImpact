@@ -234,6 +234,12 @@ input::placeholder { color: var(--oi-muted); }
 .oi-history-empty { padding: var(--oi-space-6); }
 .oi-history-empty p { margin: var(--oi-space-2) 0 0; color: var(--oi-muted); font-size: var(--oi-text-sm); }
 .oi-history-detail { min-width: 0; }
+.oi-project-snapshots { display: grid; gap: var(--oi-space-3); margin-top: var(--oi-space-4); }
+.oi-project-snapshot { display: grid; gap: var(--oi-space-2); padding: var(--oi-space-4); border: 1px solid var(--oi-line); border-radius: var(--oi-radius-control); background: var(--oi-base); }
+.oi-project-snapshot > div { display: flex; justify-content: space-between; gap: var(--oi-space-3); align-items: baseline; }
+.oi-project-snapshot span, .oi-project-snapshot p { color: var(--oi-muted); font-size: var(--oi-text-xs); }
+.oi-project-snapshot p { margin: 0; }
+.oi-project-snapshot code { overflow-wrap: anywhere; color: var(--oi-trace); }
 
 /* Tablet keeps all project/session information, with a horizontal work rail. */
 @media (max-width: 1023px) {

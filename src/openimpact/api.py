@@ -30,7 +30,16 @@ from openimpact.analysis.symbol_report import build_symbol_report
 from openimpact.api_change import ChangeConfigError, build_change_spec, parse_change_config
 from openimpact.repository import zip_inspector
 from openimpact.repository.layout import AnalysisRootError
-from openimpact.storage import delete_report, get_report, list_reports, save_report
+from openimpact.storage import (
+    delete_report,
+    get_project,
+    get_report,
+    list_project_snapshots,
+    list_projects,
+    list_reports,
+    save_project_snapshot,
+    save_report,
+)
 
 _DEMO_DIR = Path(__file__).resolve().parents[2] / "examples" / "signature_change"
 _DEMO_CHANGE = _DEMO_DIR / "change.json"
@@ -50,6 +59,7 @@ class _ZipBodyLimit:
                 or scope["path"] not in {
                     "/api/v1/projects/inspect", "/api/v1/changes/validate",
                     "/api/v1/projects/analyze",
+                    "/api/v1/projects",
                     "/api/v1/reports",
                     "/api/v1/projects/source", "/api/v1/reports/questions",
                     "/api/v1/reports/question-suggestions",
@@ -181,6 +191,17 @@ def _inspect_zip(data: bytes, filename: str | None, *, analysis_root: str = ".")
     return JSONResponse(content=zip_inspector.inspect_python_zip(data, filename, analysis_root=analysis_root))
 
 
+def _create_project_snapshot(data: bytes, filename: str | None, *, analysis_root: str = ".") -> JSONResponse:
+    inspect_report = zip_inspector.inspect_python_zip(data, filename, analysis_root=analysis_root)
+    record = save_project_snapshot(
+        inspect_report,
+        data,
+        source_filename=filename,
+        analysis_root=analysis_root,
+    )
+    return JSONResponse(content={**record, "inspect": inspect_report})
+
+
 def _validate_zip(
     data: bytes, filename: str | None, change: str, expected_fingerprint: str | None, *, analysis_root: str = "."
 ) -> JSONResponse:
@@ -276,6 +297,93 @@ def _demo_report() -> JSONResponse:
 @app.get("/api/v1/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "version": app.version}
+
+
+@app.post("/api/v1/projects")
+async def create_project(request: Request, file: UploadFile = File(...), analysis_root: str = Form(".")) -> JSONResponse:
+    form_items = (await request.form()).multi_items()
+    keys = [key for key, _ in form_items]
+    if (request.query_params or keys.count("file") != 1 or keys.count("analysis_root") > 1
+            or set(keys) - {"file", "analysis_root"}):
+        await file.close()
+        return _error(400, "unsupported_input", "仅接受 file ZIP 文件及可选 analysis_root 字段。")
+
+    try:
+        analysis_root = (await request.form()).get("analysis_root", analysis_root)
+        data = await _read_zip(file)
+        return await run_in_threadpool(
+            _create_project_snapshot,
+            data,
+            file.filename,
+            **({"analysis_root": analysis_root} if analysis_root != "." else {}),
+        )
+    except AnalysisRootError as error:
+        return _error(422, error.code, str(error))
+    except zip_inspector.ZipInspectionError as error:
+        return _error(error.status_code, error.code, str(error))
+    except (OSError, sqlite3.Error):
+        _LOGGER.exception("Project persistence failed")
+        return _error(503, "database_unavailable", "项目已读取，但无法写入本地项目库。")
+    finally:
+        await file.close()
+
+
+@app.get("/api/v1/projects")
+def saved_projects(limit: int = 20, offset: int = 0, q: str | None = None) -> JSONResponse:
+    if limit < 1 or limit > 50 or offset < 0:
+        return _error(422, "invalid_pagination", "limit 必须在 1 到 50 之间，offset 不能为负数。")
+    if q is not None and len(q) > 80:
+        return _error(422, "invalid_query", "q 最多支持 80 个字符。")
+    try:
+        query = q.strip() if q is not None else None
+        rows = list_projects(limit=limit + 1, offset=offset, query=query)
+        items = rows[:limit]
+        return JSONResponse(content={
+            "items": items,
+            "limit": limit,
+            "offset": offset,
+            "query": query or None,
+            "has_more": len(rows) > limit,
+        })
+    except (OSError, sqlite3.Error):
+        _LOGGER.exception("Project list failed")
+        return _error(503, "database_unavailable", "本地项目库暂时不可用。")
+
+
+@app.get("/api/v1/projects/{project_id}")
+def saved_project(project_id: str) -> JSONResponse:
+    if not re.fullmatch(r"[0-9a-f]{32}", project_id):
+        return _error(404, "project_not_found", "没有找到该项目。")
+    try:
+        record = get_project(project_id)
+    except (OSError, sqlite3.Error):
+        _LOGGER.exception("Project read failed")
+        return _error(503, "database_unavailable", "本地项目库暂时不可用。")
+    if record is None:
+        return _error(404, "project_not_found", "没有找到该项目。")
+    return JSONResponse(content=record)
+
+
+@app.get("/api/v1/projects/{project_id}/snapshots")
+def saved_project_snapshots(project_id: str, limit: int = 20, offset: int = 0) -> JSONResponse:
+    if not re.fullmatch(r"[0-9a-f]{32}", project_id):
+        return _error(404, "project_not_found", "没有找到该项目。")
+    if limit < 1 or limit > 50 or offset < 0:
+        return _error(422, "invalid_pagination", "limit 必须在 1 到 50 之间，offset 不能为负数。")
+    try:
+        if get_project(project_id) is None:
+            return _error(404, "project_not_found", "没有找到该项目。")
+        rows = list_project_snapshots(project_id, limit=limit + 1, offset=offset)
+        items = rows[:limit]
+        return JSONResponse(content={
+            "items": items,
+            "limit": limit,
+            "offset": offset,
+            "has_more": len(rows) > limit,
+        })
+    except (OSError, sqlite3.Error):
+        _LOGGER.exception("Project snapshot list failed")
+        return _error(503, "database_unavailable", "本地项目库暂时不可用。")
 
 
 @app.post("/api/v1/projects/inspect")
