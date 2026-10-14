@@ -39,7 +39,7 @@ function mergeTasks(current, incoming) {
   return [...current, ...incoming].filter(item => !seen.has(item.id) && seen.add(item.id));
 }
 
-function TaskDetail({ task }) {
+function TaskDetail({ task, onRetry, retrying }) {
   if (!task) return <section className="oi-project-detail" role="status"><h2>未选择任务</h2></section>;
   return <section className="oi-project-detail oi-task-detail">
     <div className="oi-task-detail-heading">
@@ -54,7 +54,7 @@ function TaskDetail({ task }) {
       <div><dt>创建时间</dt><dd>{formatTime(task.created_at)}</dd></div>
       <div><dt>更新时间</dt><dd>{formatTime(task.updated_at)}</dd></div>
     </dl>
-    {task.status === 'failed' && <section className="state-message error" role="alert"><b>分析未完成</b><p>{task.error_message || '任务失败，请检查快照和变更配置。'}</p></section>}
+    {task.status === 'failed' && <section className="state-message error" role="alert"><b>分析未完成</b><p>{task.error_message || '任务失败，请检查快照和变更配置。'}</p><button className="ghost-action" type="button" onClick={() => onRetry(task)} disabled={retrying}>{retrying ? '正在重新执行…' : '重新执行'}</button></section>}
   </section>;
 }
 
@@ -68,6 +68,8 @@ export default function AnalysisTasksPage({ navigate }) {
   const [readingReport, setReadingReport] = useState(false);
   const gate = useRef(createRequestGate());
   const offset = useRef(0);
+  const retrying = useRef(false);
+  const [retryingTaskId, setRetryingTaskId] = useState(null);
   const busy = status.startsWith('loading');
 
   async function readTask(id, request) {
@@ -122,6 +124,28 @@ export default function AnalysisTasksPage({ navigate }) {
     }
   }
 
+  async function retryTask(task) {
+    if (retrying.current || task?.status !== 'failed') return;
+    retrying.current = true;
+    const request = gate.current.begin();
+    setStatus('loading-retry'); setError(null); setResult(null); setReadingReport(false); setRetryingTaskId(task.id);
+    try {
+      const payload = await apiClient.retryAnalysisTask(task.id, { signal: request.controller.signal });
+      if (!gate.current.current(request)) return;
+      const nextTask = checkedTask(payload.task, { project_snapshot_id: task.project_snapshot_id, change: task.change });
+      setTasks(current => mergeTasks([nextTask], current));
+      await readTask(nextTask.id, request);
+      if (gate.current.current(request)) setStatus('ready');
+    } catch (failure) {
+      if (gate.current.current(request) && failure.name !== 'AbortError') {
+        setError(failure.message || '无法重新执行该任务。'); setStatus('error');
+      }
+    } finally {
+      retrying.current = false;
+      if (gate.current.current(request)) setRetryingTaskId(null);
+    }
+  }
+
   useEffect(() => {
     void loadTasks(false, null);
     return () => gate.current.cancel();
@@ -148,7 +172,7 @@ export default function AnalysisTasksPage({ navigate }) {
         </article>) : <div className="oi-history-empty" role="status"><b>{busy ? '正在读取分析任务' : error ? '分析任务暂时不可用' : '还没有分析任务'}</b></div>}
         {tasks.length > 0 && hasMore && <div className="oi-history-more"><button className="ghost-action" type="button" onClick={() => void loadTasks(true)} disabled={busy}>{status === 'loading-more' ? '加载中…' : '加载更多'}</button></div>}
       </div>
-      <div className="oi-history-detail"><TaskDetail task={selected} />
+      <div className="oi-history-detail"><TaskDetail task={selected} onRetry={retryTask} retrying={retryingTaskId === selected?.id} />
         {readingReport && <p role="status">正在读取报告…</p>}
         {result && <>
           <div className="oi-history-source"><b>分析报告 · 已保存</b><ReportDownload report={result.report} projectName={result.project_name} reportId={result.id} mode="history" /></div>

@@ -702,6 +702,33 @@ def saved_analysis_task(task_id: str) -> JSONResponse:
     return JSONResponse(content=task)
 
 
+@app.post("/api/v1/analysis-tasks/{task_id}/retry")
+async def retry_analysis_task(task_id: str, request: Request, background_tasks: BackgroundTasks) -> JSONResponse:
+    if not re.fullmatch(r"[0-9a-f]{32}", task_id):
+        return _error(404, "task_not_found", "没有找到该分析任务。")
+    if request.query_params or await request.body():
+        return _error(400, "unsupported_input", "重新执行任务不接受查询参数或请求体。")
+    try:
+        failed_task = await run_in_threadpool(get_analysis_task, task_id)
+        if failed_task is None:
+            return _error(404, "task_not_found", "没有找到该分析任务。")
+        if failed_task["status"] != "failed":
+            return _error(409, "task_not_retryable", "只有失败的分析任务可以重新执行。")
+        snapshot, _data = await run_in_threadpool(read_project_snapshot, failed_task["project_snapshot_id"])
+        task = await run_in_threadpool(
+            create_analysis_task,
+            project_snapshot_id=failed_task["project_snapshot_id"],
+            change=failed_task["change"],
+        )
+    except SnapshotError as error:
+        return _error(error.status_code, error.code, str(error))
+    except (OSError, sqlite3.Error):
+        _LOGGER.exception("Analysis task retry failed")
+        return _error(503, "database_unavailable", "本地任务数据库暂时不可用。")
+    background_tasks.add_task(_run_analysis_task, task["id"], snapshot["project_fingerprint"])
+    return JSONResponse(status_code=202, content={"task": task})
+
+
 @app.post("/api/v1/demo/analyze")
 async def analyze_demo(request: Request) -> JSONResponse:
     if request.query_params or await request.body():

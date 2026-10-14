@@ -251,6 +251,41 @@ def test_analysis_task_failure_stores_safe_error(tmp_path, monkeypatch):
     assert task["result_report_id"] is None
 
 
+def test_failed_analysis_task_can_be_retried_without_rewriting_the_old_task(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENIMPACT_DB_PATH", str(tmp_path / "openimpact.sqlite3"))
+    monkeypatch.setenv("OPENIMPACT_SNAPSHOT_DIR", str(tmp_path / "snapshots"))
+    data = demo_zip()
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/v1/projects",
+            files={"file": ("signature_change.zip", data, "application/zip")},
+        ).json()
+        failed = client.post("/api/v1/analysis-tasks", data={
+            "project_snapshot_id": created["snapshot"]["id"],
+            "expected_fingerprint": "0" * 64,
+            "change": json.dumps(CHANGE),
+        }).json()["task"]
+        retry = client.post(f"/api/v1/analysis-tasks/{failed['id']}/retry")
+        retried = retry.json()["task"]
+        original = client.get(f"/api/v1/analysis-tasks/{failed['id']}").json()
+        finished = client.get(f"/api/v1/analysis-tasks/{retried['id']}").json()
+        running = client.post(f"/api/v1/analysis-tasks/{retried['id']}/retry")
+        unsupported = client.post(f"/api/v1/analysis-tasks/{failed['id']}/retry?again=1")
+
+    assert retry.status_code == 202
+    assert retried["id"] != failed["id"]
+    assert retried["project_snapshot_id"] == failed["project_snapshot_id"]
+    assert retried["change"] == failed["change"]
+    assert original["status"] == "failed"
+    assert finished["status"] == "succeeded"
+    assert finished["result_report_id"]
+    assert running.status_code == 409
+    assert running.json()["error"]["code"] == "task_not_retryable"
+    assert unsupported.status_code == 400
+    assert unsupported.json()["error"]["code"] == "unsupported_input"
+
+
 def test_analysis_task_input_errors_are_bounded(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENIMPACT_DB_PATH", str(tmp_path / "openimpact.sqlite3"))
 

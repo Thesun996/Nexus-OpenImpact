@@ -26,7 +26,7 @@
 - 当前报告和历史报告详情均可下载完整 JSON，便于交接、留档和复核证据。
 - 本地分析任务基础：可基于已保存快照创建任务、记录 queued/running/succeeded/failed 状态，并在成功后保存报告 ID。
 - 项目库快照“开始分析”会创建或复用当前任务、轮询状态、读取已保存报告，并避免重复点击创建多个任务。
-- 任务页可查看任务列表、状态详情和成功任务对应的报告证据；失败任务保留后端诊断信息。
+- 任务页可查看任务列表、状态详情和成功任务对应的报告证据；失败任务保留后端诊断信息，并可手动重新执行为一项新的任务。
 - 直接读取 ZIP 和独立演示流程继续可用。
 
 ## 尚未实现
@@ -67,7 +67,7 @@ OPENIMPACT_API_TARGET=http://127.0.0.1:8010 npm run dev -- --host 127.0.0.1 --po
 
 2026-10-14 当前回归：
 
-- 完整后端：`1086 passed, 1 skipped, 1 warning, 7 subtests passed`。真实 HTTP 测试在允许本地端口绑定的环境中运行通过。
+- 完整后端：`1087 passed, 1 skipped, 1 warning, 7 subtests passed`。真实 HTTP 测试在允许本地端口绑定的环境中运行通过。
 - 前端：`npm run test`，269 项通过。
 - 前端构建：`npm run build` 通过；仍有超过 500 kB 的 chunk 大小提示。
 - 项目库、快照、报告存储和本地分析任务相关后端测试：针对性存储/API 复验 28 项通过。
@@ -85,6 +85,7 @@ OPENIMPACT_API_TARGET=http://127.0.0.1:8010 npm run dev -- --host 127.0.0.1 --po
 - [数据库说明](database.md)
 - [API 契约](api-contract.md)
 - [GitHub Desktop 提交清单](github-desktop-submit-checklist.md)
+- [入门样例 ZIP 使用指南](beginner-sample-zip-guide.md)
 - [后续设计草案](next-stage-design.md)
 
 ## 提交说明

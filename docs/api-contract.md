@@ -36,6 +36,7 @@ Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 
 | POST | `/api/v1/analysis-tasks` | `multipart/form-data` | 基于已保存快照创建本地分析任务 | 202 |
 | GET | `/api/v1/analysis-tasks` | 无 | 分页读取本地分析任务状态 | 200 |
 | GET | `/api/v1/analysis-tasks/{task_id}` | 无 | 读取单个本地分析任务状态和结果引用 | 200 |
+| POST | `/api/v1/analysis-tasks/{task_id}/retry` | 无 | 基于失败任务的原快照和变更创建一项新任务 | 202 |
 
 三个核心业务接口仍需要重新上传 ZIP：`/api/v1/projects/inspect`、`/api/v1/changes/validate` 和 `/api/v1/projects/analyze` 每次请求在独立临时目录完成并清理。`expected_fingerprint` 是 ZIP 原始字节的 SHA-256 校验值，不是这些核心接口的服务端项目查找键。同一源码重新打包也可能产生不同指纹；修改或重新打包后应重新 inspect。文件名只用于展示项目名称的回退值，不参与指纹计算。不接受服务器本地路径、查询参数或额外表单字段。
 
@@ -43,7 +44,7 @@ Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 
 
 报告历史接口只保存分析报告 JSON 和摘要元数据，不保存上传 ZIP 或源码压缩包。默认 SQLite 路径为 `.openimpact/openimpact.sqlite3`，可用 `OPENIMPACT_DB_PATH` 覆盖；该目录不应提交到版本库。`GET /api/v1/reports` 支持可选查询参数 `q`，仅筛选项目名、上传文件名、变更领域、变更类型、目标 ID 和覆盖状态等元数据，最长 80 个字符；响应包含 `items`、`limit`、`offset`、`query` 和 `has_more`，前端用 `has_more` 决定是否继续加载下一页。删除历史报告只移除本地保存的报告记录，不修改源码或上传 ZIP。原 `/api/v1/projects/analyze` 保持无持久化行为，避免破坏冻结契约。
 
-分析任务接口是本地任务基础能力：`POST /api/v1/analysis-tasks` 基于已保存快照创建任务，后台读取该快照、执行分析并把成功结果保存为历史报告。它不接收 ZIP 文件，不替代当前前端主流程，也不是生产级队列；当前没有用户归属、重试策略或独立 worker。前端已有只读任务状态页，但“开始分析”仍未切换为任务轮询。
+分析任务接口是本地任务基础能力：`POST /api/v1/analysis-tasks` 基于已保存快照创建任务，后台读取该快照、执行分析并把成功结果保存为历史报告。项目库快照的“开始分析”会创建或复用任务并轮询结果；直接上传 ZIP 的即时分析仍保留原接口。它不接收 ZIP 文件，不是生产级队列；当前没有用户归属、自动重试或独立 worker。失败任务支持手动创建一项新的重试任务，旧任务保留不变。
 
 三个接口的 `file` 均为 multipart 文件字段，建议浏览器以 `application/zip` 上传；服务以 ZIP 内容及安全规则判断，不依赖客户端声明的 MIME。每个请求的 multipart 总量最多 5 MiB + 64 KiB，其中 ZIP 文件最多 5 MiB。其余 ZIP 条目和解压限额见下文。前端交接示例见 [frontend-handoff.md](frontend-handoff.md)，真实响应见 [api-samples](api-samples)。
 
@@ -145,6 +146,8 @@ python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
 后台执行时会把任务更新为 `running`，成功后保存报告并写入 `result_report_id`，失败则写入安全的 `error_code` 和 `error_message`。任务执行沿用快照分析的安全读取、指纹核对、静态分析和报告保存规则；不会执行用户源码，也不会把服务器路径写入响应。
 
 `GET /api/v1/analysis-tasks` 支持 `limit` 与 `offset`，规则为 `limit` 1 到 50，`offset` 非负；响应包含 `items`、`limit`、`offset` 和 `has_more`。`GET /api/v1/analysis-tasks/{task_id}` 返回单个任务；任务 ID 非法或不存在返回 404 `task_not_found`。
+
+`POST /api/v1/analysis-tasks/{task_id}/retry` 不接受请求体或查询参数。它只接受状态为 `failed` 的已有任务，读取同一个项目快照和原始变更配置后创建新的 queued 任务，返回 HTTP 202 和新任务对象。旧失败任务保持原有状态和诊断，便于复核；没有重新执行或正在执行的任务返回 409 `task_not_retryable`。快照不存在、缺失或损坏时沿用快照错误码。
 
 输入错误：未知字段、重复字段、查询参数或文件字段返回 400 `unsupported_input`；`change` 不是 JSON 对象返回 422 `invalid_change_json`；分页错误返回 422 `invalid_pagination`；快照不存在按快照接口返回 404 `snapshot_not_found`。创建成功后的指纹不匹配、快照损坏或分析错误会记录为 `failed` 任务，而不是伪造成功报告。
 

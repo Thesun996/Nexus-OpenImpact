@@ -171,6 +171,9 @@ export function createApiClient({ fetchImpl = fetch } = {}) {
     getAnalysisTask(taskId, { signal } = {}) {
       return request(`/analysis-tasks/${encodeURIComponent(taskId)}`, { method: 'GET', signal })
     },
+    retryAnalysisTask(taskId, { signal } = {}) {
+      return request(`/analysis-tasks/${encodeURIComponent(taskId)}/retry`, { method: 'POST', signal })
+    },
     source(file, fingerprint, { signal, analysisRoot = '.', path } = {}) {
       const form = projectForm(file, undefined, fingerprint, analysisRoot)
       if (path != null) form.append('path', path)
