@@ -209,6 +209,15 @@ def test_analysis_task_round_trip_and_status_updates(tmp_path):
     assert update_analysis_task("f" * 32, status="running", path=path) is None
 
 
+def test_task_pagination_does_not_move_rows_when_status_changes(tmp_path):
+    path = tmp_path / "tasks.sqlite3"
+    old = create_analysis_task(project_snapshot_id="a" * 32, change={}, path=path)
+    new = create_analysis_task(project_snapshot_id="a" * 32, change={}, path=path)
+    assert list_analysis_tasks(limit=1, path=path)[0]["id"] == new["id"]
+    update_analysis_task(old["id"], status="running", path=path)
+    assert list_analysis_tasks(limit=1, offset=1, path=path)[0]["id"] == old["id"]
+
+
 def test_delete_project_removes_records_and_only_unreferenced_snapshot_file(tmp_path):
     path = tmp_path / "openimpact.sqlite3"
     snapshots = tmp_path / "snapshots"

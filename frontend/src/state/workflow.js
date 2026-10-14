@@ -9,7 +9,7 @@ export function createInitialState(revision = 0) {
     mode: 'project', file: null, snapshot: null, analysisRoot: '.', inspect: null, projectFingerprint: null,
     changeDomain: 'function', selectedModuleId: null, selectedSymbolId: null, selectedVariableSymbolId: null,
     change: createChangeDraft(),
-    validation: null, validatedChange: null, report: null,
+    validation: null, validatedChange: null, report: null, analysisTask: null, savedReportId: null,
     loading: { inspect: false, validate: false, analyze: false }, error: null, revision,
     health: { status: 'idle', version: null, message: null },
   }
@@ -23,6 +23,17 @@ export function fileError(file) {
 }
 
 export function workflowReducer(state, action) {
+  const next = reduceWorkflow(state, action)
+  if (next === state) return state
+  // A task/result belongs to the same inspected and validated configuration.
+  if (next.revision !== state.revision || next.inspect !== state.inspect || next.validation !== state.validation
+    || (action.type === 'REQUEST_START' && action.stage !== 'analyze')) {
+    return { ...next, analysisTask: null, savedReportId: null }
+  }
+  return next
+}
+
+function reduceWorkflow(state, action) {
   // Async results belong to one project/configuration revision only.
   if (action.revision !== undefined && action.revision !== state.revision) return state
   switch (action.type) {
@@ -78,7 +89,7 @@ export function workflowReducer(state, action) {
     case 'REQUEST_START': {
       const cleared = action.stage === 'inspect'
         ? { inspect: null, projectFingerprint: null, selectedSymbolId: null, selectedModuleId: null, selectedVariableSymbolId: null, changeDomain: 'function', change: createInitialState().change, validation: null, validatedChange: null, report: null }
-        : action.stage === 'validate' ? { validation: null, validatedChange: null, report: null } : { report: null }
+        : action.stage === 'validate' ? { validation: null, validatedChange: null, report: null } : { report: null, savedReportId: null }
       return { ...state, ...cleared, loading: { ...state.loading, [action.stage]: true }, error: null }
     }
     case 'REQUEST_FAILED':
@@ -88,7 +99,9 @@ export function workflowReducer(state, action) {
     case 'VALIDATION_RECEIVED':
       return { ...state, validation: action.validation, validatedChange: action.validatedChange || null, report: null, loading: { ...state.loading, validate: false }, error: null }
     case 'REPORT_RECEIVED':
-      return { ...state, report: action.report, loading: { ...state.loading, analyze: false }, error: null }
+      return { ...state, report: action.report, savedReportId: action.savedReportId || null, loading: { ...state.loading, analyze: false }, error: null }
+    case 'ANALYSIS_TASK_RECEIVED':
+      return { ...state, analysisTask: action.analysisTask }
     case 'RESET':
       return { ...createInitialState(state.revision + 1), health: state.health }
     case 'HEALTH_REQUESTED':

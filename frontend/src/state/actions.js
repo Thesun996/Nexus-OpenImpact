@@ -3,10 +3,11 @@ import { buildChangePayload, getProjectSource, getSelectedTarget, isSupportedDem
 
 import { matchesModuleIntent, moduleIdentity } from './moduleDraft.js'
 import { matchesSymbolIntent, symbolIdentity } from './symbolDraft.js'
+import { checkedTask, sameChange, waitForAnalysisTask, waitForPoll } from './analysisTask.js'
 
 // One active business request per session. Cancellation saves client work;
 // identity + revision checks also protect against a transport ignoring abort.
-export function createWorkflowActions({ getState, dispatch, client, loadDemoFile, demo }) {
+export function createWorkflowActions({ getState, dispatch, client, loadDemoFile, demo, taskPause = waitForPoll }) {
   let active = null
   let healthRequest = null
 
@@ -219,7 +220,22 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
         return true
       }
       const change = structuredClone(current.validatedChange.payload)
-      return run('analyze', (signal) => client.analyze(getProjectSource(current), change, current.projectFingerprint, { signal, analysisRoot: current.analysisRoot }), (report, revision) => {
+      return run('analyze', async (signal) => {
+        if (!current.snapshot) return { report: await client.analyze(getProjectSource(current), change,
+          current.projectFingerprint, { signal, analysisRoot: current.analysisRoot }) }
+        const previous = current.analysisTask
+        const reusable = previous && previous.status !== 'failed'
+          && previous.project_snapshot_id === current.snapshot.id && sameChange(previous.change, change)
+        const task = checkedTask(reusable ? previous : (await client.createAnalysisTask(current.snapshot.id,
+          change, current.projectFingerprint, { signal })).task,
+        { project_snapshot_id: current.snapshot.id, change })
+        signal.throwIfAborted()
+        const record = await waitForAnalysisTask(client, task, { signal, pause: taskPause,
+          onUpdate: (analysisTask) => {
+            if (!signal.aborted) dispatch({ type: 'ANALYSIS_TASK_RECEIVED', analysisTask, revision: current.revision })
+          } })
+        return { report: record.report, savedReportId: record.id }
+      }, ({ report, savedReportId }, revision) => {
         checkSnapshot(report, current.snapshot)
         checkAnalysisRoot(report, current.analysisRoot)
         if (current.changeDomain === 'symbol') {
@@ -240,7 +256,7 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
           || signatureIdentity(report.change.before) !== signatureIdentity(current.validation.change_spec.before)
           || signatureIdentity(report.change.after) !== signatureIdentity(current.validation.change_spec.after)
           || !report.summary || !Array.isArray(report.direct_impacts) || !Array.isArray(report.indirect_impacts)) invalidResponse()
-        dispatch({ type: 'REPORT_RECEIVED', report, revision })
+        dispatch({ type: 'REPORT_RECEIVED', report, savedReportId, revision })
       })
     },
     dispose() {

@@ -11,6 +11,10 @@ const identity = { project_id: snapshot.project_id, project_snapshot_id: snapsho
 const inspect = { ...fixture('inspect'), ...identity, snapshot }
 const validation = { ...fixture('validate'), ...identity }
 const report = { ...fixture('analyze'), ...identity }
+const taskId = 'd'.repeat(32), reportId = 'e'.repeat(32)
+const change = { change_type: 'add_required_parameter', target_symbol_id: 'utils.format_date', added_parameter: { name: 'timezone', kind: 'positional_or_keyword' } }
+const task = { id: taskId, project_snapshot_id: snapshot.id, status: 'queued', change }
+const record = { id: reportId, project_fingerprint: snapshot.project_fingerprint, report }
 const zip = new File(['original'], 'saved.zip')
 const pending = () => { let resolve; const promise = new Promise(done => { resolve = done }); return { promise, resolve } }
 
@@ -18,11 +22,13 @@ function harness(overrides = {}) {
   let state = createInitialState()
   const calls = []
   const client = Object.fromEntries(Object.entries({ inspect, validate: validation, analyze: report,
-    createProject: { snapshot, inspect, project: { id: snapshot.project_id } } }).map(([key, value]) => [key, async (...args) => {
+    createProject: { snapshot, inspect, project: { id: snapshot.project_id } },
+    createAnalysisTask: { task }, getAnalysisTask: { ...task, status: 'succeeded', result_report_id: reportId }, getReport: record,
+  }).map(([key, value]) => [key, async (...args) => {
     calls.push([key, ...args]); return structuredClone(value)
   }]))
   const actions = createWorkflowActions({ getState: () => state, dispatch: action => { state = workflowReducer(state, action) },
-    client: { ...client, ...overrides } })
+    client: { ...client, ...overrides }, taskPause: async () => {} })
   return { actions, calls, state: () => state }
 }
 async function ready(h) {
@@ -38,9 +44,12 @@ test('saved snapshot opens, validates and analyzes without any browser File', as
   assert.deepEqual(getProjectSource(h.state()), { snapshotId: snapshot.id })
   assert.equal(await h.actions.validateChange(), true)
   assert.equal(await h.actions.analyzeProject(), true)
-  assert.deepEqual(h.calls.map(([operation]) => operation), ['inspect', 'validate', 'analyze'])
-  for (const [, source] of h.calls) assert.deepEqual(source, { snapshotId: snapshot.id })
+  assert.deepEqual(h.calls.map(([operation]) => operation), ['inspect', 'validate', 'createAnalysisTask', 'getAnalysisTask', 'getReport'])
+  for (const [, source] of h.calls.slice(0, 2)) assert.deepEqual(source, { snapshotId: snapshot.id })
+  assert.deepEqual(h.calls[2].slice(1, 4), [snapshot.id, change, snapshot.project_fingerprint])
   assert.equal(h.state().report.project_snapshot_id, snapshot.id)
+  assert.equal(h.state().savedReportId, reportId)
+  assert.equal(h.state().analysisTask.status, 'succeeded')
 })
 
 test('explicit save switches to persisted snapshot; a new upload clears it', async () => {
@@ -97,11 +106,58 @@ test('wrong snapshot identity or root cannot be accepted as a successful inspect
 })
 
 test('a corrupt or missing snapshot cannot produce phantom analysis success', async () => {
-  const h = harness({ analyze: async () => { throw new ApiError({ status: 409, code: 'snapshot_corrupted', message: '快照损坏' }) } })
+  const h = harness({ getAnalysisTask: async () => ({ ...task, status: 'failed', error_code: 'snapshot_corrupted', error_message: '快照损坏' }) })
   await ready(h); await h.actions.validateChange()
   assert.equal(await h.actions.analyzeProject(), false)
   assert.equal(h.state().report, null)
   assert.equal(h.state().error.code, 'snapshot_corrupted')
+})
+
+test('double click creates one task; interrupted polling resumes the same task', async () => {
+  const wait = pending(); let polls = 0
+  const h = harness({ getAnalysisTask: async () => ++polls === 1 ? wait.promise : { ...task, status: 'succeeded', result_report_id: reportId } })
+  await ready(h); await h.actions.validateChange()
+  const running = h.actions.analyzeProject()
+  assert.equal(await h.actions.analyzeProject(), false)
+  wait.resolve(Promise.reject(new ApiError({ code: 'backend_unreachable', message: '连接中断' })))
+  assert.equal(await running, false)
+  assert.equal(h.state().analysisTask.id, taskId)
+  assert.equal(h.state().report, null)
+  assert.equal(await h.actions.analyzeProject(), true)
+  assert.equal(h.calls.filter(([operation]) => operation === 'createAnalysisTask').length, 1)
+  assert.equal(h.state().savedReportId, reportId)
+})
+
+test('a late task response cannot overwrite another project or configuration', async () => {
+  for (const replace of [h => h.actions.selectFile(zip), h => h.actions.updateChange({ parameterName: 'zone' })]) {
+    const wait = pending(); const queried = pending()
+    const h = harness({ getAnalysisTask: () => { queried.resolve(); return wait.promise } })
+    await ready(h); await h.actions.validateChange()
+    const running = h.actions.analyzeProject()
+    await queried.promise
+    replace(h)
+    wait.resolve({ ...task, status: 'succeeded', result_report_id: reportId })
+    assert.equal(await running, false)
+    assert.equal(h.state().analysisTask, null)
+    assert.equal(h.state().report, null)
+    assert.equal(h.calls.some(([operation]) => operation === 'getReport'), false)
+  }
+})
+
+test('task and report must match the submitted snapshot, intent and validated signature', async () => {
+  for (const override of [
+    { createAnalysisTask: async () => ({ task: { ...task, project_snapshot_id: 'f'.repeat(32) } }) },
+    { getAnalysisTask: async () => ({ ...task, id: 'f'.repeat(32), status: 'succeeded', result_report_id: reportId }) },
+    { getAnalysisTask: async () => ({ ...task, change: { ...change, target_symbol_id: 'other.fn' } }) },
+    { getReport: async () => ({ ...record, id: 'f'.repeat(32) }) },
+    { getReport: async () => ({ ...record, report: { ...report, project_snapshot_id: 'f'.repeat(32) } }) },
+    { getReport: async () => ({ ...record, report: { ...report, change: { ...report.change, after: { name: 'format_date', parameters: [] } } } }) },
+  ]) {
+    const h = harness(override); await ready(h); await h.actions.validateChange()
+    assert.equal(await h.actions.analyzeProject(), false)
+    assert.equal(h.state().report, null)
+    assert.equal(h.state().savedReportId, null)
+  }
 })
 
 test('every snapshot operation sends no ZIP or root override and forwards cancellation', async () => {

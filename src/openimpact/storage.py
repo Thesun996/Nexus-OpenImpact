@@ -584,7 +584,7 @@ def list_analysis_tasks(
         rows = connection.execute(
             """
             SELECT * FROM analysis_tasks
-            ORDER BY updated_at DESC, rowid DESC
+            ORDER BY created_at DESC, rowid DESC
             LIMIT ? OFFSET ?
             """,
             (limit, offset),

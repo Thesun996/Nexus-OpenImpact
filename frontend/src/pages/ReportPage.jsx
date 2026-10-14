@@ -110,7 +110,7 @@ export default function ReportPage({ navigate }) {
   const gate = useRef(createRequestGate());
   const saving = useRef(false);
   const latestReport = useRef(report); latestReport.current = report;
-  const currentReportSaved = saveState.status === 'saved' && saveState.report === report;
+  const currentReportSaved = !!state.savedReportId || (saveState.status === 'saved' && saveState.report === report);
   useEffect(() => {
     gate.current.cancel(); saving.current = false;
     setSaveState({ status: 'idle', record: null, error: null, report: null });

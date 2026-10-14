@@ -296,10 +296,10 @@ def _analyze_and_save_zip(
 
 
 def _run_analysis_task(task_id: str, expected_fingerprint: str | None) -> None:
-    task = get_analysis_task(task_id)
-    if task is None:
-        return
     try:
+        task = get_analysis_task(task_id)
+        if task is None:
+            return
         update_analysis_task(task_id, status="running")
         snapshot, data = read_project_snapshot(task["project_snapshot_id"])
         response = _analyze_zip(
@@ -311,12 +311,14 @@ def _run_analysis_task(task_id: str, expected_fingerprint: str | None) -> None:
         )
         payload = json.loads(response.body.decode("utf-8"))
         if response.status_code != 200:
-            error = payload.get("error") if isinstance(payload, dict) else {}
+            error = payload.get("error") or {}
+            if payload.get("validation", {}).get("valid") is False:
+                error = next(iter(payload["validation"].get("diagnostics", [])), {})
             update_analysis_task(
                 task_id,
                 status="failed",
-                error_code=error.get("code") if isinstance(error, dict) else "analysis_failed",
-                error_message=error.get("message") if isinstance(error, dict) else "项目影响分析失败，请重试。",
+                error_code=error.get("code") or "analysis_failed",
+                error_message=error.get("message") or "项目影响分析失败，请重试。",
             )
             return
         payload.update(project_id=snapshot["project_id"], project_snapshot_id=snapshot["id"],
@@ -327,6 +329,8 @@ def _run_analysis_task(task_id: str, expected_fingerprint: str | None) -> None:
         record = save_report(payload, source_filename=snapshot["source_filename"],
                              analysis_root=snapshot["analysis_root"])
         update_analysis_task(task_id, status="succeeded", result_report_id=record["id"])
+    except SnapshotError as error:
+        update_analysis_task(task_id, status="failed", error_code=error.code, error_message=str(error))
     except Exception:
         _LOGGER.exception("Analysis task failed")
         update_analysis_task(
@@ -653,8 +657,8 @@ async def create_analysis_task_endpoint(request: Request, background_tasks: Back
             return _error(422, "invalid_change_json", "change 必须是 JSON 对象。")
         try:
             # Fail fast for missing snapshots; the worker verifies bytes and fingerprint again.
-            read_project_snapshot(snapshot_id)
-            task = create_analysis_task(project_snapshot_id=snapshot_id, change=change)
+            await run_in_threadpool(read_project_snapshot, snapshot_id)
+            task = await run_in_threadpool(create_analysis_task, project_snapshot_id=snapshot_id, change=change)
         except SnapshotError as error:
             return _error(error.status_code, error.code, str(error))
         except (OSError, sqlite3.Error):

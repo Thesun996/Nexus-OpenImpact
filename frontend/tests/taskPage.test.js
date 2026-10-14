@@ -24,6 +24,7 @@ test('task status labels expose bounded Chinese states', () => {
 test('task target label uses stable change identifiers only', () => {
   assert.equal(taskTargetLabel({ target_symbol_id: 'utils.format_date' }), 'utils.format_date')
   assert.equal(taskTargetLabel({ target_module: 'dashboard' }), 'dashboard')
+  assert.equal(taskTargetLabel({ target_module_id: 'dashboard' }), 'dashboard')
   assert.equal(taskTargetLabel({ target_symbol: 'settings.TIMEOUT' }), 'settings.TIMEOUT')
   assert.equal(taskTargetLabel({}), '目标未记录')
 })
@@ -31,8 +32,8 @@ test('task target label uses stable change identifiers only', () => {
 test('task change label summarizes operation without mutating change payload', () => {
   const change = { operation: { change_type: 'rename_parameter', parameter_name: 'timeout' } }
   const beforeSnapshot = JSON.stringify(change)
-  assert.equal(taskChangeLabel(change), 'rename_parameter · timeout')
+  assert.equal(taskChangeLabel(change), '重命名参数 · timeout')
   assert.equal(JSON.stringify(change), beforeSnapshot)
-  assert.equal(taskChangeLabel({ change_type: 'add_required_parameter', added_parameter: { name: 'timezone' } }), 'add_required_parameter · timezone')
-  assert.equal(taskChangeLabel({}), 'change')
+  assert.equal(taskChangeLabel({ change_type: 'add_required_parameter', added_parameter: { name: 'timezone' } }), '新增必填参数 · timezone')
+  assert.equal(taskChangeLabel({}), '变更类型未知')
 })
