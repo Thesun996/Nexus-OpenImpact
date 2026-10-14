@@ -9,6 +9,11 @@ const SourceContext = createContext(null)
 const PAGE_LINES = 200
 export const useSourceWorkspace = () => useContext(SourceContext)
 
+// Historical evidence must never open source from an unrelated active project.
+export function WithoutProjectSource({ children }) {
+  return <SourceContext.Provider value={null}>{children}</SourceContext.Provider>
+}
+
 export function SourceLink({ location, sourceHash }) {
   const workspace = useSourceWorkspace()
   if (!workspace?.snapshot.source || !workspace.snapshot.fingerprint || !location?.file) return null

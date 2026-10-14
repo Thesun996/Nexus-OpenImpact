@@ -18,6 +18,7 @@ import { entries, impactLabel, statusLabel } from '../components/report/presenta
 import '../components/report/report.css';
 import ReportQuestions from '../components/workspace/ReportQuestions.jsx';
 import RelatedTests from '../components/report/RelatedTests.jsx';
+import ReportDownload from '../components/report/ReportDownload.jsx';
 
 export function ChangeOverview({ change }) {
   const description = describeChange(change);
@@ -109,15 +110,16 @@ export default function ReportPage({ navigate }) {
   const gate = useRef(createRequestGate());
   const saving = useRef(false);
   const latestReport = useRef(report); latestReport.current = report;
+  const currentReportSaved = saveState.status === 'saved' && saveState.report === report;
   useEffect(() => {
     gate.current.cancel(); saving.current = false;
-    setSaveState({ status: 'idle', record: null, error: null });
+    setSaveState({ status: 'idle', record: null, error: null, report: null });
     return () => gate.current.cancel();
   }, [report]);
   const canSaveReport = state.mode === 'project' && !!report && !!source && !!state.projectFingerprint && !!state.validatedChange?.payload;
 
   async function saveCurrentReport() {
-    if (!canSaveReport || saving.current) return;
+    if (!canSaveReport || saving.current || currentReportSaved) return;
     saving.current = true;
     const request = gate.current.begin();
     setSaveState((previous) => ({ ...previous, status: 'saving', error: null }));
@@ -127,17 +129,17 @@ export default function ReportPage({ navigate }) {
       if (!payload?.record?.id || !payload?.report) throw new Error('后端保存响应缺少报告记录。');
       if (payload.record.project_fingerprint !== state.projectFingerprint || (state.snapshot
         && payload.report.project_snapshot_id !== state.snapshot.id)) throw new Error('保存的报告与当前项目快照不一致。');
-      setSaveState({ status: 'saved', record: payload.record, error: null });
+      setSaveState({ status: 'saved', record: payload.record, error: null, report });
     } catch (error) {
       if (error?.name === 'AbortError' || !gate.current.current(request) || latestReport.current !== report) return;
-      setSaveState((previous) => ({ status: 'error', record: previous.record, error: error?.message || '保存报告失败，请检查后端服务。' }));
+      setSaveState((previous) => ({ status: 'error', record: previous.record, error: error?.message || '保存报告失败，请检查后端服务。', report: previous.report ?? null }));
     } finally {
       if (gate.current.current(request)) saving.current = false;
     }
   }
 
   return <div className="oi-report-page">
-    <section className="page-heading"><div><h1>分析报告</h1><p>{report ? report.change_domain === 'symbol' ? '从静态符号引用追到真实定义与源码证据。' : report.change_domain === 'module' ? '从静态导入依赖追到真实源码，理解拟定模块变更。' : '从调用路径追到真实源码，理解这次变更的影响。' : '当前会话尚未产生分析报告。'}</p></div><div className="heading-actions"><span>覆盖状态 <b>{report ? statusLabel(report.coverage?.status) : '尚未分析'}</b></span><button className="ghost-action" type="button" onClick={() => navigate('history')}>历史报告</button><button className="ghost-action" type="button" onClick={() => navigate('change')}>调整变更</button><button className="primary-action" type="button" onClick={() => void saveCurrentReport()} disabled={!canSaveReport || saveState.status === 'saving'} title={state.mode === 'demo' ? '演示模式不写入本地数据库。' : !report ? '请先完成一次分析。' : undefined}>{saveState.status === 'saving' ? '保存中…' : '保存到历史'}</button></div></section>
+    <section className="page-heading"><div><h1>分析报告</h1><p>{report ? report.change_domain === 'symbol' ? '从静态符号引用追到真实定义与源码证据。' : report.change_domain === 'module' ? '从静态导入依赖追到真实源码，理解拟定模块变更。' : '从调用路径追到真实源码，理解这次变更的影响。' : '当前会话尚未产生分析报告。'}</p></div><div className="heading-actions"><span>覆盖状态 <b>{report ? statusLabel(report.coverage?.status) : '尚未分析'}</b></span><ReportDownload report={report} projectName={state.inspect?.project_name} mode={state.mode} /><button className="ghost-action" type="button" onClick={() => navigate('history')}>历史报告</button><button className="ghost-action" type="button" onClick={() => navigate('change')}>调整变更</button><button className="primary-action" type="button" onClick={() => void saveCurrentReport()} disabled={!canSaveReport || saveState.status === 'saving' || currentReportSaved} title={state.mode === 'demo' ? '演示模式不写入本地数据库。' : !report ? '请先完成一次分析。' : currentReportSaved ? '当前报告已保存到历史。' : undefined}>{saveState.status === 'saving' ? '保存中…' : currentReportSaved ? '已保存到历史' : '保存到历史'}</button></div></section>
     {saveState.status === 'saved' && <section className="state-message" role="status">已保存到历史：<b>{saveState.record?.project_name || '未命名项目'}</b></section>}
     {saveState.status === 'error' && <section className="state-message error" role="alert">{saveState.error}</section>}
     <details className="oi-report-process"><summary>分析流程与会话说明</summary><WorkflowSteps current={4} /><ModeNotice mode={state.mode} /></details>

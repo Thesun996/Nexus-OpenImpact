@@ -234,6 +234,9 @@ input::placeholder { color: var(--oi-muted); }
 .oi-history-empty { padding: var(--oi-space-6); }
 .oi-history-empty p { margin: var(--oi-space-2) 0 0; color: var(--oi-muted); font-size: var(--oi-text-sm); }
 .oi-history-detail { min-width: 0; }
+.oi-history-source { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--oi-space-3); padding-bottom: var(--oi-space-4); color: var(--oi-muted); font-size: var(--oi-text-sm); }
+.oi-history-source-actions, .oi-report-download { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--oi-space-3); }
+.oi-report-download span { color: var(--oi-danger); font-size: var(--oi-text-sm); }
 .oi-project-snapshots { display: grid; gap: var(--oi-space-3); margin-top: var(--oi-space-4); }
 .oi-project-snapshot { display: grid; gap: var(--oi-space-3); min-width: 0; padding: var(--oi-space-4); border: 1px solid var(--oi-line); border-radius: var(--oi-radius-control); background: var(--oi-surface); overflow-wrap: anywhere; }
 .oi-project-snapshot > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--oi-space-3); align-items: baseline; }
