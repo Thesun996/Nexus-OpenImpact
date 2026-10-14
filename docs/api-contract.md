@@ -44,7 +44,7 @@ Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 
 
 报告历史接口只保存分析报告 JSON 和摘要元数据，不保存上传 ZIP 或源码压缩包。默认 SQLite 路径为 `.openimpact/openimpact.sqlite3`，可用 `OPENIMPACT_DB_PATH` 覆盖；该目录不应提交到版本库。`GET /api/v1/reports` 支持可选查询参数 `q`，仅筛选项目名、上传文件名、变更领域、变更类型、目标 ID 和覆盖状态等元数据，最长 80 个字符；响应包含 `items`、`limit`、`offset`、`query` 和 `has_more`，前端用 `has_more` 决定是否继续加载下一页。删除历史报告只移除本地保存的报告记录，不修改源码或上传 ZIP。原 `/api/v1/projects/analyze` 保持无持久化行为，避免破坏冻结契约。
 
-分析任务接口是本地任务基础能力：`POST /api/v1/analysis-tasks` 基于已保存快照创建任务，后台读取该快照、执行分析并把成功结果保存为历史报告。项目库快照的“开始分析”会创建或复用任务并轮询结果；直接上传 ZIP 的即时分析仍保留原接口。它不接收 ZIP 文件，不是生产级队列；当前没有用户归属、自动重试或独立 worker。失败任务支持手动创建一项新的重试任务，旧任务保留不变。
+分析任务接口是本地任务基础能力：`POST /api/v1/analysis-tasks` 基于已保存快照创建任务，后台读取该快照、执行分析并把成功结果保存为历史报告。标准前端在项目库快照或直接上传 ZIP 的“开始分析”中都会创建或复用任务并轮询结果；直接上传 ZIP 会先调用项目库保存接口生成快照。旧的即时上传 Analyze 接口仍保留以兼容冻结契约。任务接口不接收 ZIP 文件，不是生产级队列；当前没有用户归属、自动重试或独立 worker。失败任务支持手动创建一项新的重试任务，旧任务保留不变。
 
 三个接口的 `file` 均为 multipart 文件字段，建议浏览器以 `application/zip` 上传；服务以 ZIP 内容及安全规则判断，不依赖客户端声明的 MIME。每个请求的 multipart 总量最多 5 MiB + 64 KiB，其中 ZIP 文件最多 5 MiB。其余 ZIP 条目和解压限额见下文。前端交接示例见 [frontend-handoff.md](frontend-handoff.md)，真实响应见 [api-samples](api-samples)。
 

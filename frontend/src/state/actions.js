@@ -221,22 +221,37 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
       }
       const change = structuredClone(current.validatedChange.payload)
       return run('analyze', async (signal) => {
-        if (!current.snapshot) return { report: await client.analyze(getProjectSource(current), change,
-          current.projectFingerprint, { signal, analysisRoot: current.analysisRoot }) }
+        let snapshot = current.snapshot
+        const supportsTasks = typeof client.createProject === 'function' && typeof client.createAnalysisTask === 'function'
+          && typeof client.getAnalysisTask === 'function' && typeof client.getReport === 'function'
+        if (!snapshot && supportsTasks) {
+          const persisted = await client.createProject(current.file, { signal, analysisRoot: current.analysisRoot })
+          const { project, inspect, snapshot: savedSnapshot } = persisted
+          checkInspection(inspect)
+          if (!/^[a-f0-9]{32}$/.test(savedSnapshot?.id) || savedSnapshot.project_id !== project?.id
+            || savedSnapshot.analysis_root !== current.analysisRoot) invalidResponse()
+          checkFingerprint(inspect, current.projectFingerprint)
+          checkAnalysisRoot(inspect, current.analysisRoot)
+          snapshot = savedSnapshot
+          dispatch({ type: 'SNAPSHOT_ATTACHED', snapshot, revision: current.revision })
+          signal.throwIfAborted()
+        }
+        if (!snapshot) return { report: await client.analyze(getProjectSource(current), change,
+          current.projectFingerprint, { signal, analysisRoot: current.analysisRoot }), snapshot: null }
         const previous = current.analysisTask
         const reusable = previous && previous.status !== 'failed'
-          && previous.project_snapshot_id === current.snapshot.id && sameChange(previous.change, change)
-        const task = checkedTask(reusable ? previous : (await client.createAnalysisTask(current.snapshot.id,
+          && previous.project_snapshot_id === snapshot.id && sameChange(previous.change, change)
+        const task = checkedTask(reusable ? previous : (await client.createAnalysisTask(snapshot.id,
           change, current.projectFingerprint, { signal })).task,
-        { project_snapshot_id: current.snapshot.id, change })
+        { project_snapshot_id: snapshot.id, change })
         signal.throwIfAborted()
         const record = await waitForAnalysisTask(client, task, { signal, pause: taskPause,
           onUpdate: (analysisTask) => {
             if (!signal.aborted) dispatch({ type: 'ANALYSIS_TASK_RECEIVED', analysisTask, revision: current.revision })
           } })
-        return { report: record.report, savedReportId: record.id }
-      }, ({ report, savedReportId }, revision) => {
-        checkSnapshot(report, current.snapshot)
+        return { report: record.report, savedReportId: record.id, snapshot }
+      }, ({ report, savedReportId, snapshot }, revision) => {
+        checkSnapshot(report, snapshot)
         checkAnalysisRoot(report, current.analysisRoot)
         if (current.changeDomain === 'symbol') {
           checkFingerprint(report, current.projectFingerprint)

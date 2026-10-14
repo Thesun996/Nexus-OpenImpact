@@ -68,6 +68,22 @@ test('explicit save switches to persisted snapshot; a new upload clears it', asy
   assert.equal(h.state().report, null)
 })
 
+test('a directly uploaded ZIP is persisted and analyzed through one task', async () => {
+  const h = harness()
+  h.actions.selectFile(zip)
+  assert.equal(await h.actions.inspectProject(), true)
+  h.actions.selectSymbol('utils.format_date')
+  h.actions.updateChange({ parameterName: 'timezone' })
+  assert.equal(await h.actions.validateChange(), true)
+  assert.equal(await h.actions.analyzeProject(), true)
+  assert.deepEqual(h.calls.map(([operation]) => operation), ['inspect', 'validate', 'createProject', 'createAnalysisTask', 'getAnalysisTask', 'getReport'])
+  assert.equal(h.calls[2][1], zip)
+  assert.equal(h.state().file, null)
+  assert.equal(h.state().snapshot.id, snapshot.id)
+  assert.equal(h.state().analysisTask.status, 'succeeded')
+  assert.equal(h.state().savedReportId, reportId)
+})
+
 test('opening a new snapshot immediately clears earlier report and ignores a late response', async () => {
   const wait = pending(); let first = true
   const h = harness({ inspect: async () => first ? (first = false, wait.promise) : inspect })

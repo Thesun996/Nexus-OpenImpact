@@ -48,6 +48,9 @@ function reduceWorkflow(state, action) {
       return { ...createInitialState(state.revision + 1), snapshot: action.snapshot,
         analysisRoot: action.snapshot.analysis_root, inspect: action.inspect,
         projectFingerprint: action.inspect.project_fingerprint, health: state.health }
+    case 'SNAPSHOT_ATTACHED':
+      if (state.mode !== 'project' || state.snapshot || !action.snapshot || action.snapshot.analysis_root !== state.analysisRoot) return state
+      return { ...state, file: null, snapshot: action.snapshot }
     case 'DEMO_RECEIVED':
       return {
         ...createInitialState(state.revision + 1), mode: 'demo', file: action.file,
