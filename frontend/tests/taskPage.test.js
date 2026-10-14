@@ -3,12 +3,12 @@ import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'vite'
 
-let server, matchesTaskFilter, taskChangeLabel, taskStatusLabel, taskTargetLabel
+let server, matchesTaskFilter, taskChangeLabel, taskStatusGuidance, taskStatusLabel, taskTargetLabel
 
 before(async () => {
   server = await createServer({ root: fileURLToPath(new URL('..', import.meta.url)), configFile: false,
     cacheDir: 'node_modules/.vite-task-page-tests', logLevel: 'silent', server: { middlewareMode: true }, appType: 'custom' })
-  ;({ matchesTaskFilter, taskChangeLabel, taskStatusLabel, taskTargetLabel } = await server.ssrLoadModule('/src/pages/AnalysisTasksPage.jsx'))
+  ;({ matchesTaskFilter, taskChangeLabel, taskStatusGuidance, taskStatusLabel, taskTargetLabel } = await server.ssrLoadModule('/src/pages/AnalysisTasksPage.jsx'))
 })
 
 after(async () => { await server?.close() })
@@ -19,6 +19,12 @@ test('task status labels expose bounded Chinese states', () => {
   assert.equal(taskStatusLabel('succeeded'), '已完成')
   assert.equal(taskStatusLabel('failed'), '失败')
   assert.equal(taskStatusLabel('other'), '未知状态')
+})
+
+test('queued task guidance explains the local worker dependency without resubmitting', () => {
+  assert.match(taskStatusGuidance('queued'), /Worker/)
+  assert.match(taskStatusGuidance('running'), /静态分析/)
+  assert.match(taskStatusGuidance('failed'), /重试/)
 })
 
 test('task target label uses stable change identifiers only', () => {

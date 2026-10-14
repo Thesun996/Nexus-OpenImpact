@@ -23,6 +23,14 @@ export function taskStatusLabel(status) {
   return Object.hasOwn(statusText, status) ? statusText[status] : '未知状态';
 }
 
+export function taskStatusGuidance(status) {
+  if (status === 'queued') return '等待本机 Worker 领取此任务；长时间没有变化时，请确认 Worker 正在运行。';
+  if (status === 'running') return 'Worker 正在静态分析源码；不会执行上传项目中的代码。';
+  if (status === 'succeeded') return '分析完成，结果已保存到本机报告历史。';
+  if (status === 'failed') return '任务保留失败诊断，可核对配置后创建新的重试任务。';
+  return '任务状态无法识别，请刷新任务列表。';
+}
+
 export function taskTargetLabel(change) {
   return change?.target_symbol_id || change?.target_module_id || change?.target_id || change?.target_module || change?.target_symbol || '目标未记录';
 }
@@ -62,6 +70,7 @@ function TaskDetail({ task, onRetry, retrying }) {
       <div><dt>创建时间</dt><dd>{formatTime(task.created_at)}</dd></div>
       <div><dt>更新时间</dt><dd>{formatTime(task.updated_at)}</dd></div>
     </dl>
+    {(task.status === 'queued' || task.status === 'running') && <p className="state-message" role="status">{taskStatusGuidance(task.status)}</p>}
     {task.status === 'failed' && <section className="state-message error" role="alert"><b>分析未完成</b><p>{task.error_message || '任务失败，请检查快照和变更配置。'}</p><button className="ghost-action" type="button" onClick={() => onRetry(task)} disabled={retrying}>{retrying ? '正在重新执行…' : '重新执行'}</button></section>}
   </section>;
 }

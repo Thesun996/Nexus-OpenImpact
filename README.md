@@ -106,6 +106,13 @@ python -m openimpact.worker
 
 Worker 和 API 必须使用相同的 `OPENIMPACT_DB_PATH` 与 `OPENIMPACT_SNAPSHOT_DIR`（未设置时均使用仓库内 `.openimpact/`）。开发时可用 `python -m openimpact.worker --once` 只处理一项已排队任务。另开终端可调用 `GET http://127.0.0.1:8000/api/v1/health` 或 `POST http://127.0.0.1:8000/api/v1/demo/analyze`。请求与响应字段见 [API 契约](docs/api-contract.md)。
 
+macOS 本地开发也可以不手动切换目录或 Python 环境，分别运行：
+
+```bash
+./scripts/run-local-api.sh
+./scripts/run-local-worker.sh
+```
+
 ### 解释 Provider 配置
 
 `create_explanation_provider()` 默认读取 `OPENIMPACT_LLM_PROVIDER=rule`，使用本地规则解释。需要在 Python 中主动调用 DeepSeek 解释时，可在当前 PowerShell 会话设置环境变量：

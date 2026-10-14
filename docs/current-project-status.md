@@ -57,6 +57,8 @@ OPENIMPACT_LLM_PROVIDER=rule python -m openimpact.worker
 
 两个进程必须使用相同的 `OPENIMPACT_DB_PATH`、`OPENIMPACT_SNAPSHOT_DIR`；不设置时都会使用 `.openimpact/`。Worker 可用 `--once` 只处理一项排队任务。
 
+macOS 下可直接使用仓库脚本启动，避免误用 Conda Python：`./scripts/run-local-api.sh` 与 `./scripts/run-local-worker.sh`。
+
 另一个终端进入 `frontend`：
 
 ```sh
@@ -78,9 +80,10 @@ OPENIMPACT_API_TARGET=http://127.0.0.1:8010 npm run dev -- --host 127.0.0.1 --po
 2026-10-15 当前回归：
 
 - 完整后端：`1091 passed, 1 skipped, 1 warning, 7 subtests passed`。真实 HTTP 测试在允许本地端口绑定的环境中运行通过。
-- 前端：`npm run test`，271 项通过。
+- 前端：`npm run test`，272 项通过。
 - 前端构建：`npm run build` 通过；仍有超过 500 kB 的 chunk 大小提示。
 - 项目库、快照、报告存储和本地分析任务相关后端测试：针对性存储/API/Worker 复验 33 项通过；真实 HTTP 阻塞任务期间健康检查保持可用。
+- 前端任务页：queued/running 状态明确说明本机 Worker 依赖；等待超时会保留任务并提供继续查询和任务页入口，不会重复提交分析。
 - Benchmark Runner：正常人工标注样例、哈希不匹配拒绝、路径越界拒绝均通过；仓库未宣称已有独立人工 Benchmark 分数。
 - Chromium 真实联调：显式保存后刷新，从项目库重新打开并分析、阅读源码、保存/读取历史通过。快照请求未重新上传 ZIP。
 - 样例报告：Direct=1、1-hop=1、2-hop=1、coverage=complete，证据为 `report.py:5` 的 `return format_date(date)`。
