@@ -1,6 +1,7 @@
 """Task execution preserves snapshot evidence and explicit failures."""
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 import time
 
@@ -8,6 +9,7 @@ import pytest
 
 from openimpact import api
 from openimpact.storage import create_analysis_task, get_analysis_task
+from openimpact.worker import run_once
 from test_backend_stability import live_backend, make_zip, CHANGE
 from test_report_storage_api import demo_zip
 from fastapi.testclient import TestClient
@@ -42,6 +44,7 @@ def test_invalid_signature_task_keeps_actionable_diagnostic(task_client):
     snapshot = save_snapshot(task_client, demo_zip())
     change = {**CHANGE, "added_parameter": {"name": "/", "kind": "positional_or_keyword"}}
     task = submit_task(task_client, snapshot, change)
+    assert run_once(worker_id="test-invalid-signature") is True
     failed = task_client.get(f"/api/v1/analysis-tasks/{task['id']}").json()
     assert failed["status"] == "failed"
     assert failed["error_code"] == "invalid_after_signature"
@@ -54,7 +57,7 @@ def test_deleted_snapshot_between_submit_and_execution_has_specific_error(task_c
     snapshot = save_snapshot(task_client, demo_zip())
     task = create_analysis_task(project_snapshot_id=snapshot["id"], change=CHANGE)
     assert task_client.delete(f"/api/v1/projects/{snapshot['project_id']}").status_code == 200
-    api._run_analysis_task(task["id"], snapshot["project_fingerprint"])
+    assert run_once(worker_id="test-missing-snapshot") is True
     failed = get_analysis_task(task["id"])
     assert failed["status"] == "failed"
     assert failed["error_code"] == "snapshot_not_found"
@@ -73,6 +76,7 @@ def test_task_preserves_source_root_and_matches_synchronous_evidence(task_client
         "change": json.dumps(change), "expected_fingerprint": snapshot["project_fingerprint"],
     }).json()
     task = submit_task(task_client, snapshot, change)
+    assert run_once(worker_id="test-source-root") is True
     finished = get_analysis_task(task["id"])
     assert finished["status"] == "succeeded"
     record = task_client.get(f"/api/v1/reports/{finished['result_report_id']}").json()
@@ -98,9 +102,13 @@ def test_real_task_returns_202_before_analysis_and_health_remains_available(live
     try:
         task = submit_task(client, snapshot)
         assert task["status"] == "queued"
-        assert entered.wait(2)
-        assert client.get(f"/api/v1/analysis-tasks/{task['id']}").json()["status"] == "running"
-        assert client.get("/api/v1/health").json()["status"] == "ok"
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            worker = executor.submit(run_once, worker_id="test-live-worker")
+            assert entered.wait(2)
+            assert client.get(f"/api/v1/analysis-tasks/{task['id']}").json()["status"] == "running"
+            assert client.get("/api/v1/health").json()["status"] == "ok"
+            release.set()
+            assert worker.result(timeout=5) is True
     finally:
         release.set()
     deadline = time.monotonic() + 5

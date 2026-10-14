@@ -44,7 +44,7 @@ Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 
 
 报告历史接口只保存分析报告 JSON 和摘要元数据，不保存上传 ZIP 或源码压缩包。默认 SQLite 路径为 `.openimpact/openimpact.sqlite3`，可用 `OPENIMPACT_DB_PATH` 覆盖；该目录不应提交到版本库。`GET /api/v1/reports` 支持可选查询参数 `q`，仅筛选项目名、上传文件名、变更领域、变更类型、目标 ID 和覆盖状态等元数据，最长 80 个字符；响应包含 `items`、`limit`、`offset`、`query` 和 `has_more`，前端用 `has_more` 决定是否继续加载下一页。删除历史报告只移除本地保存的报告记录，不修改源码或上传 ZIP。原 `/api/v1/projects/analyze` 保持无持久化行为，避免破坏冻结契约。
 
-分析任务接口是本地任务基础能力：`POST /api/v1/analysis-tasks` 基于已保存快照创建任务，后台读取该快照、执行分析并把成功结果保存为历史报告。标准前端在项目库快照或直接上传 ZIP 的“开始分析”中都会创建或复用任务并轮询结果；直接上传 ZIP 会先调用项目库保存接口生成快照。旧的即时上传 Analyze 接口仍保留以兼容冻结契约。任务接口不接收 ZIP 文件，不是生产级队列；当前没有用户归属、自动重试或独立 worker。失败任务支持手动创建一项新的重试任务，旧任务保留不变。
+分析任务接口是本地任务基础能力：`POST /api/v1/analysis-tasks` 基于已保存快照创建任务，只返回 `queued`。独立的本机 `python -m openimpact.worker` 以 SQLite 租约领取任务、执行分析并把成功结果保存为历史报告；API 与 Worker 必须指向相同的本地数据库和快照目录。标准前端在项目库快照或直接上传 ZIP 的“开始分析”中都会创建或复用任务并轮询结果；直接上传 ZIP 会先调用项目库保存接口生成快照。旧的即时上传 Analyze 接口仍保留以兼容冻结契约。任务接口不接收 ZIP 文件，不是生产级队列；当前没有用户归属或自动重试。失败任务支持手动创建一项新的重试任务，旧任务保留不变。
 
 三个接口的 `file` 均为 multipart 文件字段，建议浏览器以 `application/zip` 上传；服务以 ZIP 内容及安全规则判断，不依赖客户端声明的 MIME。每个请求的 multipart 总量最多 5 MiB + 64 KiB，其中 ZIP 文件最多 5 MiB。其余 ZIP 条目和解压限额见下文。前端交接示例见 [frontend-handoff.md](frontend-handoff.md)，真实响应见 [api-samples](api-samples)。
 
@@ -57,6 +57,12 @@ Phase 4.1 核查：当前后端没有配置 CORS，保持跨域关闭。React �
 ```powershell
 pip install -e .
 python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
+```
+
+需要处理任务时，在另一个终端运行：
+
+```powershell
+python -m openimpact.worker
 ```
 
 运行自动化测试时可安装 `pip install -e ".[test]"`；`httpx` 和 `pytest` 位于该可选依赖中。服务入口为 `openimpact.api:app`。目前 Demo 从当前源码仓库读取，运行服务时需保留 `examples/signature_change/`。
@@ -143,7 +149,7 @@ python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
 {"task":{"id":"<32位hex>","status":"queued","project_snapshot_id":"<32位hex>","change":{}}}
 ```
 
-后台执行时会把任务更新为 `running`，成功后保存报告并写入 `result_report_id`，失败则写入安全的 `error_code` 和 `error_message`。任务执行沿用快照分析的安全读取、指纹核对、静态分析和报告保存规则；不会执行用户源码，也不会把服务器路径写入响应。
+Worker 领取后会把任务更新为 `running`，成功后保存报告并写入 `result_report_id`，失败则写入安全的 `error_code` 和 `error_message`。租约超时的 `running` 任务可以由后续 Worker 重新领取；迟到的旧 Worker 不能覆盖新 Worker 的结果。任务执行沿用快照分析的安全读取、指纹核对、静态分析和报告保存规则；不会执行用户源码，也不会把服务器路径写入响应。
 
 `GET /api/v1/analysis-tasks` 支持 `limit` 与 `offset`，规则为 `limit` 1 到 50，`offset` 非负；响应包含 `items`、`limit`、`offset` 和 `has_more`。`GET /api/v1/analysis-tasks/{task_id}` 返回单个任务；任务 ID 非法或不存在返回 404 `task_not_found`。
 

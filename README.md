@@ -98,7 +98,13 @@ python -m openimpact analyze examples/parameter_required_explicit --change examp
 python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
 ```
 
-另开终端调用 `GET http://127.0.0.1:8000/api/v1/health` 或 `POST http://127.0.0.1:8000/api/v1/demo/analyze`。请求与响应字段见 [API 契约](docs/api-contract.md)。
+分析任务由独立的本机 Worker 领取。需要项目库的“开始分析”或失败任务重试时，另开一个终端运行：
+
+```powershell
+python -m openimpact.worker
+```
+
+Worker 和 API 必须使用相同的 `OPENIMPACT_DB_PATH` 与 `OPENIMPACT_SNAPSHOT_DIR`（未设置时均使用仓库内 `.openimpact/`）。开发时可用 `python -m openimpact.worker --once` 只处理一项已排队任务。另开终端可调用 `GET http://127.0.0.1:8000/api/v1/health` 或 `POST http://127.0.0.1:8000/api/v1/demo/analyze`。请求与响应字段见 [API 契约](docs/api-contract.md)。
 
 ### 解释 Provider 配置
 
@@ -126,6 +132,14 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" http://127.0.0.1:80
 使用同样的表单字段调用 `POST /api/v1/projects/analyze`，即可对本次上传的 ZIP 生成 Core JSON 影响报告。报告中的 `project_path` 为相对根目录 `.`；`coverage.status=partial` 时需结合诊断查看未覆盖代码，零条影响不代表整个项目确定无影响。调用示例和状态码见 [API 契约](docs/api-contract.md)。
 
 前端开发可直接使用 [前端交接说明](docs/frontend-handoff.md) 与 [真实 HTTP 响应样例](docs/api-samples/inspect-response.json)。上传页选择“保存并读取项目”后，可以刷新页面并从项目库选择“使用此快照分析”，无需再次上传 ZIP。直接读取 ZIP 的原流程仍可使用。快照接口、存储边界和验收见 [项目快照分析](docs/snapshot-workflow.md)；当前仍为本机工作台，没有账号级项目隔离。
+
+独立人工标注 Benchmark 到位后，可运行：
+
+```powershell
+python -m openimpact.evaluation path/to/benchmark --output .local/evaluation-result.json
+```
+
+Runner 会先验证 manifest、源码/变更/标签 SHA-256 和人工复核元数据，再用静态分析输出与标签比较 Direct、Indirect 和 coverage。它不会运行样本源码，也不会使用项目内 Demo 或 analyzer 输出冒充 Ground Truth。目录与字段要求见 [评测契约](docs/evaluation-contract.md)。
 
 ---
 

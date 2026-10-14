@@ -3,10 +3,12 @@
 import hashlib
 
 from openimpact.storage import (
+    claim_next_analysis_task,
     create_analysis_task,
     delete_project,
     delete_project_snapshot,
     delete_report,
+    finish_analysis_task,
     get_analysis_task,
     get_project,
     get_report,
@@ -207,6 +209,33 @@ def test_analysis_task_round_trip_and_status_updates(tmp_path):
     assert failed["status"] == "failed"
     assert failed["error_code"] == "analysis_failed"
     assert update_analysis_task("f" * 32, status="running", path=path) is None
+
+
+def test_worker_claim_leases_a_task_and_rejects_late_completion(tmp_path):
+    path = tmp_path / "tasks.sqlite3"
+    task = create_analysis_task(
+        project_snapshot_id="a" * 32,
+        change={"target_symbol_id": "utils.format_date"},
+        expected_fingerprint="b" * 64,
+        path=path,
+    )
+
+    claimed = claim_next_analysis_task(worker_id="worker-one", path=path)
+
+    assert claimed["id"] == task["id"]
+    assert claimed["status"] == "running"
+    assert claimed["_expected_fingerprint"] == "b" * 64
+    assert claim_next_analysis_task(worker_id="worker-two", path=path) is None
+    assert finish_analysis_task(
+        task["id"], worker_id="worker-two", status="succeeded", result_report_id="c" * 32, path=path
+    ) is None
+
+    finished = finish_analysis_task(
+        task["id"], worker_id="worker-one", status="succeeded", result_report_id="c" * 32, path=path
+    )
+    assert finished["status"] == "succeeded"
+    assert finished["result_report_id"] == "c" * 32
+    assert get_analysis_task(task["id"], path=path)["status"] == "succeeded"
 
 
 def test_task_pagination_does_not_move_rows_when_status_changes(tmp_path):

@@ -18,7 +18,7 @@ from typing import Any
 
 from openimpact.repository.zip_inspector import MAX_UPLOAD_BYTES
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 DEFAULT_DATABASE = Path(".openimpact") / "openimpact.sqlite3"
 DEFAULT_SNAPSHOT_DIR = Path(".openimpact") / "snapshots"
 REPORT_SEARCH_COLUMNS = (
@@ -119,9 +119,12 @@ def initialize_database(path: str | Path | None = None) -> None:
                 project_snapshot_id TEXT NOT NULL,
                 status TEXT NOT NULL,
                 change_json TEXT NOT NULL,
+                expected_fingerprint TEXT,
                 result_report_id TEXT,
                 error_code TEXT,
-                error_message TEXT
+                error_message TEXT,
+                worker_id TEXT,
+                lease_expires_at TEXT
             );
 
             CREATE INDEX IF NOT EXISTS idx_analysis_tasks_updated_at
@@ -131,7 +134,16 @@ def initialize_database(path: str | Path | None = None) -> None:
                 ON analysis_tasks(project_snapshot_id);
             """
         )
+        _ensure_column(connection, "analysis_tasks", "worker_id", "TEXT")
+        _ensure_column(connection, "analysis_tasks", "lease_expires_at", "TEXT")
+        _ensure_column(connection, "analysis_tasks", "expected_fingerprint", "TEXT")
         connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+
+
+def _ensure_column(connection: sqlite3.Connection, table: str, column: str, declaration: str) -> None:
+    columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
+    if column not in columns:
+        connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {declaration}")
 
 
 def save_project_snapshot(
@@ -541,7 +553,8 @@ def delete_report(report_id: str, *, path: str | Path | None = None) -> bool:
 
 
 def create_analysis_task(
-    *, project_snapshot_id: str, change: dict[str, Any], path: str | Path | None = None
+    *, project_snapshot_id: str, change: dict[str, Any], expected_fingerprint: str | None = None,
+    path: str | Path | None = None
 ) -> dict[str, Any]:
     initialize_database(path)
     task_id = uuid.uuid4().hex
@@ -551,10 +564,10 @@ def create_analysis_task(
         connection.execute(
             """
             INSERT INTO analysis_tasks (
-                id, created_at, updated_at, project_snapshot_id, status, change_json
-            ) VALUES (?, ?, ?, ?, ?, ?)
+                id, created_at, updated_at, project_snapshot_id, status, change_json, expected_fingerprint
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (task_id, created_at, created_at, project_snapshot_id, "queued", change_json),
+            (task_id, created_at, created_at, project_snapshot_id, "queued", change_json, expected_fingerprint),
         )
     return {
         "id": task_id,
@@ -590,6 +603,74 @@ def list_analysis_tasks(
             (limit, offset),
         ).fetchall()
     return [_task_row_to_record(row) for row in rows]
+
+
+def claim_next_analysis_task(
+    *, worker_id: str, lease_seconds: int = 300, path: str | Path | None = None
+) -> dict[str, Any] | None:
+    """Atomically claim one queued or expired local task for a single worker."""
+    if not worker_id or lease_seconds < 1:
+        raise ValueError("worker_id and a positive lease are required")
+    initialize_database(path)
+    now = datetime.now(timezone.utc)
+    updated_at = now.isoformat(timespec="microseconds")
+    expires_at = (now.timestamp() + lease_seconds)
+    lease_expires_at = datetime.fromtimestamp(expires_at, timezone.utc).isoformat(timespec="microseconds")
+    with connect(path) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute(
+            """
+            SELECT * FROM analysis_tasks
+            WHERE status = 'queued'
+               OR (status = 'running' AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?)
+            ORDER BY created_at ASC, rowid ASC
+            LIMIT 1
+            """,
+            (updated_at,),
+        ).fetchone()
+        if row is None:
+            return None
+        connection.execute(
+            """
+            UPDATE analysis_tasks
+            SET updated_at = ?, status = 'running', worker_id = ?, lease_expires_at = ?
+            WHERE id = ?
+            """,
+            (updated_at, worker_id, lease_expires_at, row["id"]),
+        )
+        claimed = connection.execute("SELECT * FROM analysis_tasks WHERE id = ?", (row["id"],)).fetchone()
+    return _task_row_to_record(claimed, include_execution=True)
+
+
+def finish_analysis_task(
+    task_id: str,
+    *,
+    worker_id: str,
+    status: str,
+    result_report_id: str | None = None,
+    error_code: str | None = None,
+    error_message: str | None = None,
+    path: str | Path | None = None,
+) -> dict[str, Any] | None:
+    """Finish only a task still leased by this worker, avoiding late overwrites."""
+    if status not in {"succeeded", "failed"}:
+        raise ValueError("task completion must be succeeded or failed")
+    initialize_database(path)
+    updated_at = datetime.now(timezone.utc).isoformat(timespec="microseconds")
+    with connect(path) as connection:
+        cursor = connection.execute(
+            """
+            UPDATE analysis_tasks
+            SET updated_at = ?, status = ?, result_report_id = ?, error_code = ?, error_message = ?,
+                worker_id = NULL, lease_expires_at = NULL
+            WHERE id = ? AND status = 'running' AND worker_id = ?
+            """,
+            (updated_at, status, result_report_id, error_code, error_message, task_id, worker_id),
+        )
+        if cursor.rowcount <= 0:
+            return None
+        row = connection.execute("SELECT * FROM analysis_tasks WHERE id = ?", (task_id,)).fetchone()
+    return _task_row_to_record(row)
 
 
 def update_analysis_task(
@@ -734,8 +815,8 @@ def _row_to_record(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
-def _task_row_to_record(row: sqlite3.Row) -> dict[str, Any]:
-    return {
+def _task_row_to_record(row: sqlite3.Row, *, include_execution: bool = False) -> dict[str, Any]:
+    record = {
         "id": row["id"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
@@ -746,3 +827,6 @@ def _task_row_to_record(row: sqlite3.Row) -> dict[str, Any]:
         "error_code": row["error_code"],
         "error_message": row["error_message"],
     }
+    if include_execution:
+        record["_expected_fingerprint"] = row["expected_fingerprint"]
+    return record

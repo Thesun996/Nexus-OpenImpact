@@ -9,7 +9,7 @@ from collections import deque
 from dataclasses import asdict
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -35,6 +35,7 @@ from openimpact.storage import (
     delete_project,
     delete_project_snapshot,
     delete_report,
+    finish_analysis_task,
     get_analysis_task,
     get_project,
     get_report,
@@ -46,7 +47,6 @@ from openimpact.storage import (
     save_project_snapshot,
     save_report,
     SnapshotError,
-    update_analysis_task,
 )
 
 _DEMO_DIR = Path(__file__).resolve().parents[2] / "examples" / "signature_change"
@@ -295,18 +295,16 @@ def _analyze_and_save_zip(
     return JSONResponse(content={"record": record, "report": report})
 
 
-def _run_analysis_task(task_id: str, expected_fingerprint: str | None) -> None:
+def _run_claimed_analysis_task(task: dict[str, object], worker_id: str) -> None:
+    """Execute one task leased by the local worker without running uploaded code."""
+    task_id = str(task["id"])
     try:
-        task = get_analysis_task(task_id)
-        if task is None:
-            return
-        update_analysis_task(task_id, status="running")
-        snapshot, data = read_project_snapshot(task["project_snapshot_id"])
+        snapshot, data = read_project_snapshot(str(task["project_snapshot_id"]))
         response = _analyze_zip(
             data,
             snapshot["source_filename"],
             json.dumps(task["change"], ensure_ascii=False, sort_keys=True),
-            expected_fingerprint,
+            task.get("_expected_fingerprint") or snapshot["project_fingerprint"],
             analysis_root=snapshot["analysis_root"],
         )
         payload = json.loads(response.body.decode("utf-8"))
@@ -314,8 +312,9 @@ def _run_analysis_task(task_id: str, expected_fingerprint: str | None) -> None:
             error = payload.get("error") or {}
             if payload.get("validation", {}).get("valid") is False:
                 error = next(iter(payload["validation"].get("diagnostics", [])), {})
-            update_analysis_task(
+            finish_analysis_task(
                 task_id,
+                worker_id=worker_id,
                 status="failed",
                 error_code=error.get("code") or "analysis_failed",
                 error_message=error.get("message") or "项目影响分析失败，请重试。",
@@ -328,13 +327,14 @@ def _run_analysis_task(task_id: str, expected_fingerprint: str | None) -> None:
             payload["project_name"] = project["name"] if project else "未命名项目"
         record = save_report(payload, source_filename=snapshot["source_filename"],
                              analysis_root=snapshot["analysis_root"])
-        update_analysis_task(task_id, status="succeeded", result_report_id=record["id"])
+        finish_analysis_task(task_id, worker_id=worker_id, status="succeeded", result_report_id=record["id"])
     except SnapshotError as error:
-        update_analysis_task(task_id, status="failed", error_code=error.code, error_message=str(error))
+        finish_analysis_task(task_id, worker_id=worker_id, status="failed", error_code=error.code, error_message=str(error))
     except Exception:
         _LOGGER.exception("Analysis task failed")
-        update_analysis_task(
+        finish_analysis_task(
             task_id,
+            worker_id=worker_id,
             status="failed",
             error_code="analysis_task_failed",
             error_message="后台分析任务失败，请重试。",
@@ -634,7 +634,7 @@ def delete_saved_report(report_id: str) -> JSONResponse:
 
 
 @app.post("/api/v1/analysis-tasks")
-async def create_analysis_task_endpoint(request: Request, background_tasks: BackgroundTasks) -> JSONResponse:
+async def create_analysis_task_endpoint(request: Request) -> JSONResponse:
     form = await request.form()
     try:
         items = form.multi_items()
@@ -658,13 +658,14 @@ async def create_analysis_task_endpoint(request: Request, background_tasks: Back
         try:
             # Fail fast for missing snapshots; the worker verifies bytes and fingerprint again.
             await run_in_threadpool(read_project_snapshot, snapshot_id)
-            task = await run_in_threadpool(create_analysis_task, project_snapshot_id=snapshot_id, change=change)
+            task = await run_in_threadpool(
+                create_analysis_task, project_snapshot_id=snapshot_id, change=change, expected_fingerprint=expected.lower()
+            )
         except SnapshotError as error:
             return _error(error.status_code, error.code, str(error))
         except (OSError, sqlite3.Error):
             _LOGGER.exception("Analysis task create failed")
             return _error(503, "database_unavailable", "本地任务数据库暂时不可用。")
-        background_tasks.add_task(_run_analysis_task, task["id"], expected)
         return JSONResponse(status_code=202, content={"task": task})
     finally:
         await form.close()
@@ -703,7 +704,7 @@ def saved_analysis_task(task_id: str) -> JSONResponse:
 
 
 @app.post("/api/v1/analysis-tasks/{task_id}/retry")
-async def retry_analysis_task(task_id: str, request: Request, background_tasks: BackgroundTasks) -> JSONResponse:
+async def retry_analysis_task(task_id: str, request: Request) -> JSONResponse:
     if not re.fullmatch(r"[0-9a-f]{32}", task_id):
         return _error(404, "task_not_found", "没有找到该分析任务。")
     if request.query_params or await request.body():
@@ -719,13 +720,13 @@ async def retry_analysis_task(task_id: str, request: Request, background_tasks: 
             create_analysis_task,
             project_snapshot_id=failed_task["project_snapshot_id"],
             change=failed_task["change"],
+            expected_fingerprint=snapshot["project_fingerprint"],
         )
     except SnapshotError as error:
         return _error(error.status_code, error.code, str(error))
     except (OSError, sqlite3.Error):
         _LOGGER.exception("Analysis task retry failed")
         return _error(503, "database_unavailable", "本地任务数据库暂时不可用。")
-    background_tasks.add_task(_run_analysis_task, task["id"], snapshot["project_fingerprint"])
     return JSONResponse(status_code=202, content={"task": task})
 
 

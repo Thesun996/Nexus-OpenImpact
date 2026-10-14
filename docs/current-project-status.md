@@ -1,6 +1,6 @@
 # Nexus OpenImpact 当前项目状态
 
-> 更新日期：2026-10-14（Asia/Shanghai）
+> 更新日期：2026-10-15（Asia/Shanghai）
 > 当前分支：`feature/refine-project`
 > 本文记录当前代码能力及可复核验收结果；设计草案不代表已实现功能。
 
@@ -8,7 +8,7 @@
 
 项目具备 Python 静态影响分析、React 工作台、本地 SQLite 报告历史、可复用的项目快照库和本地分析任务基础。已接通“保存 ZIP → 刷新后从项目库打开 → 选择目标 → 校验 → 创建分析任务 → 查看任务进度 → 查看证据报告”的真实业务流程。
 
-当前仍是本机工作台：登录是演示入口，版面保留但不做真实认证；没有真实用户表或账号隔离。项目库快照和直接上传 ZIP 的分析都会使用本地任务创建与轮询；直接上传的 ZIP 会在开始分析时自动保存为本机快照。任务目前是本机内置执行，不是独立 worker 或生产级队列。
+当前仍是本机工作台：登录是演示入口，版面保留但不做真实认证；没有真实用户表或账号隔离。项目库快照和直接上传 ZIP 的分析都会使用本地任务创建与轮询；直接上传的 ZIP 会在开始分析时自动保存为本机快照。任务已由独立本机 Worker 领取和执行，但仍不是生产级分布式队列。
 
 ## 已具备能力
 
@@ -26,6 +26,7 @@
 - 历史报告可通过“打开来源项目”重新读取对应快照；旧报告无来源信息时不猜测关联项目。
 - 当前报告和历史报告详情均可下载完整 JSON，便于交接、留档和复核证据。
 - 本地分析任务基础：可基于已保存快照创建任务、记录 queued/running/succeeded/failed 状态，并在成功后保存报告 ID。
+- 独立本机 Worker：API 只创建 queued 任务；Worker 以 SQLite 租约原子领取任务，执行完成时只允许持有该租约的 Worker 写入结果，过期租约可被后续 Worker 恢复领取。
 - 项目库快照“开始分析”会创建或复用当前任务、轮询状态、读取已保存报告，并避免重复点击创建多个任务。
 - 任务页可查看任务列表、状态详情和成功任务对应的报告证据；支持按状态及目标、变更、任务 ID 筛选，失败任务保留后端诊断信息，并可手动重新执行为一项新的任务。
 - 直接读取 ZIP 和独立演示流程继续可用。
@@ -34,7 +35,8 @@
 
 - 真实登录、用户表、会话和账号级数据隔离。
 - 自动快照保留策略和账号级版本管理。
-- 自动重试、独立 worker 或生产级任务队列。
+- 自动重试、生产级任务队列或多机部署。
+- 真实 Benchmark 数据及人工 Ground Truth；当前已具备哈希校验的评测 Runner，等待独立标注数据接入。
 - 团队权限、公开部署及生产代理配置。
 
 项目库默认保存在 `.openimpact/openimpact.sqlite3` 和 `.openimpact/snapshots/`，不应提交到 GitHub。当前没有为报告表添加项目关联列；来源 ID 位于 report JSON。
@@ -46,6 +48,14 @@
 ```sh
 OPENIMPACT_LLM_PROVIDER=rule python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
 ```
+
+另开终端运行本机任务 Worker：
+
+```sh
+OPENIMPACT_LLM_PROVIDER=rule python -m openimpact.worker
+```
+
+两个进程必须使用相同的 `OPENIMPACT_DB_PATH`、`OPENIMPACT_SNAPSHOT_DIR`；不设置时都会使用 `.openimpact/`。Worker 可用 `--once` 只处理一项排队任务。
 
 另一个终端进入 `frontend`：
 
@@ -65,12 +75,13 @@ OPENIMPACT_API_TARGET=http://127.0.0.1:8010 npm run dev -- --host 127.0.0.1 --po
 
 ## 当前检查结果
 
-2026-10-14 当前回归：
+2026-10-15 当前回归：
 
-- 完整后端：`1087 passed, 1 skipped, 1 warning, 7 subtests passed`。真实 HTTP 测试在允许本地端口绑定的环境中运行通过。
+- 完整后端：`1091 passed, 1 skipped, 1 warning, 7 subtests passed`。真实 HTTP 测试在允许本地端口绑定的环境中运行通过。
 - 前端：`npm run test`，271 项通过。
 - 前端构建：`npm run build` 通过；仍有超过 500 kB 的 chunk 大小提示。
-- 项目库、快照、报告存储和本地分析任务相关后端测试：针对性存储/API 复验 28 项通过。
+- 项目库、快照、报告存储和本地分析任务相关后端测试：针对性存储/API/Worker 复验 33 项通过；真实 HTTP 阻塞任务期间健康检查保持可用。
+- Benchmark Runner：正常人工标注样例、哈希不匹配拒绝、路径越界拒绝均通过；仓库未宣称已有独立人工 Benchmark 分数。
 - Chromium 真实联调：显式保存后刷新，从项目库重新打开并分析、阅读源码、保存/读取历史通过。快照请求未重新上传 ZIP。
 - 样例报告：Direct=1、1-hop=1、2-hop=1、coverage=complete，证据为 `report.py:5` 的 `return format_date(date)`。
 - 桌面 1440 × 1000、手机 390 × 844 实测通过，无横向溢出或浏览器 JavaScript 异常。
@@ -92,6 +103,6 @@ OPENIMPACT_API_TARGET=http://127.0.0.1:8010 npm run dev -- --host 127.0.0.1 --po
 
 本轮改动继续提交到 `feature/refine-project`；尚未自动 Commit、Push 或合并主分支。建议标题：
 
-`feat: wire snapshot analysis through local tasks`
+`feat: add local worker and benchmark runner`
 
 提交源代码、测试和文档；忽略本地数据库、ZIP 快照存储、依赖目录、构建产物和临时验收截图。

@@ -9,6 +9,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from openimpact.api import app
+from openimpact.worker import run_once
 
 DEMO = Path(__file__).resolve().parents[1] / "examples" / "signature_change"
 CHANGE = {
@@ -205,6 +206,7 @@ def test_analysis_task_runs_snapshot_analysis_and_saves_report(tmp_path, monkeyp
             "change": json.dumps(CHANGE),
         })
         task_id = task_response.json()["task"]["id"]
+        assert run_once(worker_id="test-report-success") is True
         loaded_task = client.get(f"/api/v1/analysis-tasks/{task_id}")
         listed_tasks = client.get("/api/v1/analysis-tasks")
 
@@ -242,6 +244,7 @@ def test_analysis_task_failure_stores_safe_error(tmp_path, monkeypatch):
             "change": json.dumps(CHANGE),
         })
         task_id = task_response.json()["task"]["id"]
+        assert run_once(worker_id="test-report-failure") is True
         loaded_task = client.get(f"/api/v1/analysis-tasks/{task_id}")
 
     assert task_response.status_code == 202
@@ -266,8 +269,10 @@ def test_failed_analysis_task_can_be_retried_without_rewriting_the_old_task(tmp_
             "expected_fingerprint": "0" * 64,
             "change": json.dumps(CHANGE),
         }).json()["task"]
+        assert run_once(worker_id="test-retry-failure") is True
         retry = client.post(f"/api/v1/analysis-tasks/{failed['id']}/retry")
         retried = retry.json()["task"]
+        assert run_once(worker_id="test-retry-success") is True
         original = client.get(f"/api/v1/analysis-tasks/{failed['id']}").json()
         finished = client.get(f"/api/v1/analysis-tasks/{retried['id']}").json()
         running = client.post(f"/api/v1/analysis-tasks/{retried['id']}/retry")
