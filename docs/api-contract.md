@@ -23,7 +23,9 @@ Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 
 | POST | `/api/v1/projects` | `multipart/form-data` | 上传 ZIP，完成 Inspect，并保存项目/快照记录 | 200 |
 | GET | `/api/v1/projects` | 无 | 分页读取已保存项目摘要，可用 `q` 筛选元数据 | 200 |
 | GET | `/api/v1/projects/{project_id}` | 无 | 读取单个已保存项目及最新快照摘要 | 200 |
+| DELETE | `/api/v1/projects/{project_id}` | 无 | 删除一个本机项目及其快照记录 | 200 |
 | GET | `/api/v1/projects/{project_id}/snapshots` | 无 | 分页读取项目快照摘要 | 200 |
+| DELETE | `/api/v1/projects/{project_id}/snapshots/{snapshot_id}` | 无 | 删除一个本机项目快照 | 200 |
 | POST | `/api/v1/projects/inspect` | `multipart/form-data` | 检查上传 ZIP 的模块、Symbol 与覆盖情况 | 200 |
 | POST | `/api/v1/changes/validate` | `multipart/form-data` | 从上传源码构建并校验 ChangeSpec | 200 |
 | POST | `/api/v1/projects/analyze` | `multipart/form-data` | 在本次上传项目上生成完整影响报告 | 200 |
@@ -34,7 +36,7 @@ Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 
 
 三个核心业务接口仍需要重新上传 ZIP：`/api/v1/projects/inspect`、`/api/v1/changes/validate` 和 `/api/v1/projects/analyze` 每次请求在独立临时目录完成并清理。`expected_fingerprint` 是 ZIP 原始字节的 SHA-256 校验值，不是这些核心接口的服务端项目查找键。同一源码重新打包也可能产生不同指纹；修改或重新打包后应重新 inspect。文件名只用于展示项目名称的回退值，不参与指纹计算。不接受服务器本地路径、查询参数或额外表单字段。
 
-项目库接口是新增的本机持久化能力：`POST /api/v1/projects` 接受同一套 ZIP 安全限制，完成 Inspect 后创建项目记录和快照记录，并把 ZIP 快照保存到 `.openimpact/snapshots/`，可用 `OPENIMPACT_SNAPSHOT_DIR` 覆盖。该接口返回 `project`、`snapshot` 和本次 `inspect`。前端支持从项目库选择快照直接分析，现阶段不提供用户归属、权限或项目删除策略。
+项目库接口是新增的本机持久化能力：`POST /api/v1/projects` 接受同一套 ZIP 安全限制，完成 Inspect 后创建项目记录和快照记录，并把 ZIP 快照保存到 `.openimpact/snapshots/`，可用 `OPENIMPACT_SNAPSHOT_DIR` 覆盖。同名项目会追加新的快照版本，无法识别项目名时仍创建独立项目。该接口返回 `project`、`snapshot` 和本次 `inspect`。前端支持从项目库选择快照直接分析，也支持删除本机项目或快照；删除只影响本机 SQLite 记录和未被其他项目引用的 ZIP 快照文件。现阶段不提供用户归属、权限、团队共享或账号级项目管理。
 
 报告历史接口只保存分析报告 JSON 和摘要元数据，不保存上传 ZIP 或源码压缩包。默认 SQLite 路径为 `.openimpact/openimpact.sqlite3`，可用 `OPENIMPACT_DB_PATH` 覆盖；该目录不应提交到版本库。`GET /api/v1/reports` 支持可选查询参数 `q`，仅筛选项目名、上传文件名、变更领域、变更类型、目标 ID 和覆盖状态等元数据，最长 80 个字符；响应包含 `items`、`limit`、`offset`、`query` 和 `has_more`，前端用 `has_more` 决定是否继续加载下一页。删除历史报告只移除本地保存的报告记录，不修改源码或上传 ZIP。原 `/api/v1/projects/analyze` 保持无持久化行为，避免破坏冻结契约。
 
@@ -63,7 +65,7 @@ python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
 
 ## 项目库接口
 
-`POST /api/v1/projects` 请求体为 `multipart/form-data`，字段与 Inspect 相同：恰好一个 `file` ZIP 文件，可选 `analysis_root`。它会执行同一套 ZIP 安全校验和 Inspect，然后保存项目记录、快照记录和原始 ZIP 快照。
+`POST /api/v1/projects` 请求体为 `multipart/form-data`，字段与 Inspect 相同：恰好一个 `file` ZIP 文件，可选 `analysis_root`。它会执行同一套 ZIP 安全校验和 Inspect，然后保存项目记录、快照记录和原始 ZIP 快照。若 `inspect.project_name` 与已有项目一致，保存会复用该项目并追加一个快照；响应的 `project.latest_snapshot` 指向刚保存的快照。
 
 成功响应为 HTTP 200：
 
@@ -96,6 +98,8 @@ python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
 `GET /api/v1/projects` 支持 `limit`、`offset` 和可选 `q`，规则与报告历史一致：`limit` 为 1 到 50，`offset` 不能为负数，`q` 最多 80 字符。响应包含 `items`、`limit`、`offset`、`query` 和 `has_more`。`q` 仅筛选项目名、上传文件名、指纹和覆盖状态。
 
 `GET /api/v1/projects/{project_id}` 读取单个项目及最新快照摘要。`GET /api/v1/projects/{project_id}/snapshots` 分页读取该项目的快照摘要。非法或不存在的项目 ID 返回 404 `project_not_found`。
+
+`DELETE /api/v1/projects/{project_id}` 删除一个本机项目及其快照记录。`DELETE /api/v1/projects/{project_id}/snapshots/{snapshot_id}` 删除单个快照；如果这是项目最后一个快照，项目记录也会被删除，响应中的 `project_deleted` 为 `true`。ZIP 快照文件只有在没有其他快照记录引用同一 SHA-256 指纹时才会删除，避免同一文件被多个项目复用时误删。删除接口不修改用户源码仓库，不删除历史报告。
 
 ### 复用快照
 

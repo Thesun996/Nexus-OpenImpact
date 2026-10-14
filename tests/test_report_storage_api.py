@@ -122,6 +122,72 @@ def test_create_project_snapshot_then_list_and_read(tmp_path, monkeypatch):
     assert snapshots.json()["items"] == [snapshot]
 
 
+def test_create_project_snapshot_appends_same_project_versions(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENIMPACT_DB_PATH", str(tmp_path / "openimpact.sqlite3"))
+    monkeypatch.setenv("OPENIMPACT_SNAPSHOT_DIR", str(tmp_path / "snapshots"))
+    data = demo_zip()
+
+    with TestClient(app) as client:
+        first = client.post(
+            "/api/v1/projects",
+            files={"file": ("signature_change-v1.zip", data, "application/zip")},
+        ).json()
+        second = client.post(
+            "/api/v1/projects",
+            files={"file": ("signature_change-v2.zip", data, "application/zip")},
+        ).json()
+        listed = client.get("/api/v1/projects")
+        snapshots = client.get(f"/api/v1/projects/{first['project']['id']}/snapshots")
+
+    assert second["project"]["id"] == first["project"]["id"]
+    assert second["project"]["latest_snapshot"] == second["snapshot"]
+    assert listed.status_code == 200
+    assert listed.json()["items"] == [second["project"]]
+    assert snapshots.status_code == 200
+    assert [item["id"] for item in snapshots.json()["items"]] == [second["snapshot"]["id"], first["snapshot"]["id"]]
+
+
+def test_delete_project_and_snapshot_endpoints(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENIMPACT_DB_PATH", str(tmp_path / "openimpact.sqlite3"))
+    monkeypatch.setenv("OPENIMPACT_SNAPSHOT_DIR", str(tmp_path / "snapshots"))
+    data = demo_zip()
+    fingerprint = hashlib.sha256(data).hexdigest()
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/v1/projects",
+            files={"file": ("signature_change.zip", data, "application/zip")},
+        ).json()
+        project = created["project"]
+        snapshot = created["snapshot"]
+
+        missing_snapshot = client.delete(f"/api/v1/projects/{project['id']}/snapshots/{'f' * 32}")
+        deleted_snapshot = client.delete(f"/api/v1/projects/{project['id']}/snapshots/{snapshot['id']}")
+        missing_project_after_snapshot = client.get(f"/api/v1/projects/{project['id']}")
+
+        recreated = client.post(
+            "/api/v1/projects",
+            files={"file": ("signature_change.zip", data, "application/zip")},
+        ).json()
+        deleted_project = client.delete(f"/api/v1/projects/{recreated['project']['id']}")
+        missing_project_after_delete = client.get(f"/api/v1/projects/{recreated['project']['id']}")
+
+    assert missing_snapshot.status_code == 404
+    assert missing_snapshot.json()["error"]["code"] == "snapshot_not_found"
+    assert deleted_snapshot.status_code == 200
+    assert deleted_snapshot.json() == {
+        "deleted": True,
+        "id": snapshot["id"],
+        "project_id": project["id"],
+        "project_deleted": True,
+    }
+    assert missing_project_after_snapshot.status_code == 404
+    assert deleted_project.status_code == 200
+    assert deleted_project.json() == {"deleted": True, "id": recreated["project"]["id"]}
+    assert missing_project_after_delete.status_code == 404
+    assert not (tmp_path / "snapshots" / f"{fingerprint}.zip").exists()
+
+
 def test_project_storage_errors_are_bounded(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENIMPACT_DB_PATH", str(tmp_path / "openimpact.sqlite3"))
     monkeypatch.setenv("OPENIMPACT_SNAPSHOT_DIR", str(tmp_path / "snapshots"))

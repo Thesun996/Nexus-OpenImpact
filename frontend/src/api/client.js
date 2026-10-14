@@ -123,9 +123,15 @@ export function createApiClient({ fetchImpl = fetch } = {}) {
     getProject(projectId, { signal } = {}) {
       return request(`/projects/${encodeURIComponent(projectId)}`, { method: 'GET', signal })
     },
+    deleteProject(projectId, { signal } = {}) {
+      return request(`/projects/${encodeURIComponent(projectId)}`, { method: 'DELETE', signal })
+    },
     listProjectSnapshots(projectId, { signal, limit = 20, offset = 0 } = {}) {
       const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
       return request(`/projects/${encodeURIComponent(projectId)}/snapshots?${params}`, { method: 'GET', signal })
+    },
+    deleteProjectSnapshot(projectId, snapshotId, { signal } = {}) {
+      return request(`/projects/${encodeURIComponent(projectId)}/snapshots/${encodeURIComponent(snapshotId)}`, { method: 'DELETE', signal })
     },
     validate(file, change, fingerprint, { signal, analysisRoot = '.' } = {}) {
       return request(projectPath(file, 'validate', '/changes/validate'), { method: 'POST', body: projectForm(file, change, fingerprint, analysisRoot), signal })

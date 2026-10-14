@@ -3,6 +3,8 @@
 import hashlib
 
 from openimpact.storage import (
+    delete_project,
+    delete_project_snapshot,
     delete_report,
     get_project,
     get_report,
@@ -35,10 +37,10 @@ def report(project="signature_change", target="utils.format_date"):
     }
 
 
-def inspect_report(project="signature_change"):
+def inspect_report(project="signature_change", zip_bytes=b"zip-bytes"):
     return {
         "project_name": project,
-        "project_fingerprint": hashlib.sha256(b"zip-bytes").hexdigest(),
+        "project_fingerprint": hashlib.sha256(zip_bytes).hexdigest(),
         "source_root": project,
         "coverage": {
             "status": "complete",
@@ -85,6 +87,43 @@ def test_save_list_and_read_project_snapshot_round_trip(tmp_path):
     assert list_projects(path=path, query="signature complete") == [project]
     assert get_project(project["id"], path=path) == project
     assert list_project_snapshots(project["id"], path=path) == [snapshot]
+
+
+def test_save_project_snapshot_appends_versions_for_same_named_project(tmp_path):
+    path = tmp_path / "openimpact.sqlite3"
+    snapshots = tmp_path / "snapshots"
+    first = save_project_snapshot(
+        inspect_report("signature_change", b"first-zip"),
+        b"first-zip",
+        source_filename="signature_change-v1.zip",
+        path=path,
+        snapshot_dir=snapshots,
+    )
+    second = save_project_snapshot(
+        inspect_report("signature_change", b"second-zip"),
+        b"second-zip",
+        source_filename="signature_change-v2.zip",
+        path=path,
+        snapshot_dir=snapshots,
+    )
+
+    assert second["project"]["id"] == first["project"]["id"]
+    assert second["project"]["created_at"] == first["project"]["created_at"]
+    assert second["project"]["updated_at"] != first["project"]["updated_at"]
+    assert second["project"]["latest_snapshot"] == second["snapshot"]
+    assert list_projects(path=path) == [second["project"]]
+    assert list_project_snapshots(first["project"]["id"], path=path) == [second["snapshot"], first["snapshot"]]
+    assert (snapshots / f"{first['snapshot']['project_fingerprint']}.zip").read_bytes() == b"first-zip"
+    assert (snapshots / f"{second['snapshot']['project_fingerprint']}.zip").read_bytes() == b"second-zip"
+
+
+def test_unnamed_project_snapshots_do_not_merge(tmp_path):
+    path = tmp_path / "openimpact.sqlite3"
+    first = save_project_snapshot(inspect_report("", b"first"), b"first", path=path, snapshot_dir=tmp_path / "snapshots")
+    second = save_project_snapshot(inspect_report("", b"second"), b"second", path=path, snapshot_dir=tmp_path / "snapshots")
+
+    assert first["project"]["id"] != second["project"]["id"]
+    assert len(list_projects(path=path)) == 2
 
 
 def test_save_list_and_read_report_round_trip(tmp_path):
@@ -143,3 +182,39 @@ def test_delete_report_removes_only_existing_record(tmp_path):
     assert get_report(saved["id"], path=path) is None
     assert list_reports(path=path) == []
     assert delete_report(saved["id"], path=path) is False
+
+
+def test_delete_project_removes_records_and_only_unreferenced_snapshot_file(tmp_path):
+    path = tmp_path / "openimpact.sqlite3"
+    snapshots = tmp_path / "snapshots"
+    first = save_project_snapshot(inspect_report("first"), b"zip-bytes", path=path, snapshot_dir=snapshots)
+    second = save_project_snapshot(inspect_report("second"), b"zip-bytes", path=path, snapshot_dir=snapshots)
+    snapshot_file = snapshots / f"{first['snapshot']['project_fingerprint']}.zip"
+
+    assert snapshot_file.exists()
+    assert delete_project(first["project"]["id"], path=path, snapshot_dir=snapshots) is True
+    assert get_project(first["project"]["id"], path=path) is None
+    assert list_project_snapshots(first["project"]["id"], path=path) == []
+    assert snapshot_file.exists()
+
+    assert delete_project(second["project"]["id"], path=path, snapshot_dir=snapshots) is True
+    assert not snapshot_file.exists()
+    assert delete_project(second["project"]["id"], path=path, snapshot_dir=snapshots) is False
+
+
+def test_delete_project_snapshot_checks_project_and_removes_empty_project(tmp_path):
+    path = tmp_path / "openimpact.sqlite3"
+    snapshots = tmp_path / "snapshots"
+    saved = save_project_snapshot(inspect_report(), b"zip-bytes", path=path, snapshot_dir=snapshots)
+    project = saved["project"]
+    snapshot = saved["snapshot"]
+    snapshot_file = snapshots / f"{snapshot['project_fingerprint']}.zip"
+
+    assert delete_project_snapshot(snapshot["id"], project_id="f" * 32, path=path, snapshot_dir=snapshots) is None
+    assert get_project(project["id"], path=path) == project
+    deleted = delete_project_snapshot(snapshot["id"], project_id=project["id"], path=path, snapshot_dir=snapshots)
+
+    assert deleted["id"] == snapshot["id"]
+    assert deleted["project_deleted"] is True
+    assert get_project(project["id"], path=path) is None
+    assert not snapshot_file.exists()

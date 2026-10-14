@@ -158,13 +158,31 @@ def save_project_snapshot(
             temporary_path.unlink()
 
     with connect(path) as connection:
-        connection.execute(
+        existing_project = None if project_name == "未命名项目" else connection.execute(
             """
-            INSERT INTO projects (id, created_at, updated_at, name)
-            VALUES (?, ?, ?, ?)
+            SELECT id, created_at FROM projects
+            WHERE name = ?
+            ORDER BY updated_at DESC, rowid DESC
+            LIMIT 1
             """,
-            (project_id, created_at, created_at, project_name),
-        )
+            (project_name,),
+        ).fetchone()
+        if existing_project is None:
+            project_created_at = created_at
+            connection.execute(
+                """
+                INSERT INTO projects (id, created_at, updated_at, name)
+                VALUES (?, ?, ?, ?)
+                """,
+                (project_id, created_at, created_at, project_name),
+            )
+        else:
+            project_id = existing_project["id"]
+            project_created_at = existing_project["created_at"]
+            connection.execute(
+                "UPDATE projects SET updated_at = ? WHERE id = ?",
+                (created_at, project_id),
+            )
         connection.execute(
             """
             INSERT INTO project_snapshots (
@@ -184,7 +202,7 @@ def save_project_snapshot(
     return {
         "project": {
             "id": project_id,
-            "created_at": created_at,
+            "created_at": project_created_at,
             "updated_at": created_at,
             "name": project_name,
             "latest_snapshot": _snapshot_record({
@@ -288,6 +306,65 @@ def list_project_snapshots(
     return [_snapshot_row_to_record(row) for row in rows]
 
 
+def delete_project(
+    project_id: str, *, path: str | Path | None = None, snapshot_dir: str | Path | None = None
+) -> bool:
+    initialize_database(path)
+    with connect(path) as connection:
+        rows = connection.execute(
+            "SELECT project_fingerprint, storage_path FROM project_snapshots WHERE project_id = ?",
+            (project_id,),
+        ).fetchall()
+        cursor = connection.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+        if cursor.rowcount <= 0:
+            return False
+        candidates = [(row["project_fingerprint"], row["storage_path"]) for row in rows]
+        _delete_unreferenced_snapshot_files(connection, candidates, snapshot_dir=snapshot_dir)
+    return True
+
+
+def delete_project_snapshot(
+    snapshot_id: str,
+    *,
+    project_id: str | None = None,
+    path: str | Path | None = None,
+    snapshot_dir: str | Path | None = None,
+) -> dict[str, Any] | None:
+    initialize_database(path)
+    with connect(path) as connection:
+        where = "id = ?" if project_id is None else "id = ? AND project_id = ?"
+        params = (snapshot_id,) if project_id is None else (snapshot_id, project_id)
+        row = connection.execute(
+            f"SELECT * FROM project_snapshots WHERE {where}", params
+        ).fetchone()
+        if row is None:
+            return None
+        snapshot_project_id = row["project_id"]
+        snapshot = _snapshot_row_to_record(row)
+        candidate = (row["project_fingerprint"], row["storage_path"])
+        connection.execute("DELETE FROM project_snapshots WHERE id = ?", (snapshot_id,))
+        latest = connection.execute(
+            """
+            SELECT created_at FROM project_snapshots
+            WHERE project_id = ?
+            ORDER BY created_at DESC, rowid DESC
+            LIMIT 1
+            """,
+            (snapshot_project_id,),
+        ).fetchone()
+        if latest is None:
+            connection.execute("DELETE FROM projects WHERE id = ?", (snapshot_project_id,))
+            snapshot["project_deleted"] = True
+        else:
+            connection.execute(
+                "UPDATE projects SET updated_at = ? WHERE id = ?",
+                (latest["created_at"], snapshot_project_id),
+            )
+            snapshot["project_deleted"] = False
+        _delete_unreferenced_snapshot_files(connection, [candidate], snapshot_dir=snapshot_dir)
+    return snapshot
+
+
 def read_project_snapshot(
     snapshot_id: str, *, path: str | Path | None = None, snapshot_dir: str | Path | None = None
 ) -> tuple[dict[str, Any], bytes]:
@@ -318,6 +395,36 @@ def read_project_snapshot(
     if len(data) > MAX_UPLOAD_BYTES or hashlib.sha256(data).hexdigest() != fingerprint:
         raise SnapshotError("snapshot_corrupted", "项目快照内容已改变，请重新上传并保存项目。", 409)
     return _snapshot_row_to_record(row), data
+
+
+def _delete_unreferenced_snapshot_files(
+    connection: sqlite3.Connection,
+    candidates: list[tuple[str, str | None]],
+    *,
+    snapshot_dir: str | Path | None = None,
+) -> None:
+    root = snapshot_directory(snapshot_dir).resolve()
+    for fingerprint, storage_path in candidates:
+        if not re.fullmatch(r"[0-9a-f]{64}", fingerprint or "") or not storage_path:
+            continue
+        remaining = connection.execute(
+            "SELECT 1 FROM project_snapshots WHERE project_fingerprint = ? LIMIT 1",
+            (fingerprint,),
+        ).fetchone()
+        if remaining is not None:
+            continue
+        stored = Path(storage_path)
+        try:
+            resolved = stored.resolve()
+        except OSError:
+            continue
+        if stored.is_symlink() or resolved != root / f"{fingerprint}.zip":
+            continue
+        try:
+            if stored.is_file():
+                stored.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def save_report(

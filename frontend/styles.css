@@ -243,6 +243,7 @@ input::placeholder { color: var(--oi-muted); }
 .oi-project-snapshot span, .oi-project-snapshot p { color: var(--oi-muted); font-size: var(--oi-text-xs); }
 .oi-project-snapshot p { margin: 0; }
 .oi-project-snapshot code { overflow-wrap: anywhere; color: var(--oi-trace); }
+.oi-project-snapshot-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--oi-space-3); }
 .oi-project-detail { padding: var(--oi-space-4); min-width: 0; overflow-wrap: anywhere; }
 .oi-project-detail h2 { font-size: var(--oi-text-title); }
 .oi-project-facts { display: grid; gap: var(--oi-space-3); margin-bottom: var(--oi-space-6); }

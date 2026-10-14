@@ -26,6 +26,7 @@ export default function ProjectLibraryPage({ navigate }) {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [hasMore, setHasMore] = useState(false);
   const [snapshotHasMore, setSnapshotHasMore] = useState(false);
   const gate = useRef(createRequestGate());
@@ -33,7 +34,8 @@ export default function ProjectLibraryPage({ navigate }) {
   const latestQuery = useRef(query); latestQuery.current = query;
   const mounted = useRef(true);
   const openSequence = useRef(0);
-  const busy = status.startsWith('loading') || state.loading.inspect;
+  const deletePending = useRef(false);
+  const busy = status.startsWith('loading') || state.loading.inspect || !!deletingId;
 
   async function readProject(id, request) {
     const [project, payload] = await Promise.all([
@@ -100,6 +102,47 @@ export default function ProjectLibraryPage({ navigate }) {
     }
   }
 
+  async function deleteLibraryProject(project) {
+    if (!project?.id || busy || deletePending.current) return;
+    if (!window.confirm(`删除项目“${project.name || project.id}”？该操作只删除本机项目库记录和未被其他项目引用的 ZIP 快照，不会改动源码仓库。`)) return;
+    deletePending.current = true;
+    const request = gate.current.begin();
+    setDeletingId(project.id); setError(null);
+    try {
+      try { await apiClient.deleteProject(project.id, { signal: request.controller.signal }); }
+      catch (failure) { if (failure?.status !== 404) throw failure; }
+      if (!gate.current.current(request)) return;
+      await loadProjects(false, query);
+    } catch (failure) {
+      if (gate.current.current(request) && failure.name !== 'AbortError') setError(failure.message || '删除项目失败。');
+    } finally {
+      deletePending.current = false;
+      if (mounted.current) setDeletingId(null);
+    }
+  }
+
+  async function deleteSnapshot(snapshot) {
+    if (!selected?.id || !snapshot?.id || busy || deletePending.current) return;
+    if (!window.confirm(`删除快照“${snapshot.source_filename || snapshot.id}”？该操作只删除本机快照记录和未被其他项目引用的 ZIP 文件。`)) return;
+    deletePending.current = true;
+    const request = gate.current.begin();
+    setDeletingId(snapshot.id); setError(null);
+    try {
+      let payload = null;
+      try { payload = await apiClient.deleteProjectSnapshot(selected.id, snapshot.id, { signal: request.controller.signal }); }
+      catch (failure) { if (failure?.status !== 404) throw failure; }
+      if (!gate.current.current(request)) return;
+      if (payload?.project_deleted) await loadProjects(false, query);
+      else await readProject(selected.id, request);
+    } catch (failure) {
+      if (gate.current.current(request) && failure.name !== 'AbortError') setError(failure.message || '删除项目快照失败。');
+    } finally {
+      deletePending.current = false;
+      if (mounted.current) setDeletingId(null);
+      if (gate.current.current(request)) setStatus('ready');
+    }
+  }
+
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; openSequence.current++; gate.current.cancel(); };
@@ -123,13 +166,14 @@ export default function ProjectLibraryPage({ navigate }) {
     <ErrorNotice error={state.error?.stage === 'inspect' ? state.error : null} />
     <section className="oi-history-layout" aria-busy={busy}>
       <div className="oi-history-list" aria-label="已保存项目列表">
-        <div className="oi-history-filter"><label htmlFor="oi-project-search">筛选项目</label><input id="oi-project-search" type="search" maxLength={80} value={query} onChange={(event) => { gate.current.cancel(); setQuery(event.target.value); }} placeholder="项目名、文件名、指纹…" /></div>
+        <div className="oi-history-filter"><label htmlFor="oi-project-search">筛选项目</label><input id="oi-project-search" type="search" maxLength={80} disabled={!!deletingId || state.loading.inspect} value={query} onChange={(event) => { gate.current.cancel(); setQuery(event.target.value); }} placeholder="项目名、文件名、指纹…" /></div>
         {projects.length ? projects.map((project) => <article key={project.id} className={selected?.id === project.id ? 'oi-history-row is-selected' : 'oi-history-row'}>
           <button className="oi-history-open" type="button" aria-pressed={selected?.id === project.id} onClick={() => void openProject(project.id)} disabled={busy}>
             <span><b>{project.name}</b><small>{formatTime(project.updated_at)}</small></span>
             <code>{project.latest_snapshot?.source_filename || '未记录上传文件'}</code>
             <span>{projectSummary(project.latest_snapshot)}</span>
           </button>
+          <button className="oi-history-delete" type="button" onClick={() => void deleteLibraryProject(project)} disabled={busy}>{deletingId === project.id ? '删除中…' : '删除'}</button>
         </article>) : <div className="oi-history-empty" role="status"><b>{busy ? '正在读取项目库' : error ? '项目库暂时不可用' : query.trim() ? '没有匹配的项目' : '还没有保存的项目'}</b></div>}
         {projects.length > 0 && hasMore && <div className="oi-history-more"><button className="ghost-action" type="button" onClick={() => void loadProjects(true)} disabled={busy}>{status === 'loading-more' ? '加载中…' : '加载更多'}</button></div>}
       </div>
@@ -147,7 +191,10 @@ export default function ProjectLibraryPage({ navigate }) {
               <div><b>{snapshot.source_filename || '未记录文件名'}</b><span>{formatTime(snapshot.created_at)}</span></div>
               <p>{projectSummary(snapshot)} · 源码根目录 {snapshot.analysis_root || '.'}</p>
               <details><summary>快照指纹</summary><code>{snapshot.project_fingerprint}</code></details>
-              <button type="button" className="primary-action" disabled={busy} onClick={() => void analyzeSnapshot(snapshot)}>{state.loading.inspect && state.snapshot?.id === snapshot.id ? '正在读取快照…' : '使用此快照分析'}</button>
+              <div className="oi-project-snapshot-actions">
+                <button type="button" className="primary-action" disabled={busy} onClick={() => void analyzeSnapshot(snapshot)}>{state.loading.inspect && state.snapshot?.id === snapshot.id ? '正在读取快照…' : '使用此快照分析'}</button>
+                <button type="button" className="ghost-action" disabled={busy} onClick={() => void deleteSnapshot(snapshot)}>{deletingId === snapshot.id ? '删除中…' : '删除快照'}</button>
+              </div>
             </article>)}
             {snapshotHasMore && <button type="button" className="ghost-action" disabled={busy} onClick={() => void loadMoreSnapshots()}>更多快照</button>}
           </div>

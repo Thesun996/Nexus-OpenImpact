@@ -31,6 +31,8 @@ from openimpact.api_change import ChangeConfigError, build_change_spec, parse_ch
 from openimpact.repository import zip_inspector
 from openimpact.repository.layout import AnalysisRootError
 from openimpact.storage import (
+    delete_project,
+    delete_project_snapshot,
     delete_report,
     get_project,
     get_report,
@@ -367,6 +369,20 @@ def saved_project(project_id: str) -> JSONResponse:
     return JSONResponse(content=record)
 
 
+@app.delete("/api/v1/projects/{project_id}")
+def delete_saved_project(project_id: str) -> JSONResponse:
+    if not re.fullmatch(r"[0-9a-f]{32}", project_id):
+        return _error(404, "project_not_found", "没有找到该项目。")
+    try:
+        deleted = delete_project(project_id)
+    except (OSError, sqlite3.Error):
+        _LOGGER.exception("Project delete failed")
+        return _error(503, "database_unavailable", "本地项目库暂时不可用。")
+    if not deleted:
+        return _error(404, "project_not_found", "没有找到该项目。")
+    return JSONResponse(content={"deleted": True, "id": project_id})
+
+
 @app.get("/api/v1/projects/{project_id}/snapshots")
 def saved_project_snapshots(project_id: str, limit: int = 20, offset: int = 0) -> JSONResponse:
     if not re.fullmatch(r"[0-9a-f]{32}", project_id):
@@ -387,6 +403,29 @@ def saved_project_snapshots(project_id: str, limit: int = 20, offset: int = 0) -
     except (OSError, sqlite3.Error):
         _LOGGER.exception("Project snapshot list failed")
         return _error(503, "database_unavailable", "本地项目库暂时不可用。")
+
+
+@app.delete("/api/v1/projects/{project_id}/snapshots/{snapshot_id}")
+def delete_saved_project_snapshot(project_id: str, snapshot_id: str) -> JSONResponse:
+    if not re.fullmatch(r"[0-9a-f]{32}", project_id):
+        return _error(404, "project_not_found", "没有找到该项目。")
+    if not re.fullmatch(r"[0-9a-f]{32}", snapshot_id):
+        return _error(404, "snapshot_not_found", "没有找到该项目快照。")
+    try:
+        if get_project(project_id) is None:
+            return _error(404, "project_not_found", "没有找到该项目。")
+        deleted = delete_project_snapshot(snapshot_id, project_id=project_id)
+    except (OSError, sqlite3.Error):
+        _LOGGER.exception("Project snapshot delete failed")
+        return _error(503, "database_unavailable", "本地项目库暂时不可用。")
+    if deleted is None:
+        return _error(404, "snapshot_not_found", "没有找到该项目快照。")
+    return JSONResponse(content={
+        "deleted": True,
+        "id": snapshot_id,
+        "project_id": project_id,
+        "project_deleted": deleted.get("project_deleted") is True,
+    })
 
 
 @app.post("/api/v1/projects/inspect")
