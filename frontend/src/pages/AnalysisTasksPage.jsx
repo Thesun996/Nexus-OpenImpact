@@ -34,6 +34,14 @@ export function taskChangeLabel(change) {
   return parameter ? `${label} · ${parameter}` : label;
 }
 
+export function matchesTaskFilter(task, query, status) {
+  if (status && task.status !== status) return false;
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const haystack = [taskTargetLabel(task.change), taskChangeLabel(task.change), task.status,
+    task.project_snapshot_id, task.result_report_id, task.id].filter(Boolean).join(' ').toLowerCase();
+  return terms.every(term => haystack.includes(term));
+}
+
 function mergeTasks(current, incoming) {
   const seen = new Set();
   return [...current, ...incoming].filter(item => !seen.has(item.id) && seen.add(item.id));
@@ -66,11 +74,14 @@ export default function AnalysisTasksPage({ navigate }) {
   const [hasMore, setHasMore] = useState(false);
   const [result, setResult] = useState(null);
   const [readingReport, setReadingReport] = useState(false);
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const gate = useRef(createRequestGate());
   const offset = useRef(0);
   const retrying = useRef(false);
   const [retryingTaskId, setRetryingTaskId] = useState(null);
   const busy = status.startsWith('loading');
+  const visibleTasks = tasks.filter(task => matchesTaskFilter(task, query, statusFilter));
 
   async function readTask(id, request) {
     const signal = request.controller.signal;
@@ -155,7 +166,7 @@ export default function AnalysisTasksPage({ navigate }) {
     <section className="page-heading">
       <div><h1>分析任务</h1><p>查看分析进度与已保存的结果</p></div>
       <div className="heading-actions">
-        <span>{tasks.length ? `已读取 ${tasks.length} 个任务` : ''}</span>
+        <span>{tasks.length ? `显示 ${visibleTasks.length} / ${tasks.length} 个任务` : ''}</span>
         <button className="ghost-action" type="button" onClick={() => void loadTasks()} disabled={busy}>刷新</button>
         <button className="ghost-action" type="button" onClick={() => navigate('projects')}>项目库</button>
       </div>
@@ -163,13 +174,25 @@ export default function AnalysisTasksPage({ navigate }) {
     {error && <section className="state-message error" role="alert">{error}</section>}
     <section className="oi-history-layout" aria-busy={busy}>
       <div className="oi-history-list" aria-label="分析任务列表">
-        {tasks.length ? tasks.map((task) => <article key={task.id} className={selected?.id === task.id ? 'oi-history-row is-selected' : 'oi-history-row'}>
+        <div className="oi-history-filter oi-task-filter">
+          <label htmlFor="oi-task-search">筛选分析任务</label>
+          <input id="oi-task-search" type="search" maxLength={80} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="目标、变更、任务 ID…" />
+          <label htmlFor="oi-task-status">任务状态</label>
+          <select id="oi-task-status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            <option value="">全部状态</option>
+            <option value="queued">排队中</option>
+            <option value="running">分析中</option>
+            <option value="succeeded">已完成</option>
+            <option value="failed">失败</option>
+          </select>
+        </div>
+        {visibleTasks.length ? visibleTasks.map((task) => <article key={task.id} className={selected?.id === task.id ? 'oi-history-row is-selected' : 'oi-history-row'}>
           <button className="oi-history-open" type="button" aria-pressed={selected?.id === task.id} onClick={() => void openTask(task.id)} disabled={busy}>
             <span><b>{taskTargetLabel(task.change)}</b><small>{formatTime(task.updated_at)}</small></span>
             <code>{taskChangeLabel(task.change)}</code>
             <span><span className={`oi-task-status is-${task.status || 'unknown'}`}>{taskStatusLabel(task.status)}</span>{task.result_report_id ? ` · 报告 ${task.result_report_id.slice(0, 8)}` : ''}</span>
           </button>
-        </article>) : <div className="oi-history-empty" role="status"><b>{busy ? '正在读取分析任务' : error ? '分析任务暂时不可用' : '还没有分析任务'}</b></div>}
+        </article>) : <div className="oi-history-empty" role="status"><b>{busy ? '正在读取分析任务' : error ? '分析任务暂时不可用' : tasks.length ? '没有匹配的分析任务' : '还没有分析任务'}</b></div>}
         {tasks.length > 0 && hasMore && <div className="oi-history-more"><button className="ghost-action" type="button" onClick={() => void loadTasks(true)} disabled={busy}>{status === 'loading-more' ? '加载中…' : '加载更多'}</button></div>}
       </div>
       <div className="oi-history-detail"><TaskDetail task={selected} onRetry={retryTask} retrying={retryingTaskId === selected?.id} />

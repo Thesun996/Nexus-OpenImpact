@@ -3,12 +3,12 @@ import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'vite'
 
-let server, taskChangeLabel, taskStatusLabel, taskTargetLabel
+let server, matchesTaskFilter, taskChangeLabel, taskStatusLabel, taskTargetLabel
 
 before(async () => {
   server = await createServer({ root: fileURLToPath(new URL('..', import.meta.url)), configFile: false,
     cacheDir: 'node_modules/.vite-task-page-tests', logLevel: 'silent', server: { middlewareMode: true }, appType: 'custom' })
-  ;({ taskChangeLabel, taskStatusLabel, taskTargetLabel } = await server.ssrLoadModule('/src/pages/AnalysisTasksPage.jsx'))
+  ;({ matchesTaskFilter, taskChangeLabel, taskStatusLabel, taskTargetLabel } = await server.ssrLoadModule('/src/pages/AnalysisTasksPage.jsx'))
 })
 
 after(async () => { await server?.close() })
@@ -36,4 +36,14 @@ test('task change label summarizes operation without mutating change payload', (
   assert.equal(JSON.stringify(change), beforeSnapshot)
   assert.equal(taskChangeLabel({ change_type: 'add_required_parameter', added_parameter: { name: 'timezone' } }), '新增必填参数 · timezone')
   assert.equal(taskChangeLabel({}), '变更类型未知')
+})
+
+test('task filters use status and stable task metadata', () => {
+  const task = { id: 'task-123', status: 'failed', project_snapshot_id: 'snapshot-456',
+    change: { target_symbol_id: 'utils.format_date', change_type: 'add_required_parameter', added_parameter: { name: 'timezone' } } }
+  assert.equal(matchesTaskFilter(task, '', ''), true)
+  assert.equal(matchesTaskFilter(task, 'format timezone', 'failed'), true)
+  assert.equal(matchesTaskFilter(task, 'snapshot-456', ''), true)
+  assert.equal(matchesTaskFilter(task, 'format', 'succeeded'), false)
+  assert.equal(matchesTaskFilter(task, 'missing', ''), false)
 })

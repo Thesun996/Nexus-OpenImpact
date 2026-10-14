@@ -218,6 +218,9 @@ input::placeholder { color: var(--oi-muted); }
 .oi-history-filter { display: grid; gap: var(--oi-space-2); padding: var(--oi-space-4); border-bottom: 1px solid var(--oi-line); }
 .oi-history-filter label { color: var(--oi-muted); font-size: var(--oi-text-xs); font-weight: 500; }
 .oi-history-filter input { width: 100%; }
+.oi-task-filter { grid-template-columns: minmax(0, 1fr) minmax(7rem, .45fr); align-items: end; }
+.oi-task-filter label:nth-of-type(2) { grid-column: 2; grid-row: 1; }
+.oi-task-filter select { grid-column: 2; grid-row: 2; width: 100%; }
 .oi-history-row:first-child { border-top: 0; }
 .oi-history-row:hover, .oi-history-row.is-selected { background: var(--oi-trace-soft); }
 .oi-history-row.is-selected { border-left: var(--oi-selection) solid var(--oi-trace); padding-left: calc(var(--oi-space-4) - var(--oi-selection)); }
