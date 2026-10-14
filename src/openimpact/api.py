@@ -9,7 +9,7 @@ from collections import deque
 from dataclasses import asdict
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -31,17 +31,22 @@ from openimpact.api_change import ChangeConfigError, build_change_spec, parse_ch
 from openimpact.repository import zip_inspector
 from openimpact.repository.layout import AnalysisRootError
 from openimpact.storage import (
+    create_analysis_task,
     delete_project,
     delete_project_snapshot,
     delete_report,
+    get_analysis_task,
     get_project,
     get_report,
+    list_analysis_tasks,
     list_project_snapshots,
     list_projects,
     list_reports,
+    read_project_snapshot,
     save_project_snapshot,
     save_report,
     SnapshotError,
+    update_analysis_task,
 )
 
 _DEMO_DIR = Path(__file__).resolve().parents[2] / "examples" / "signature_change"
@@ -64,13 +69,15 @@ class _ZipBodyLimit:
                     "/api/v1/projects/analyze",
                     "/api/v1/projects",
                     "/api/v1/reports",
+                    "/api/v1/analysis-tasks",
                     "/api/v1/projects/source", "/api/v1/reports/questions",
                     "/api/v1/reports/question-suggestions",
                 })):
             await self.application(scope, receive, send)
             return
 
-        limit = 64 * 1024 if scope["path"].startswith("/api/v1/snapshots/") else zip_inspector.MAX_UPLOAD_BYTES + 64 * 1024
+        limit = 64 * 1024 if (scope["path"].startswith("/api/v1/snapshots/")
+                              or scope["path"] == "/api/v1/analysis-tasks") else zip_inspector.MAX_UPLOAD_BYTES + 64 * 1024
         messages = deque()
         size = 0
         while True:
@@ -286,6 +293,48 @@ def _analyze_and_save_zip(
         _LOGGER.exception("Report persistence failed")
         return _error(503, "database_unavailable", "分析完成，但报告无法写入本地数据库。")
     return JSONResponse(content={"record": record, "report": report})
+
+
+def _run_analysis_task(task_id: str, expected_fingerprint: str | None) -> None:
+    task = get_analysis_task(task_id)
+    if task is None:
+        return
+    try:
+        update_analysis_task(task_id, status="running")
+        snapshot, data = read_project_snapshot(task["project_snapshot_id"])
+        response = _analyze_zip(
+            data,
+            snapshot["source_filename"],
+            json.dumps(task["change"], ensure_ascii=False, sort_keys=True),
+            expected_fingerprint,
+            analysis_root=snapshot["analysis_root"],
+        )
+        payload = json.loads(response.body.decode("utf-8"))
+        if response.status_code != 200:
+            error = payload.get("error") if isinstance(payload, dict) else {}
+            update_analysis_task(
+                task_id,
+                status="failed",
+                error_code=error.get("code") if isinstance(error, dict) else "analysis_failed",
+                error_message=error.get("message") if isinstance(error, dict) else "项目影响分析失败，请重试。",
+            )
+            return
+        payload.update(project_id=snapshot["project_id"], project_snapshot_id=snapshot["id"],
+                       project_fingerprint=snapshot["project_fingerprint"])
+        if "project_name" not in payload:
+            project = get_project(snapshot["project_id"])
+            payload["project_name"] = project["name"] if project else "未命名项目"
+        record = save_report(payload, source_filename=snapshot["source_filename"],
+                             analysis_root=snapshot["analysis_root"])
+        update_analysis_task(task_id, status="succeeded", result_report_id=record["id"])
+    except Exception:
+        _LOGGER.exception("Analysis task failed")
+        update_analysis_task(
+            task_id,
+            status="failed",
+            error_code="analysis_task_failed",
+            error_message="后台分析任务失败，请重试。",
+        )
 
 
 def _demo_report() -> JSONResponse:
@@ -578,6 +627,75 @@ def delete_saved_report(report_id: str) -> JSONResponse:
     if not deleted:
         return _error(404, "report_not_found", "没有找到该历史报告。")
     return JSONResponse(content={"deleted": True, "id": report_id})
+
+
+@app.post("/api/v1/analysis-tasks")
+async def create_analysis_task_endpoint(request: Request, background_tasks: BackgroundTasks) -> JSONResponse:
+    form = await request.form()
+    try:
+        items = form.multi_items()
+        keys = [key for key, _ in items]
+        if (request.query_params or set(keys) - {"project_snapshot_id", "change", "expected_fingerprint"}
+                or len(set(keys)) != len(keys) or any(not isinstance(value, str) for _, value in items)):
+            return _error(400, "unsupported_input", "仅接受 project_snapshot_id、change 和 expected_fingerprint。")
+        fields = dict(items)
+        snapshot_id = fields.get("project_snapshot_id")
+        expected = fields.get("expected_fingerprint")
+        if not isinstance(snapshot_id, str) or not re.fullmatch(r"[0-9a-f]{32}", snapshot_id):
+            return _error(404, "snapshot_not_found", "没有找到该项目快照。")
+        if not isinstance(expected, str) or not re.fullmatch(r"[a-fA-F0-9]{64}", expected):
+            return _error(422, "invalid_fingerprint", "请提供当前项目快照的有效指纹。")
+        try:
+            change = json.loads(fields.get("change", ""))
+        except json.JSONDecodeError:
+            return _error(422, "invalid_change_json", "change 必须是 JSON 对象。")
+        if not isinstance(change, dict):
+            return _error(422, "invalid_change_json", "change 必须是 JSON 对象。")
+        try:
+            # Fail fast for missing snapshots; the worker verifies bytes and fingerprint again.
+            read_project_snapshot(snapshot_id)
+            task = create_analysis_task(project_snapshot_id=snapshot_id, change=change)
+        except SnapshotError as error:
+            return _error(error.status_code, error.code, str(error))
+        except (OSError, sqlite3.Error):
+            _LOGGER.exception("Analysis task create failed")
+            return _error(503, "database_unavailable", "本地任务数据库暂时不可用。")
+        background_tasks.add_task(_run_analysis_task, task["id"], expected)
+        return JSONResponse(status_code=202, content={"task": task})
+    finally:
+        await form.close()
+
+
+@app.get("/api/v1/analysis-tasks")
+def saved_analysis_tasks(limit: int = 20, offset: int = 0) -> JSONResponse:
+    if limit < 1 or limit > 50 or offset < 0:
+        return _error(422, "invalid_pagination", "limit 必须在 1 到 50 之间，offset 不能为负数。")
+    try:
+        rows = list_analysis_tasks(limit=limit + 1, offset=offset)
+        items = rows[:limit]
+        return JSONResponse(content={
+            "items": items,
+            "limit": limit,
+            "offset": offset,
+            "has_more": len(rows) > limit,
+        })
+    except (OSError, sqlite3.Error):
+        _LOGGER.exception("Analysis task list failed")
+        return _error(503, "database_unavailable", "本地任务数据库暂时不可用。")
+
+
+@app.get("/api/v1/analysis-tasks/{task_id}")
+def saved_analysis_task(task_id: str) -> JSONResponse:
+    if not re.fullmatch(r"[0-9a-f]{32}", task_id):
+        return _error(404, "task_not_found", "没有找到该分析任务。")
+    try:
+        task = get_analysis_task(task_id)
+    except (OSError, sqlite3.Error):
+        _LOGGER.exception("Analysis task read failed")
+        return _error(503, "database_unavailable", "本地任务数据库暂时不可用。")
+    if task is None:
+        return _error(404, "task_not_found", "没有找到该分析任务。")
+    return JSONResponse(content=task)
 
 
 @app.post("/api/v1/demo/analyze")

@@ -76,6 +76,14 @@ function projectForm(file, change, fingerprint, analysisRoot = '.') {
   return form
 }
 
+function taskForm(snapshotId, change, fingerprint) {
+  const form = new FormData()
+  form.append('project_snapshot_id', snapshotId)
+  form.append('change', JSON.stringify(change))
+  form.append('expected_fingerprint', fingerprint)
+  return form
+}
+
 export function createApiClient({ fetchImpl = fetch } = {}) {
   function projectPath(source, operation, uploadPath) {
     return source?.snapshotId ? `/snapshots/${encodeURIComponent(source.snapshotId)}/${operation}` : uploadPath
@@ -152,6 +160,16 @@ export function createApiClient({ fetchImpl = fetch } = {}) {
     },
     deleteReport(reportId, { signal } = {}) {
       return request(`/reports/${encodeURIComponent(reportId)}`, { method: 'DELETE', signal })
+    },
+    createAnalysisTask(snapshotId, change, fingerprint, { signal } = {}) {
+      return request('/analysis-tasks', { method: 'POST', body: taskForm(snapshotId, change, fingerprint), signal })
+    },
+    listAnalysisTasks({ signal, limit = 20, offset = 0 } = {}) {
+      const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+      return request(`/analysis-tasks?${params}`, { method: 'GET', signal })
+    },
+    getAnalysisTask(taskId, { signal } = {}) {
+      return request(`/analysis-tasks/${encodeURIComponent(taskId)}`, { method: 'GET', signal })
     },
     source(file, fingerprint, { signal, analysisRoot = '.', path } = {}) {
       const form = projectForm(file, undefined, fingerprint, analysisRoot)

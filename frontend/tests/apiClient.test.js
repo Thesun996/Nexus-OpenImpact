@@ -133,6 +133,33 @@ test('project library API creates, lists, reads, and lists snapshots', async () 
   assert.deepEqual(seen.map(({ url }) => url), ['/api/v1/projects', '/api/v1/projects?limit=5&offset=2&q=signature', '/api/v1/projects/project%2Fid', '/api/v1/projects/project%2Fid', '/api/v1/projects/project%2Fid/snapshots?limit=3&offset=1', '/api/v1/projects/project%2Fid/snapshots/snapshot%2Fid'])
 })
 
+test('analysis task API creates, lists and reads task records', async () => {
+  const seen = []
+  const client = createApiClient({ fetchImpl: async (url, options) => {
+    seen.push({ url, options })
+    if (url === '/api/v1/analysis-tasks' && options.method === 'POST') {
+      assert.ok(options.body instanceof FormData)
+      assert.equal(options.body.get('project_snapshot_id'), 'snapshot/id')
+      assert.deepEqual(JSON.parse(options.body.get('change')), change)
+      assert.equal(options.body.get('expected_fingerprint'), fingerprint)
+      return jsonResponse({ task: { id: 'task-1', status: 'queued' } }, 202)
+    }
+    if (url === '/api/v1/analysis-tasks?limit=5&offset=2' && options.method === 'GET') {
+      assert.equal(options.body, undefined)
+      return jsonResponse({ items: [{ id: 'task-1' }], limit: 5, offset: 2, has_more: false })
+    }
+    if (url === '/api/v1/analysis-tasks/task%2Fid' && options.method === 'GET') {
+      assert.equal(options.body, undefined)
+      return jsonResponse({ id: 'task/id', status: 'succeeded', result_report_id: 'report-1' })
+    }
+    return jsonResponse({ error: { code: 'unexpected_path', message: url } }, 500)
+  } })
+  assert.equal((await client.createAnalysisTask('snapshot/id', change, fingerprint)).task.status, 'queued')
+  assert.equal((await client.listAnalysisTasks({ limit: 5, offset: 2 })).items[0].id, 'task-1')
+  assert.equal((await client.getAnalysisTask('task/id')).result_report_id, 'report-1')
+  assert.deepEqual(seen.map(({ url }) => url), ['/api/v1/analysis-tasks', '/api/v1/analysis-tasks?limit=5&offset=2', '/api/v1/analysis-tasks/task%2Fid'])
+})
+
 test('every project operation forwards cancellation without retrying', async () => {
   const controller = new AbortController()
   let calls = 0
@@ -148,7 +175,10 @@ test('every project operation forwards cancellation without retrying', async () 
   await client.listProjects({ signal: controller.signal })
   await client.deleteProject('project-id', { signal: controller.signal })
   await client.deleteProjectSnapshot('project-id', 'snapshot-id', { signal: controller.signal })
-  assert.equal(calls, 7)
+  await client.createAnalysisTask('snapshot-id', change, fingerprint, { signal: controller.signal })
+  await client.listAnalysisTasks({ signal: controller.signal })
+  await client.getAnalysisTask('task-id', { signal: controller.signal })
+  assert.equal(calls, 10)
 })
 
 test('409 fingerprint mismatch preserves the backend error for a clear UI failure', async () => {

@@ -33,12 +33,17 @@ Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 
 | GET | `/api/v1/reports` | 无 | 分页读取已保存报告摘要，可用 `q` 筛选元数据 | 200 |
 | GET | `/api/v1/reports/{report_id}` | 无 | 读取单条已保存报告及完整 report JSON | 200 |
 | DELETE | `/api/v1/reports/{report_id}` | 无 | 删除一条本机已保存报告 | 200 |
+| POST | `/api/v1/analysis-tasks` | `multipart/form-data` | 基于已保存快照创建本地分析任务 | 202 |
+| GET | `/api/v1/analysis-tasks` | 无 | 分页读取本地分析任务状态 | 200 |
+| GET | `/api/v1/analysis-tasks/{task_id}` | 无 | 读取单个本地分析任务状态和结果引用 | 200 |
 
 三个核心业务接口仍需要重新上传 ZIP：`/api/v1/projects/inspect`、`/api/v1/changes/validate` 和 `/api/v1/projects/analyze` 每次请求在独立临时目录完成并清理。`expected_fingerprint` 是 ZIP 原始字节的 SHA-256 校验值，不是这些核心接口的服务端项目查找键。同一源码重新打包也可能产生不同指纹；修改或重新打包后应重新 inspect。文件名只用于展示项目名称的回退值，不参与指纹计算。不接受服务器本地路径、查询参数或额外表单字段。
 
 项目库接口是新增的本机持久化能力：`POST /api/v1/projects` 接受同一套 ZIP 安全限制，完成 Inspect 后创建项目记录和快照记录，并把 ZIP 快照保存到 `.openimpact/snapshots/`，可用 `OPENIMPACT_SNAPSHOT_DIR` 覆盖。同名项目会追加新的快照版本，无法识别项目名时仍创建独立项目。该接口返回 `project`、`snapshot` 和本次 `inspect`。前端支持从项目库选择快照直接分析，也支持删除本机项目或快照；删除只影响本机 SQLite 记录和未被其他项目引用的 ZIP 快照文件。现阶段不提供用户归属、权限、团队共享或账号级项目管理。
 
 报告历史接口只保存分析报告 JSON 和摘要元数据，不保存上传 ZIP 或源码压缩包。默认 SQLite 路径为 `.openimpact/openimpact.sqlite3`，可用 `OPENIMPACT_DB_PATH` 覆盖；该目录不应提交到版本库。`GET /api/v1/reports` 支持可选查询参数 `q`，仅筛选项目名、上传文件名、变更领域、变更类型、目标 ID 和覆盖状态等元数据，最长 80 个字符；响应包含 `items`、`limit`、`offset`、`query` 和 `has_more`，前端用 `has_more` 决定是否继续加载下一页。删除历史报告只移除本地保存的报告记录，不修改源码或上传 ZIP。原 `/api/v1/projects/analyze` 保持无持久化行为，避免破坏冻结契约。
+
+分析任务接口是本地任务基础能力：`POST /api/v1/analysis-tasks` 基于已保存快照创建任务，后台读取该快照、执行分析并把成功结果保存为历史报告。它不接收 ZIP 文件，不替代当前前端主流程，也不是生产级队列；当前没有用户归属、重试策略或独立 worker。前端已有只读任务状态页，但“开始分析”仍未切换为任务轮询。
 
 三个接口的 `file` 均为 multipart 文件字段，建议浏览器以 `application/zip` 上传；服务以 ZIP 内容及安全规则判断，不依赖客户端声明的 MIME。每个请求的 multipart 总量最多 5 MiB + 64 KiB，其中 ZIP 文件最多 5 MiB。其余 ZIP 条目和解压限额见下文。前端交接示例见 [frontend-handoff.md](frontend-handoff.md)，真实响应见 [api-samples](api-samples)。
 
@@ -120,6 +125,28 @@ python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
 成功业务结果追加 `project_id`、`project_snapshot_id`、`project_fingerprint`；`reports` 中这些字段位于 `report` 内，并随完整报告保存。原报告 schema_version 和影响证据定义不变。已存在的即时上传接口没有增加必填字段或改变响应。
 
 快照不存在/ID 非法：404 `snapshot_not_found`；文件丢失：404 `snapshot_missing`；存储字节损坏/超限：409 `snapshot_corrupted`；请求指纹不匹配：409 `fingerprint_mismatch`；路径或数据库不可用：503 `snapshot_unavailable`。错误不会返回服务器路径或用固定样例替代真实项目。详细验收见 [项目快照分析](snapshot-workflow.md)。
+
+### 本地分析任务
+
+`POST /api/v1/analysis-tasks` 请求体为 `multipart/form-data`，只接受：
+
+| 字段 | 必填 | 含义 |
+| --- | --- | --- |
+| `project_snapshot_id` | 是 | 已保存快照 ID，32 位 hex |
+| `change` | 是 | JSON 对象，沿用 Analyze 的变更配置 |
+| `expected_fingerprint` | 是 | 保存快照 ZIP 的 SHA-256，用于执行时核对字节 |
+
+成功返回 HTTP 202：
+
+```json
+{"task":{"id":"<32位hex>","status":"queued","project_snapshot_id":"<32位hex>","change":{}}}
+```
+
+后台执行时会把任务更新为 `running`，成功后保存报告并写入 `result_report_id`，失败则写入安全的 `error_code` 和 `error_message`。任务执行沿用快照分析的安全读取、指纹核对、静态分析和报告保存规则；不会执行用户源码，也不会把服务器路径写入响应。
+
+`GET /api/v1/analysis-tasks` 支持 `limit` 与 `offset`，规则为 `limit` 1 到 50，`offset` 非负；响应包含 `items`、`limit`、`offset` 和 `has_more`。`GET /api/v1/analysis-tasks/{task_id}` 返回单个任务；任务 ID 非法或不存在返回 404 `task_not_found`。
+
+输入错误：未知字段、重复字段、查询参数或文件字段返回 400 `unsupported_input`；`change` 不是 JSON 对象返回 422 `invalid_change_json`；分页错误返回 422 `invalid_pagination`；快照不存在按快照接口返回 404 `snapshot_not_found`。创建成功后的指纹不匹配、快照损坏或分析错误会记录为 `failed` 任务，而不是伪造成功报告。
 
 ## `POST /api/v1/demo/analyze`
 

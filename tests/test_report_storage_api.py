@@ -188,6 +188,96 @@ def test_delete_project_and_snapshot_endpoints(tmp_path, monkeypatch):
     assert not (tmp_path / "snapshots" / f"{fingerprint}.zip").exists()
 
 
+def test_analysis_task_runs_snapshot_analysis_and_saves_report(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENIMPACT_DB_PATH", str(tmp_path / "openimpact.sqlite3"))
+    monkeypatch.setenv("OPENIMPACT_SNAPSHOT_DIR", str(tmp_path / "snapshots"))
+    data = demo_zip()
+    fingerprint = hashlib.sha256(data).hexdigest()
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/v1/projects",
+            files={"file": ("signature_change.zip", data, "application/zip")},
+        ).json()
+        task_response = client.post("/api/v1/analysis-tasks", data={
+            "project_snapshot_id": created["snapshot"]["id"],
+            "expected_fingerprint": fingerprint,
+            "change": json.dumps(CHANGE),
+        })
+        task_id = task_response.json()["task"]["id"]
+        loaded_task = client.get(f"/api/v1/analysis-tasks/{task_id}")
+        listed_tasks = client.get("/api/v1/analysis-tasks")
+
+    assert task_response.status_code == 202
+    assert task_response.json()["task"]["status"] == "queued"
+    assert loaded_task.status_code == 200
+    task = loaded_task.json()
+    assert task["status"] == "succeeded"
+    assert task["project_snapshot_id"] == created["snapshot"]["id"]
+    assert task["result_report_id"]
+    assert listed_tasks.status_code == 200
+    assert listed_tasks.json()["items"] == [task]
+
+    with TestClient(app) as client:
+        report = client.get(f"/api/v1/reports/{task['result_report_id']}")
+    assert report.status_code == 200
+    body = report.json()
+    assert body["report"]["project_snapshot_id"] == created["snapshot"]["id"]
+    assert body["report"]["summary"]["direct_impact_count"] == 1
+
+
+def test_analysis_task_failure_stores_safe_error(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENIMPACT_DB_PATH", str(tmp_path / "openimpact.sqlite3"))
+    monkeypatch.setenv("OPENIMPACT_SNAPSHOT_DIR", str(tmp_path / "snapshots"))
+    data = demo_zip()
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/v1/projects",
+            files={"file": ("signature_change.zip", data, "application/zip")},
+        ).json()
+        task_response = client.post("/api/v1/analysis-tasks", data={
+            "project_snapshot_id": created["snapshot"]["id"],
+            "expected_fingerprint": "0" * 64,
+            "change": json.dumps(CHANGE),
+        })
+        task_id = task_response.json()["task"]["id"]
+        loaded_task = client.get(f"/api/v1/analysis-tasks/{task_id}")
+
+    assert task_response.status_code == 202
+    task = loaded_task.json()
+    assert task["status"] == "failed"
+    assert task["error_code"] == "fingerprint_mismatch"
+    assert task["result_report_id"] is None
+
+
+def test_analysis_task_input_errors_are_bounded(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENIMPACT_DB_PATH", str(tmp_path / "openimpact.sqlite3"))
+
+    with TestClient(app) as client:
+        bad_snapshot = client.post("/api/v1/analysis-tasks", data={
+            "project_snapshot_id": "not-a-snapshot",
+            "expected_fingerprint": "0" * 64,
+            "change": json.dumps(CHANGE),
+        })
+        bad_json = client.post("/api/v1/analysis-tasks", data={
+            "project_snapshot_id": "f" * 32,
+            "expected_fingerprint": "0" * 64,
+            "change": "[]",
+        })
+        bad_page = client.get("/api/v1/analysis-tasks?limit=0")
+        missing = client.get(f"/api/v1/analysis-tasks/{'f' * 32}")
+
+    assert bad_snapshot.status_code == 404
+    assert bad_snapshot.json()["error"]["code"] == "snapshot_not_found"
+    assert bad_json.status_code == 422
+    assert bad_json.json()["error"]["code"] == "invalid_change_json"
+    assert bad_page.status_code == 422
+    assert bad_page.json()["error"]["code"] == "invalid_pagination"
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "task_not_found"
+
+
 def test_project_storage_errors_are_bounded(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENIMPACT_DB_PATH", str(tmp_path / "openimpact.sqlite3"))
     monkeypatch.setenv("OPENIMPACT_SNAPSHOT_DIR", str(tmp_path / "snapshots"))

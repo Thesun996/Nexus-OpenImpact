@@ -1,6 +1,6 @@
 # 本地数据库说明
 
-当前数据库提供两类本地持久化：项目/快照记录，以及报告历史。它不保存账号、密码或会话。
+当前数据库提供三类本地持久化：项目/快照记录、分析任务记录，以及报告历史。它不保存账号、密码或会话。
 
 ## 存储方式
 
@@ -13,7 +13,7 @@
 
 ## 表结构
 
-当前版本自动创建 `projects`、`project_snapshots` 和 `analysis_reports` 表。
+当前版本自动创建 `projects`、`project_snapshots`、`analysis_tasks` 和 `analysis_reports` 表。
 
 `projects` 保存：
 
@@ -34,6 +34,15 @@
 - 变更领域、变更类型、目标 ID。
 - 覆盖状态、summary JSON、完整 report JSON。
 
+`analysis_tasks` 保存：
+
+- 任务 ID、创建时间、更新时间。
+- 使用的 `project_snapshot_id`。
+- 任务状态：`queued`、`running`、`succeeded` 或 `failed`。
+- 本次变更配置 JSON。
+- 成功后的 `result_report_id`。
+- 失败时的安全错误码和用户可见错误信息。
+
 ## API
 
 新增接口：
@@ -50,17 +59,20 @@
 | GET | `/api/v1/reports` | 分页读取历史报告摘要，可用 `q` 筛选元数据，并返回 `has_more` |
 | GET | `/api/v1/reports/{report_id}` | 读取单条历史报告和完整 report JSON |
 | DELETE | `/api/v1/reports/{report_id}` | 删除一条本机历史报告记录 |
+| POST | `/api/v1/analysis-tasks` | 基于已保存快照创建本地分析任务 |
+| GET | `/api/v1/analysis-tasks` | 分页读取本地分析任务列表 |
+| GET | `/api/v1/analysis-tasks/{task_id}` | 读取单个分析任务状态和结果引用 |
 
 原有 `/api/v1/projects/inspect`、`/api/v1/changes/validate` 和 `/api/v1/projects/analyze` 保持原有即时上传工作流。已保存项目使用新增的 `POST /api/v1/snapshots/{snapshot_id}/{operation}` 接口，支持读取、校验、分析、保存报告、源码阅读和追问。详见 [快照分析流程](snapshot-workflow.md)。
 
 快照每次使用前校验普通文件、配置目录边界、5 MiB 大小上限和 SHA-256。文件缺失、损坏或不在配置目录内时停止处理；不会用演示数据代替。同名项目重复保存会追加新的快照版本，并把项目 `updated_at` 与 `latest_snapshot` 指向最近一次保存；项目名无法识别时仍创建独立项目，避免混淆。新保存记录使用绝对存储路径，旧相对路径记录在原仓库工作目录下仍可读取。修改 `OPENIMPACT_SNAPSHOT_DIR` 不会自动搬迁旧文件。
 
-从快照生成并保存的完整 report JSON 包含 `project_id` 和 `project_snapshot_id`，可追溯来源；数据库 schema 仍为 2，未新增关联列、按项目筛选报告或报告删除级联行为。删除项目或快照不删除历史报告。
+从快照生成并保存的完整 report JSON 包含 `project_id` 和 `project_snapshot_id`，可追溯来源；数据库 schema 为 3，新增 `analysis_tasks` 表，但未给报告表新增关联列、按项目筛选报告或报告删除级联行为。删除项目或快照不删除历史报告。
 
 ## 当前边界
 
 - 还没有用户表、登录会话、权限或团队空间。
-- 还没有后台任务队列；保存报告仍是同步请求。
+- 已有本地分析任务表、任务 API 基础和前端只读任务状态页；主分析流程仍是即时分析，尚未实现“开始分析”任务轮询、自动重试或独立 worker。
 - 前端已有基础历史报告页面，可保存当前报告、分页读取本机已保存记录、删除单条历史报告，并通过后端 `q` 参数和前端输入框筛选元数据。
 - 历史报告若包含一致的来源快照信息，可点击“打开来源项目”；缺少关联的旧报告仍可阅读和下载完整 JSON，不会猜测对应项目。删除后重新加载第一页，避免偏移分页漏项。
 - 前端支持显式保存 ZIP、查看项目、选择快照版本并直接分析；刷新页面后可从项目库重新打开，也可删除本机项目或快照。

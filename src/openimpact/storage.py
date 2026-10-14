@@ -18,7 +18,7 @@ from typing import Any
 
 from openimpact.repository.zip_inspector import MAX_UPLOAD_BYTES
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 DEFAULT_DATABASE = Path(".openimpact") / "openimpact.sqlite3"
 DEFAULT_SNAPSHOT_DIR = Path(".openimpact") / "snapshots"
 REPORT_SEARCH_COLUMNS = (
@@ -111,6 +111,24 @@ def initialize_database(path: str | Path | None = None) -> None:
 
             CREATE INDEX IF NOT EXISTS idx_projects_updated_at
                 ON projects(updated_at DESC);
+
+            CREATE TABLE IF NOT EXISTS analysis_tasks (
+                id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                project_snapshot_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                change_json TEXT NOT NULL,
+                result_report_id TEXT,
+                error_code TEXT,
+                error_message TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_analysis_tasks_updated_at
+                ON analysis_tasks(updated_at DESC);
+
+            CREATE INDEX IF NOT EXISTS idx_analysis_tasks_snapshot_id
+                ON analysis_tasks(project_snapshot_id);
             """
         )
         connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -522,6 +540,86 @@ def delete_report(report_id: str, *, path: str | Path | None = None) -> bool:
     return cursor.rowcount > 0
 
 
+def create_analysis_task(
+    *, project_snapshot_id: str, change: dict[str, Any], path: str | Path | None = None
+) -> dict[str, Any]:
+    initialize_database(path)
+    task_id = uuid.uuid4().hex
+    created_at = datetime.now(timezone.utc).isoformat(timespec="microseconds")
+    change_json = json.dumps(change, ensure_ascii=False, sort_keys=True)
+    with connect(path) as connection:
+        connection.execute(
+            """
+            INSERT INTO analysis_tasks (
+                id, created_at, updated_at, project_snapshot_id, status, change_json
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (task_id, created_at, created_at, project_snapshot_id, "queued", change_json),
+        )
+    return {
+        "id": task_id,
+        "created_at": created_at,
+        "updated_at": created_at,
+        "project_snapshot_id": project_snapshot_id,
+        "status": "queued",
+        "change": change,
+        "result_report_id": None,
+        "error_code": None,
+        "error_message": None,
+    }
+
+
+def get_analysis_task(task_id: str, *, path: str | Path | None = None) -> dict[str, Any] | None:
+    initialize_database(path)
+    with connect(path) as connection:
+        row = connection.execute("SELECT * FROM analysis_tasks WHERE id = ?", (task_id,)).fetchone()
+    return _task_row_to_record(row) if row is not None else None
+
+
+def list_analysis_tasks(
+    *, limit: int = 20, offset: int = 0, path: str | Path | None = None
+) -> list[dict[str, Any]]:
+    initialize_database(path)
+    with connect(path) as connection:
+        rows = connection.execute(
+            """
+            SELECT * FROM analysis_tasks
+            ORDER BY updated_at DESC, rowid DESC
+            LIMIT ? OFFSET ?
+            """,
+            (limit, offset),
+        ).fetchall()
+    return [_task_row_to_record(row) for row in rows]
+
+
+def update_analysis_task(
+    task_id: str,
+    *,
+    status: str,
+    result_report_id: str | None = None,
+    error_code: str | None = None,
+    error_message: str | None = None,
+    path: str | Path | None = None,
+) -> dict[str, Any] | None:
+    if status not in {"queued", "running", "succeeded", "failed"}:
+        raise ValueError("unsupported task status")
+    initialize_database(path)
+    updated_at = datetime.now(timezone.utc).isoformat(timespec="microseconds")
+    with connect(path) as connection:
+        cursor = connection.execute(
+            """
+            UPDATE analysis_tasks
+            SET updated_at = ?, status = ?, result_report_id = ?, error_code = ?, error_message = ?
+            WHERE id = ?
+            """,
+            (updated_at, status, result_report_id, error_code, error_message, task_id),
+        )
+        if cursor.rowcount <= 0:
+            return None
+        row = connection.execute("SELECT * FROM analysis_tasks WHERE id = ?", (task_id,)).fetchone()
+    return _task_row_to_record(row)
+
+
 def _change_payload(report: dict[str, Any]) -> dict[str, Any]:
     change = report.get("change")
     return change if isinstance(change, dict) else {}
@@ -633,4 +731,18 @@ def _row_to_record(row: sqlite3.Row) -> dict[str, Any]:
         "target_id": row["target_id"],
         "coverage_status": row["coverage_status"],
         "summary": json.loads(row["summary_json"]),
+    }
+
+
+def _task_row_to_record(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+        "project_snapshot_id": row["project_snapshot_id"],
+        "status": row["status"],
+        "change": json.loads(row["change_json"]),
+        "result_report_id": row["result_report_id"],
+        "error_code": row["error_code"],
+        "error_message": row["error_message"],
     }

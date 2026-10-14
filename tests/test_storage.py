@@ -3,17 +3,21 @@
 import hashlib
 
 from openimpact.storage import (
+    create_analysis_task,
     delete_project,
     delete_project_snapshot,
     delete_report,
+    get_analysis_task,
     get_project,
     get_report,
     initialize_database,
+    list_analysis_tasks,
     list_project_snapshots,
     list_projects,
     list_reports,
     save_project_snapshot,
     save_report,
+    update_analysis_task,
 )
 
 
@@ -182,6 +186,27 @@ def test_delete_report_removes_only_existing_record(tmp_path):
     assert get_report(saved["id"], path=path) is None
     assert list_reports(path=path) == []
     assert delete_report(saved["id"], path=path) is False
+
+
+def test_analysis_task_round_trip_and_status_updates(tmp_path):
+    path = tmp_path / "openimpact.sqlite3"
+    change = {"target_symbol_id": "utils.format_date", "added_parameter": {"name": "timezone"}}
+    task = create_analysis_task(project_snapshot_id="a" * 32, change=change, path=path)
+
+    assert task["id"]
+    assert task["status"] == "queued"
+    assert task["change"] == change
+    assert get_analysis_task(task["id"], path=path) == task
+    assert list_analysis_tasks(path=path) == [task]
+
+    running = update_analysis_task(task["id"], status="running", path=path)
+    assert running["status"] == "running"
+    succeeded = update_analysis_task(task["id"], status="succeeded", result_report_id="b" * 32, path=path)
+    assert succeeded["result_report_id"] == "b" * 32
+    failed = update_analysis_task(task["id"], status="failed", error_code="analysis_failed", error_message="失败", path=path)
+    assert failed["status"] == "failed"
+    assert failed["error_code"] == "analysis_failed"
+    assert update_analysis_task("f" * 32, status="running", path=path) is None
 
 
 def test_delete_project_removes_records_and_only_unreferenced_snapshot_file(tmp_path):

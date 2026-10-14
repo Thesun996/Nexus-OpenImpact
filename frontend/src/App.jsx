@@ -9,10 +9,11 @@ import ChangePage from './pages/ChangePage.jsx'
 import ReportPage from './pages/ReportPage.jsx'
 import HistoryPage from './pages/HistoryPage.jsx'
 import ProjectLibraryPage from './pages/ProjectLibraryPage.jsx'
+import AnalysisTasksPage from './pages/AnalysisTasksPage.jsx'
 import PlannedPage from './pages/PlannedPage.jsx'
 import EntryGate from './components/entry/EntryGate.jsx'
 
-const pages = { upload: UploadPage, functions: FunctionSelectPage, change: ChangePage, report: ReportPage, projects: ProjectLibraryPage, history: HistoryPage, planned: PlannedPage }
+const pages = { upload: UploadPage, functions: FunctionSelectPage, change: ChangePage, report: ReportPage, projects: ProjectLibraryPage, tasks: AnalysisTasksPage, history: HistoryPage, planned: PlannedPage }
 function currentPage() {
   const page = window.location.hash.replace(/^#\/?/, '') || 'upload'
   return Object.hasOwn(pages, page) ? page : 'planned'

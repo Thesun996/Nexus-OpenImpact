@@ -250,6 +250,14 @@ input::placeholder { color: var(--oi-muted); }
 .oi-project-facts dt { color: var(--oi-muted); font-size: var(--oi-text-xs); }
 .oi-project-facts dd { margin: var(--oi-space-1) 0 0; font-size: var(--oi-text-sm); font-weight: 400; }
 .oi-project-library .oi-history-row { grid-template-columns: minmax(0, 1fr); }
+.oi-task-page .oi-history-row { grid-template-columns: minmax(0, 1fr); }
+.oi-task-status { display: inline-flex; align-items: center; width: fit-content; min-height: 1.5rem; padding: 0 var(--oi-space-2); border: 1px solid var(--oi-rule); border-radius: var(--oi-radius-control); color: var(--oi-muted); background: var(--oi-surface); font-size: var(--oi-text-xs); font-weight: 600; }
+.oi-task-status.is-running { color: var(--oi-trace); border-color: var(--oi-trace); background: var(--oi-trace-soft); }
+.oi-task-status.is-succeeded { color: var(--oi-trace); border-color: var(--oi-trace); background: var(--oi-trace-soft); }
+.oi-task-status.is-failed { color: var(--oi-change); border-color: var(--oi-change); background: var(--oi-change-soft); }
+.oi-task-detail-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--oi-space-3); margin-bottom: var(--oi-space-4); }
+.oi-task-detail-heading h2 { margin: 0; }
+.oi-task-detail code { overflow-wrap: anywhere; color: var(--oi-trace); }
 
 /* Tablet keeps all project/session information, with a horizontal work rail. */
 @media (max-width: 1023px) {
