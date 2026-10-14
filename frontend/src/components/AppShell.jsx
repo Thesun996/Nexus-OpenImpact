@@ -15,7 +15,7 @@ export default function AppShell({ page, navigate, children }) {
   const navRef = useRef(null)
   const isDemo = state.mode === 'demo'
   const projectName = state.inspect?.project_name || '尚未读取项目'
-  const fileName = state.file?.name || (isDemo ? '固定 signature_change 样例' : '等待选择原始 ZIP')
+  const fileName = state.file?.name || state.snapshot?.source_filename || (isDemo ? '固定 signature_change 样例' : '等待选择原始 ZIP')
   const healthStatus = state.health?.status || 'idle'
   const healthLabel = healthStatus === 'ok' ? '后端已连接'
     : healthStatus === 'checking' ? '正在检查连接'
@@ -86,7 +86,7 @@ export default function AppShell({ page, navigate, children }) {
 
         <div className={`oi-session-strip ${isDemo ? 'is-demo' : ''}`} role="status">
           <strong>{isDemo ? '演示记录' : '实际项目'}</strong>
-          <span>{isDemo ? '固定样例，未请求真实分析接口。' : '原始 ZIP 保留在当前会话，刷新后需要重新选择。'}</span>
+          <span>{isDemo ? '固定样例，未请求真实分析接口。' : state.snapshot ? '使用项目库已保存快照。' : '原始 ZIP 保留在当前会话，刷新后需要重新选择。'}</span>
           <span className="oi-session-scope">{state.changeDomain === 'symbol' ? 'Python / 公开变量与常量 / 静态引用' : state.changeDomain === 'module' ? 'Python / 根模块 / 静态导入变更' : 'Python / 模块级函数 / 四种签名变更'}</span>
         </div>
         <main id="oi-main" tabIndex={-1} className="content workflow-content oi-content">{children}</main>

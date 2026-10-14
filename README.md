@@ -125,7 +125,7 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" http://127.0.0.1:80
 
 使用同样的表单字段调用 `POST /api/v1/projects/analyze`，即可对本次上传的 ZIP 生成 Core JSON 影响报告。报告中的 `project_path` 为相对根目录 `.`；`coverage.status=partial` 时需结合诊断查看未覆盖代码，零条影响不代表整个项目确定无影响。调用示例和状态码见 [API 契约](docs/api-contract.md)。
 
-前端开发可直接使用 [前端交接说明](docs/frontend-handoff.md) 与 [真实 HTTP 响应样例](docs/api-samples/inspect-response.json)。核心 Inspect / Validate / Analyze 闭环每一步仍需重新上传 ZIP；新增项目库接口可在本机保存项目/快照记录，但还不是账号级项目管理。
+前端开发可直接使用 [前端交接说明](docs/frontend-handoff.md) 与 [真实 HTTP 响应样例](docs/api-samples/inspect-response.json)。上传页选择“保存并读取项目”后，可以刷新页面并从项目库选择“使用此快照分析”，无需再次上传 ZIP。直接读取 ZIP 的原流程仍可使用。快照接口、存储边界和验收见 [项目快照分析](docs/snapshot-workflow.md)；当前仍为本机工作台，没有账号级项目隔离。
 
 ---
 

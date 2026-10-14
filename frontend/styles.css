@@ -214,13 +214,13 @@ input::placeholder { color: var(--oi-muted); }
 
 .oi-history-layout { display: grid; grid-template-columns: minmax(18rem, .72fr) minmax(0, 1.5fr); gap: var(--oi-space-6); align-items: start; }
 .oi-history-list { min-width: 0; overflow: hidden; border: 1px solid var(--oi-line); border-radius: var(--oi-radius-surface); background: var(--oi-surface); }
-.oi-history-row { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--oi-space-2); align-items: start; padding: var(--oi-space-4) var(--oi-space-5); border-top: 1px solid var(--oi-line); background: transparent; color: var(--oi-ink); text-align: left; }
-.oi-history-filter { display: grid; gap: var(--oi-space-2); padding: var(--oi-space-4) var(--oi-space-5); border-bottom: 1px solid var(--oi-line); }
+.oi-history-row { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--oi-space-2); align-items: start; padding: var(--oi-space-4); border-top: 1px solid var(--oi-line); background: transparent; color: var(--oi-ink); text-align: left; }
+.oi-history-filter { display: grid; gap: var(--oi-space-2); padding: var(--oi-space-4); border-bottom: 1px solid var(--oi-line); }
 .oi-history-filter label { color: var(--oi-muted); font-size: var(--oi-text-xs); font-weight: 500; }
 .oi-history-filter input { width: 100%; }
 .oi-history-row:first-child { border-top: 0; }
 .oi-history-row:hover, .oi-history-row.is-selected { background: var(--oi-trace-soft); }
-.oi-history-row.is-selected { border-left: var(--oi-selection) solid var(--oi-trace); padding-left: calc(var(--oi-space-5) - var(--oi-selection)); }
+.oi-history-row.is-selected { border-left: var(--oi-selection) solid var(--oi-trace); padding-left: calc(var(--oi-space-4) - var(--oi-selection)); }
 .oi-history-open { min-width: 0; display: grid; gap: var(--oi-space-2); padding: 0; border: 0; background: transparent; color: var(--oi-ink); text-align: left; }
 .oi-history-open:disabled { cursor: wait; border: 0; background: transparent; color: var(--oi-ink); }
 .oi-history-open > span { min-width: 0; overflow-wrap: anywhere; }
@@ -230,16 +230,22 @@ input::placeholder { color: var(--oi-muted); }
 .oi-history-open code { color: var(--oi-trace); }
 .oi-history-delete { min-height: 32px; padding: var(--oi-space-1) var(--oi-space-2); border: 1px solid var(--oi-rule); border-radius: var(--oi-radius-control); background: var(--oi-surface); color: var(--oi-muted); font-size: var(--oi-text-xs); }
 .oi-history-delete:hover:not(:disabled) { color: var(--oi-change); border-color: var(--oi-change); background: var(--oi-change-soft); }
-.oi-history-more { display: flex; justify-content: center; padding: var(--oi-space-4) var(--oi-space-5); border-top: 1px solid var(--oi-line); }
+.oi-history-more { display: flex; justify-content: center; padding: var(--oi-space-4); border-top: 1px solid var(--oi-line); }
 .oi-history-empty { padding: var(--oi-space-6); }
 .oi-history-empty p { margin: var(--oi-space-2) 0 0; color: var(--oi-muted); font-size: var(--oi-text-sm); }
 .oi-history-detail { min-width: 0; }
 .oi-project-snapshots { display: grid; gap: var(--oi-space-3); margin-top: var(--oi-space-4); }
-.oi-project-snapshot { display: grid; gap: var(--oi-space-2); padding: var(--oi-space-4); border: 1px solid var(--oi-line); border-radius: var(--oi-radius-control); background: var(--oi-base); }
-.oi-project-snapshot > div { display: flex; justify-content: space-between; gap: var(--oi-space-3); align-items: baseline; }
+.oi-project-snapshot { display: grid; gap: var(--oi-space-3); min-width: 0; padding: var(--oi-space-4); border: 1px solid var(--oi-line); border-radius: var(--oi-radius-control); background: var(--oi-surface); overflow-wrap: anywhere; }
+.oi-project-snapshot > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--oi-space-3); align-items: baseline; }
 .oi-project-snapshot span, .oi-project-snapshot p { color: var(--oi-muted); font-size: var(--oi-text-xs); }
 .oi-project-snapshot p { margin: 0; }
 .oi-project-snapshot code { overflow-wrap: anywhere; color: var(--oi-trace); }
+.oi-project-detail { padding: var(--oi-space-4); min-width: 0; overflow-wrap: anywhere; }
+.oi-project-detail h2 { font-size: var(--oi-text-title); }
+.oi-project-facts { display: grid; gap: var(--oi-space-3); margin-bottom: var(--oi-space-6); }
+.oi-project-facts dt { color: var(--oi-muted); font-size: var(--oi-text-xs); }
+.oi-project-facts dd { margin: var(--oi-space-1) 0 0; font-size: var(--oi-text-sm); font-weight: 400; }
+.oi-project-library .oi-history-row { grid-template-columns: minmax(0, 1fr); }
 
 /* Tablet keeps all project/session information, with a horizontal work rail. */
 @media (max-width: 1023px) {

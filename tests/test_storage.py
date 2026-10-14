@@ -1,5 +1,7 @@
 """SQLite persistence for saved projects and reports."""
 
+import hashlib
+
 from openimpact.storage import (
     delete_report,
     get_project,
@@ -36,7 +38,7 @@ def report(project="signature_change", target="utils.format_date"):
 def inspect_report(project="signature_change"):
     return {
         "project_name": project,
-        "project_fingerprint": "b" * 64,
+        "project_fingerprint": hashlib.sha256(b"zip-bytes").hexdigest(),
         "source_root": project,
         "coverage": {
             "status": "complete",
@@ -77,7 +79,7 @@ def test_save_list_and_read_project_snapshot_round_trip(tmp_path):
     assert snapshot["python_file_count"] == 4
     assert snapshot["function_count"] == 4
     assert snapshot["coverage_status"] == "complete"
-    assert (snapshots / f"{'b' * 64}.zip").read_bytes() == b"zip-bytes"
+    assert (snapshots / f"{snapshot['project_fingerprint']}.zip").read_bytes() == b"zip-bytes"
 
     assert list_projects(path=path) == [project]
     assert list_projects(path=path, query="signature complete") == [project]

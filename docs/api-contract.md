@@ -34,7 +34,7 @@ Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 
 
 三个核心业务接口仍需要重新上传 ZIP：`/api/v1/projects/inspect`、`/api/v1/changes/validate` 和 `/api/v1/projects/analyze` 每次请求在独立临时目录完成并清理。`expected_fingerprint` 是 ZIP 原始字节的 SHA-256 校验值，不是这些核心接口的服务端项目查找键。同一源码重新打包也可能产生不同指纹；修改或重新打包后应重新 inspect。文件名只用于展示项目名称的回退值，不参与指纹计算。不接受服务器本地路径、查询参数或额外表单字段。
 
-项目库接口是新增的本机持久化能力：`POST /api/v1/projects` 接受同一套 ZIP 安全限制，完成 Inspect 后创建项目记录和快照记录，并把受控 ZIP 快照保存到 `.openimpact/snapshots/`，可用 `OPENIMPACT_SNAPSHOT_DIR` 覆盖。该接口返回 `project`、`snapshot` 和本次 `inspect`。现阶段项目库不提供用户归属、权限、删除策略或基于项目 ID 的 Analyze；前端主流程仍沿用即时上传闭环。
+项目库接口是新增的本机持久化能力：`POST /api/v1/projects` 接受同一套 ZIP 安全限制，完成 Inspect 后创建项目记录和快照记录，并把 ZIP 快照保存到 `.openimpact/snapshots/`，可用 `OPENIMPACT_SNAPSHOT_DIR` 覆盖。该接口返回 `project`、`snapshot` 和本次 `inspect`。前端支持从项目库选择快照直接分析，现阶段不提供用户归属、权限或项目删除策略。
 
 报告历史接口只保存分析报告 JSON 和摘要元数据，不保存上传 ZIP 或源码压缩包。默认 SQLite 路径为 `.openimpact/openimpact.sqlite3`，可用 `OPENIMPACT_DB_PATH` 覆盖；该目录不应提交到版本库。`GET /api/v1/reports` 支持可选查询参数 `q`，仅筛选项目名、上传文件名、变更领域、变更类型、目标 ID 和覆盖状态等元数据，最长 80 个字符；响应包含 `items`、`limit`、`offset`、`query` 和 `has_more`，前端用 `has_more` 决定是否继续加载下一页。删除历史报告只移除本地保存的报告记录，不修改源码或上传 ZIP。原 `/api/v1/projects/analyze` 保持无持久化行为，避免破坏冻结契约。
 
@@ -91,11 +91,31 @@ python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
 }
 ```
 
-`project` 与 `snapshot` 响应不暴露服务端 `storage_path`。ZIP 快照路径只保存在本地 SQLite 中，用于后续项目化能力；当前 Analyze 仍要求重新上传 ZIP。
+`project` 与 `snapshot` 响应不暴露服务端 `storage_path`。ZIP 快照路径只保存在本地 SQLite 中；快照接口按 ID 读取它，不接受客户端文件路径。上方 JSON 为字段节选，真实 Inspect 仍包含完整函数列表，两个位置的 snapshot 内容一致。
 
 `GET /api/v1/projects` 支持 `limit`、`offset` 和可选 `q`，规则与报告历史一致：`limit` 为 1 到 50，`offset` 不能为负数，`q` 最多 80 字符。响应包含 `items`、`limit`、`offset`、`query` 和 `has_more`。`q` 仅筛选项目名、上传文件名、指纹和覆盖状态。
 
 `GET /api/v1/projects/{project_id}` 读取单个项目及最新快照摘要。`GET /api/v1/projects/{project_id}/snapshots` 分页读取该项目的快照摘要。非法或不存在的项目 ID 返回 404 `project_not_found`。
+
+### 复用快照
+
+新增 `POST /api/v1/snapshots/{snapshot_id}/{operation}`，`operation` 支持：
+
+| operation | 必填业务字段 | 可选业务字段 | 返回 |
+| --- | --- | --- | --- |
+| `inspect` | 无 | 无 | 原 Inspect 结果及 `snapshot` 元数据 |
+| `validate` | `change` | 无 | 原 Validate 结果 |
+| `analyze` | `change` | 无 | 原分析报告 |
+| `reports` | `change` | 无 | `{record, report}`，重建并保存服务端报告 |
+| `source` | 无 | `path` | 原源码目录/文件响应 |
+| `questions` | `change`, `question` | `finding_index`, `history` | 原证据追问响应 |
+| `question-suggestions` | `change` | `finding_index` | 原推荐追问响应 |
+
+使用表单文本字段，`change`、`history` 仍为 JSON 字符串。除 Inspect 可选外，每次必须发送 `expected_fingerprint`；不发送 `file` 或 `analysis_root`。后端使用保存时的源码根目录，每次核对 ZIP 字节和指纹，并复用安全解包、静态分析、临时目录清理。请求体最大 64 KiB；重复字段、额外字段、文件字段或查询参数返回 400，缺必填字段或错误指纹格式返回 422。
+
+成功业务结果追加 `project_id`、`project_snapshot_id`、`project_fingerprint`；`reports` 中这些字段位于 `report` 内，并随完整报告保存。原报告 schema_version 和影响证据定义不变。已存在的即时上传接口没有增加必填字段或改变响应。
+
+快照不存在/ID 非法：404 `snapshot_not_found`；文件丢失：404 `snapshot_missing`；存储字节损坏/超限：409 `snapshot_corrupted`；请求指纹不匹配：409 `fingerprint_mismatch`；路径或数据库不可用：503 `snapshot_unavailable`。错误不会返回服务器路径或用固定样例替代真实项目。详细验收见 [项目快照分析](snapshot-workflow.md)。
 
 ## `POST /api/v1/demo/analyze`
 

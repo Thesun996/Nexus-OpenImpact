@@ -1,107 +1,86 @@
 # Nexus OpenImpact 当前项目状态
 
-> 更新日期：2026-10-13（Asia/Shanghai）
+> 更新日期：2026-10-14（Asia/Shanghai）
 > 当前分支：`feature/refine-project`
-> 本文用途：给项目负责人、前端、后端和后续接手同学快速判断“项目现在做到哪里、还能做什么、哪些还不能算完成”。
+> 本文记录当前代码能力及可复核验收结果；设计草案不代表已实现功能。
 
-## 一句话结论
+## 当前状态
 
-项目已经不是空壳：核心 Python 静态分析、FastAPI 接口、React 前端工作台、本地 SQLite 报告历史和项目快照库基础都已经存在。当前更准确的状态是：前端主流程可以打开并走通页面，后端接口也有实现；但还不是完整平台，没有真实登录系统，也没有后台任务队列，项目库和历史报告仍是单机基础版。
+项目具备 Python 静态影响分析、React 工作台、本地 SQLite 报告历史和可复用的项目快照库。已接通“保存 ZIP → 刷新后从项目库打开 → 选择目标 → 校验 → 分析 → 查看证据 → 保存历史”的真实业务流程。
 
-## 当前已经具备的能力
+当前仍是本机工作台：登录是演示入口，没有真实用户认证、账号隔离或后台任务队列。
 
-- Python 项目 ZIP 上传后的 Inspect / Validate / Analyze 工作流。
-- 选择函数、配置签名变化、校验变化、展示影响报告的前端闭环。
-- 支持多种函数签名变化：新增必填参数、删除参数、重命名参数、可选参数改为必填。
-- 后端提供 `/api/v1/...` 接口，前端开发环境通过 Vite 代理访问后端。
-- 本地 SQLite 项目库基础：`POST /api/v1/projects` 可上传 ZIP、完成 Inspect，并保存项目/快照记录；`GET /api/v1/projects`、`GET /api/v1/projects/{project_id}` 和 `GET /api/v1/projects/{project_id}/snapshots` 可读取本机项目与快照摘要。前端已有基础项目库页面，可查看项目和快照摘要，但暂不支持基于项目 ID 直接重新分析。
-- 本地 SQLite 报告持久化基础：`POST /api/v1/reports` 可分析并保存报告，`GET /api/v1/reports` 和 `GET /api/v1/reports/{report_id}` 可分页读取历史记录，`DELETE /api/v1/reports/{report_id}` 可删除单条本机报告；前端报告页已提供“保存到历史”，侧边栏已提供“历史报告”读取页，并支持按项目、目标、变更类型等报告元数据筛选和加载更多。
-- 报告展示 Direct、1-hop、2-hop、人工检查、未解析调用、Evidence 和中文解释。
-- 演示样例 ZIP：`frontend/public/samples/signature_change.zip`。
-- 预留了登录、项目页面、后台任务等产品位置，但这些不应被描述为已完成平台能力。
+## 已具备能力
 
-## 当前还没有完成的能力
+- Python ZIP 的安全导入、AST 解析、明确符号/调用关系及覆盖诊断，不执行上传源码。
+- 函数参数新增、删除、重命名、可选改必填；已有模块及公开符号变更能力保持原范围。
+- Direct、1-hop、2-hop 影响、人工检查、未解析调用、源码位置、证据及中文解释。
+- 上传页“保存并读取项目”：保存项目和 ZIP 快照，进入目标选择。
+- 项目库“使用此快照分析”：直接使用已保存快照，刷新后无需重新上传 ZIP。
+- 非默认源码根目录随快照保存并复用；每次读取核对大小、文件位置和指纹。
+- 快照模式下的源码查看、报告追问及报告保存；追问遵循已有模型配置和规则回退。
+- 本机报告历史保存、读取、筛选、分页和删除；快照来源 ID 保存在完整报告中。
+- 直接读取 ZIP 和独立演示流程继续可用。
 
-- 项目源码数据库只有后端基础版：可以保存项目/快照记录和受控 ZIP 快照，但前端还没有完整项目管理页，也还没有用户归属。
-- 登录页/用户入口只有前端表现，不代表已有真实认证、会话或权限系统。
-- 没有后台任务队列；分析请求仍按当前接口请求/响应方式工作。
-- 没有完整项目管理、账号级历史报告中心、团队协作权限或企业平台能力。
-- 生产部署前还需要明确 `/api` 的反向代理或 CORS 策略。
+## 尚未实现
 
-## 本地运行方式
+- 真实登录、用户表、会话和账号级数据隔离。
+- 同一项目追加多个上传版本、项目删除及快照保留策略。
+- 后台任务队列、自动重试。
+- 团队权限、公开部署及生产代理配置。
 
-后端需要在仓库根目录使用 Python 3.11+ 环境安装依赖后启动：
+项目库默认保存在 `.openimpact/openimpact.sqlite3` 和 `.openimpact/snapshots/`，不应提交到 GitHub。当前没有为报告表添加项目关联列；来源 ID 位于 report JSON。
+
+## 本地启动
+
+在仓库根目录启动后端（Python 3.11+，已安装项目依赖）：
 
 ```sh
-pip install -e ".[test]"
 OPENIMPACT_LLM_PROVIDER=rule python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
 ```
 
-前端在另一个终端启动：
+另一个终端进入 `frontend`：
 
 ```sh
-cd frontend
-npm install
-npm run dev
+npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
-浏览器打开：`http://127.0.0.1:5173/`
+浏览器打开 `http://127.0.0.1:5173/`。Vite 使用 strictPort，端口被占用时会报错，不会自动换端口。
 
-如果本机已有旧服务占用 8000 或 5173，可以换端口启动。例如本轮联调使用后端 8010、前端 5175：
+本轮为避免干扰占用 8000 的旧后端，最新后端使用 8010；前端仍使用 5173，对应启动方式为：
 
 ```sh
-cd frontend
-OPENIMPACT_API_TARGET=http://127.0.0.1:8010 npm run dev -- --host 127.0.0.1 --port 5174
+OPENIMPACT_API_TARGET=http://127.0.0.1:8010 npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
-当 5174 也被占用时，Vite 会自动顺延到 5175；以后端健康检查和 Inspect 能通过为准。
-
-注意：直接用普通静态服务器打开 React/Vite 源码可能出现空白页；应使用 `npm run dev` 或构建后的静态产物。
+这些是本地开发服务，服务退出后需要重新启动。更新后端代码后需要重启后端，避免浏览器连接旧版本。不要用普通静态服务器直接打开 React/Vite 源码。
 
 ## 当前检查结果
 
-- 前端测试：`npm run test` 已通过，244 项通过。
-- 前端构建：`npm run build` 已通过。
-- 数据库、项目库与报告历史测试：`tests/test_storage.py` 和 `tests/test_report_storage_api.py` 已通过，13 项通过；覆盖建表、项目快照保存、项目列表/详情/快照列表、报告保存、列表、读取、删除、元数据筛选和 `has_more` 分页边界。
-- 当前本机联调：`http://127.0.0.1:5175/api/v1/health` 返回 `{"status":"ok","version":"0.1.0"}`；通过前端代理上传 `frontend/public/samples/signature_change.zip` 后，Inspect 返回 4 个 Python 文件、4 个函数、覆盖状态 complete；Validate 返回 `valid=true`；Analyze 返回 Direct=1、1-hop=1、2-hop=1；保存历史成功，历史报告页按 `format_date` 筛选可读取保存记录。
-- 浏览器验收记录：已补充 [feature/refine-project 验收记录](feature-refine-acceptance.md)。
-- 下一阶段设计：已补充 [下一阶段设计文档](next-stage-design.md)，用于约束真实登录、项目源码持久化和后台任务的后续实现。
-- 后端非真实 HTTP 测试：`.venv-mac/bin/python -m pytest -k "not real_http and not authenticated_workflow"` 已通过，`1013 passed, 1 skipped, 39 deselected, 1 warning`。
-- 完整后端测试在受限沙箱中会因本机端口绑定被拒绝而失败；失败点为真实 HTTP 稳定性用例中的 `socket.bind(("127.0.0.1", 0))`，需要在允许本地端口绑定的环境下复验。
+2026-10-14 最终回归：
 
-后端稳定性测试需要绑定本机 `127.0.0.1` 临时端口；在受限沙箱中会出现 `Operation not permitted`，需要在允许本地端口绑定的环境下运行。
+- 完整后端：`1071 passed, 1 skipped, 1 warning, 7 subtests passed`。真实 HTTP 测试在允许本地端口绑定的环境中运行通过。
+- 前端：`npm run test`，251 项通过。
+- 前端构建：`npm run build` 通过；仍有超过 500 kB 的 chunk 大小提示。
+- 项目库、快照和报告存储相关后端测试：32 项通过。
+- Chromium 真实联调：显式保存后刷新，从项目库重新打开并分析、阅读源码、保存/读取历史通过。快照请求未重新上传 ZIP。
+- 样例报告：Direct=1、1-hop=1、2-hop=1、coverage=complete，证据为 `report.py:5` 的 `return format_date(date)`。
+- 桌面 1440 × 1000、手机 390 × 844 实测通过，无横向溢出或浏览器 JavaScript 异常。
 
-## 本分支当前包含的本轮改动
+完整后端测试最初在受限沙箱下被本机端口绑定权限阻止；上述结果来自随后获准的完整复验。第三方 Starlette/httpx 弃用警告没有隐藏或转为通过断言。
 
-- `.gitignore`：忽略 `.openimpact/` 本地数据库目录。
-- `src/openimpact/storage.py`：新增 SQLite 建表、项目/快照保存、项目列表/详情/快照列表、保存报告、列表和读取逻辑。
-- `src/openimpact/api.py`：新增项目库接口、保存报告和历史报告读取接口；原 Analyze 接口保持无持久化。
-- `frontend/src/api/client.js`、`frontend/src/pages/ProjectLibraryPage.jsx`、`frontend/src/pages/HistoryPage.jsx`、`frontend/src/pages/ReportPage.jsx`、`frontend/src/components/AppShell.jsx`、`frontend/styles.css`：前端接入项目库页面与 API 客户端方法、保存历史、历史报告读取、删除、筛选和分页加载。
-- `tests/test_storage.py`、`tests/test_report_storage_api.py`：新增数据库与 API 测试。
-- `frontend/tests/historyPage.test.js`：新增历史报告摘要、筛选与分页去重测试。
-- `docs/database.md`、`docs/api-contract.md`、`docs/feature-refine-acceptance.md`、本文档：记录数据库边界、路径、接口和本轮验收。
-- `docs/next-stage-design.md`：记录后续用户系统、项目页面完善和后台任务的建议设计与待确认问题。
+## 相关文档
 
-## 推荐测试样例
+- [项目库快照分析与验收](snapshot-workflow.md)
+- [数据库说明](database.md)
+- [API 契约](api-contract.md)
+- [GitHub Desktop 提交清单](github-desktop-submit-checklist.md)
+- [后续设计草案](next-stage-design.md)
 
-使用 `frontend/public/samples/signature_change.zip` 测试主流程：
+## 提交说明
 
-1. 上传 ZIP。
-2. 选择函数 `utils.format_date`。
-3. 新增参数名填写 `timezone`。
-4. 参数类型选择 `positional_or_keyword`。
-5. 校验变更。
-6. 开始分析。
+本轮改动继续提交到 `feature/refine-project`；尚未自动 Commit、Push 或合并主分支。建议标题：
 
-预期报告应能看到：
+`feat: 支持项目库快照直接分析`
 
-- Direct Impact：`report.report -> utils.format_date`
-- 1-hop Indirect：`dashboard.dashboard`
-- 2-hop Indirect：`page.page`
-- 覆盖状态：`complete`
-
-## 下一步不用再讨论就可以做的事
-
-- 提交前在 GitHub Desktop 中只勾选代码、测试和文档文件，确认不包含 `.openimpact/`、`.venv-mac/`、`frontend/dist/`、`frontend/node_modules/`、`.idea/`、`.DS_Store`。
-- 提交后 Push 到 `feature/refine-project`，再由负责人决定是否发起 PR 或合并主分支。
-- 后续若要推进真实登录、项目管理页面或后台任务队列，需要先定产品规则，不能直接作为当前 V1 收尾项。
+提交源代码、测试和文档；忽略本地数据库、ZIP 快照存储、依赖目录、构建产物和临时验收截图。

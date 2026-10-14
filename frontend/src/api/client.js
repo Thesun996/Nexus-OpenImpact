@@ -64,9 +64,11 @@ function responseError(status, payload) {
 
 function projectForm(file, change, fingerprint, analysisRoot = '.') {
   const form = new FormData()
-  // Pass the caller's original File directly. Every project request reuploads it.
-  form.append('file', file)
-  if (analysisRoot !== '.') form.append('analysis_root', analysisRoot)
+  // Snapshot requests carry only the saved identity; the server owns its root.
+  if (!file?.snapshotId) {
+    form.append('file', file)
+    if (analysisRoot !== '.') form.append('analysis_root', analysisRoot)
+  }
   if (change !== undefined) form.append('change', JSON.stringify(change))
   if (fingerprint !== undefined && fingerprint !== null && fingerprint !== '') {
     form.append('expected_fingerprint', fingerprint)
@@ -75,6 +77,10 @@ function projectForm(file, change, fingerprint, analysisRoot = '.') {
 }
 
 export function createApiClient({ fetchImpl = fetch } = {}) {
+  function projectPath(source, operation, uploadPath) {
+    return source?.snapshotId ? `/snapshots/${encodeURIComponent(source.snapshotId)}/${operation}` : uploadPath
+  }
+
   async function request(path, options) {
     let response
     try {
@@ -103,8 +109,8 @@ export function createApiClient({ fetchImpl = fetch } = {}) {
     health({ signal } = {}) {
       return request('/health', { method: 'GET', signal })
     },
-    inspect(file, { signal, analysisRoot = '.' } = {}) {
-      return request('/projects/inspect', { method: 'POST', body: projectForm(file, undefined, undefined, analysisRoot), signal })
+    inspect(file, { signal, analysisRoot = '.', fingerprint } = {}) {
+      return request(projectPath(file, 'inspect', '/projects/inspect'), { method: 'POST', body: projectForm(file, undefined, fingerprint, analysisRoot), signal })
     },
     createProject(file, { signal, analysisRoot = '.' } = {}) {
       return request('/projects', { method: 'POST', body: projectForm(file, undefined, undefined, analysisRoot), signal })
@@ -122,13 +128,13 @@ export function createApiClient({ fetchImpl = fetch } = {}) {
       return request(`/projects/${encodeURIComponent(projectId)}/snapshots?${params}`, { method: 'GET', signal })
     },
     validate(file, change, fingerprint, { signal, analysisRoot = '.' } = {}) {
-      return request('/changes/validate', { method: 'POST', body: projectForm(file, change, fingerprint, analysisRoot), signal })
+      return request(projectPath(file, 'validate', '/changes/validate'), { method: 'POST', body: projectForm(file, change, fingerprint, analysisRoot), signal })
     },
     analyze(file, change, fingerprint, { signal, analysisRoot = '.' } = {}) {
-      return request('/projects/analyze', { method: 'POST', body: projectForm(file, change, fingerprint, analysisRoot), signal })
+      return request(projectPath(file, 'analyze', '/projects/analyze'), { method: 'POST', body: projectForm(file, change, fingerprint, analysisRoot), signal })
     },
     saveReport(file, change, fingerprint, { signal, analysisRoot = '.' } = {}) {
-      return request('/reports', { method: 'POST', body: projectForm(file, change, fingerprint, analysisRoot), signal })
+      return request(projectPath(file, 'reports', '/reports'), { method: 'POST', body: projectForm(file, change, fingerprint, analysisRoot), signal })
     },
     listReports({ signal, limit = 20, offset = 0, query } = {}) {
       const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
@@ -144,19 +150,19 @@ export function createApiClient({ fetchImpl = fetch } = {}) {
     source(file, fingerprint, { signal, analysisRoot = '.', path } = {}) {
       const form = projectForm(file, undefined, fingerprint, analysisRoot)
       if (path != null) form.append('path', path)
-      return request('/projects/source', { method: 'POST', body: form, signal })
+      return request(projectPath(file, 'source', '/projects/source'), { method: 'POST', body: form, signal })
     },
     question(file, change, fingerprint, { signal, analysisRoot = '.', question, findingIndex, history = [] } = {}) {
       const form = projectForm(file, change, fingerprint, analysisRoot)
       form.append('question', question)
       form.append('history', JSON.stringify(history))
       if (findingIndex != null) form.append('finding_index', String(findingIndex))
-      return request('/reports/questions', { method: 'POST', body: form, signal })
+      return request(projectPath(file, 'questions', '/reports/questions'), { method: 'POST', body: form, signal })
     },
     questionSuggestions(file, change, fingerprint, { signal, analysisRoot = '.', findingIndex } = {}) {
       const form = projectForm(file, change, fingerprint, analysisRoot)
       if (findingIndex != null) form.append('finding_index', String(findingIndex))
-      return request('/reports/question-suggestions', { method: 'POST', body: form, signal })
+      return request(projectPath(file, 'question-suggestions', '/reports/question-suggestions'), { method: 'POST', body: form, signal })
     },
   }
 }

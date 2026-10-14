@@ -1,9 +1,10 @@
 import ModuleReportView from './ModuleReportView.jsx';
 import SymbolReportView from './SymbolReportView.jsx';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { apiClient } from '../api/client.js';
 import { useWorkflow } from '../state/WorkflowContext.jsx';
-import { formatSignature } from '../state/workflow.js';
+import { formatSignature, getProjectSource } from '../state/workflow.js';
+import { createRequestGate } from '../components/workspace/requestGate.js';
 import { describeChange } from '../state/changeDraft.js';
 import { CoverageNotice, DiagnosticsList, EmptyWorkflow, ErrorNotice, ModeNotice, WorkflowSteps } from './PageParts.jsx';
 import { correspondingEvidence, correspondingExplanation, reportFindings, reportIntegrityDiagnostics } from './reportData.js';
@@ -104,18 +105,34 @@ export default function ReportPage({ navigate }) {
   const { state } = useWorkflow();
   const report = state.report;
   const [saveState, setSaveState] = useState({ status: 'idle', record: null, error: null });
-  const canSaveReport = state.mode === 'project' && !!report && !!state.file && !!state.projectFingerprint && !!state.validatedChange?.payload;
+  const source = getProjectSource(state);
+  const gate = useRef(createRequestGate());
+  const saving = useRef(false);
+  const latestReport = useRef(report); latestReport.current = report;
+  useEffect(() => {
+    gate.current.cancel(); saving.current = false;
+    setSaveState({ status: 'idle', record: null, error: null });
+    return () => gate.current.cancel();
+  }, [report]);
+  const canSaveReport = state.mode === 'project' && !!report && !!source && !!state.projectFingerprint && !!state.validatedChange?.payload;
 
   async function saveCurrentReport() {
-    if (!canSaveReport || saveState.status === 'saving') return;
+    if (!canSaveReport || saving.current) return;
+    saving.current = true;
+    const request = gate.current.begin();
     setSaveState((previous) => ({ ...previous, status: 'saving', error: null }));
     try {
-      const payload = await apiClient.saveReport(state.file, structuredClone(state.validatedChange.payload), state.projectFingerprint, { analysisRoot: state.analysisRoot });
+      const payload = await apiClient.saveReport(source, structuredClone(state.validatedChange.payload), state.projectFingerprint, { analysisRoot: state.analysisRoot, signal: request.controller.signal });
+      if (!gate.current.current(request) || latestReport.current !== report) return;
       if (!payload?.record?.id || !payload?.report) throw new Error('后端保存响应缺少报告记录。');
+      if (payload.record.project_fingerprint !== state.projectFingerprint || (state.snapshot
+        && payload.report.project_snapshot_id !== state.snapshot.id)) throw new Error('保存的报告与当前项目快照不一致。');
       setSaveState({ status: 'saved', record: payload.record, error: null });
     } catch (error) {
-      if (error?.name === 'AbortError') return;
+      if (error?.name === 'AbortError' || !gate.current.current(request) || latestReport.current !== report) return;
       setSaveState((previous) => ({ status: 'error', record: previous.record, error: error?.message || '保存报告失败，请检查后端服务。' }));
+    } finally {
+      if (gate.current.current(request)) saving.current = false;
     }
   }
 

@@ -39,6 +39,7 @@ from openimpact.storage import (
     list_reports,
     save_project_snapshot,
     save_report,
+    SnapshotError,
 )
 
 _DEMO_DIR = Path(__file__).resolve().parents[2] / "examples" / "signature_change"
@@ -56,18 +57,18 @@ class _ZipBodyLimit:
 
     async def __call__(self, scope, receive, send):
         if (scope["type"] != "http" or scope["method"] != "POST"
-                or scope["path"] not in {
+                or (not scope["path"].startswith("/api/v1/snapshots/") and scope["path"] not in {
                     "/api/v1/projects/inspect", "/api/v1/changes/validate",
                     "/api/v1/projects/analyze",
                     "/api/v1/projects",
                     "/api/v1/reports",
                     "/api/v1/projects/source", "/api/v1/reports/questions",
                     "/api/v1/reports/question-suggestions",
-                }):
+                })):
             await self.application(scope, receive, send)
             return
 
-        limit = zip_inspector.MAX_UPLOAD_BYTES + 64 * 1024
+        limit = 64 * 1024 if scope["path"].startswith("/api/v1/snapshots/") else zip_inspector.MAX_UPLOAD_BYTES + 64 * 1024
         messages = deque()
         size = 0
         while True:
@@ -317,6 +318,8 @@ async def create_project(request: Request, file: UploadFile = File(...), analysi
             file.filename,
             **({"analysis_root": analysis_root} if analysis_root != "." else {}),
         )
+    except SnapshotError as error:
+        return _error(error.status_code, error.code, str(error))
     except AnalysisRootError as error:
         return _error(422, error.code, str(error))
     except zip_inspector.ZipInspectionError as error:
@@ -551,3 +554,5 @@ async def analyze_demo(request: Request) -> JSONResponse:
 
 from openimpact.workspace_api import router as workspace_router
 app.include_router(workspace_router)
+from openimpact.snapshot_api import router as snapshot_router
+app.include_router(snapshot_router)

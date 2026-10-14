@@ -6,13 +6,17 @@ and bounded ZIP snapshots. It does not store user credentials.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
 import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from openimpact.repository.zip_inspector import MAX_UPLOAD_BYTES
 
 SCHEMA_VERSION = 2
 DEFAULT_DATABASE = Path(".openimpact") / "openimpact.sqlite3"
@@ -25,6 +29,15 @@ REPORT_SEARCH_COLUMNS = (
     "target_id",
     "coverage_status",
 )
+
+
+class SnapshotError(ValueError):
+    def __init__(self, code: str, message: str, status_code: int):
+        super().__init__(message)
+        self.code = code
+        self.status_code = status_code
+
+
 def database_path(path: str | Path | None = None) -> Path:
     configured = path if path is not None else os.environ.get("OPENIMPACT_DB_PATH")
     return Path(configured) if configured else DEFAULT_DATABASE
@@ -118,7 +131,9 @@ def save_project_snapshot(
     snapshot_id = uuid.uuid4().hex
     created_at = datetime.now(timezone.utc).isoformat(timespec="microseconds")
     project_name = str(inspect_report.get("project_name") or "未命名项目")
-    fingerprint = str(inspect_report.get("project_fingerprint") or "")
+    fingerprint = hashlib.sha256(zip_bytes).hexdigest()
+    if fingerprint != inspect_report.get("project_fingerprint") or len(zip_bytes) > MAX_UPLOAD_BYTES:
+        raise SnapshotError("snapshot_mismatch", "项目快照与读取结果不一致，请重新上传。", 409)
     coverage = inspect_report.get("coverage") if isinstance(inspect_report.get("coverage"), dict) else {}
     summary = {
         "source_root": inspect_report.get("source_root"),
@@ -131,14 +146,16 @@ def save_project_snapshot(
     snapshots_root = snapshot_directory(snapshot_dir)
     snapshots_root.mkdir(parents=True, exist_ok=True)
     storage_path = snapshots_root / f"{fingerprint}.zip"
-    if not storage_path.exists():
-        temporary_path = snapshots_root / f".{snapshot_id}.tmp"
-        try:
-            temporary_path.write_bytes(zip_bytes)
-            temporary_path.replace(storage_path)
-        finally:
-            if temporary_path.exists():
-                temporary_path.unlink()
+    if storage_path.is_symlink():
+        raise SnapshotError("snapshot_unavailable", "项目快照无法保存，请检查本地存储。", 503)
+    # A fresh validated upload can repair a damaged file with the same digest.
+    temporary_path = snapshots_root / f".{snapshot_id}.tmp"
+    try:
+        temporary_path.write_bytes(zip_bytes)
+        temporary_path.replace(storage_path)
+    finally:
+        if temporary_path.exists():
+            temporary_path.unlink()
 
     with connect(path) as connection:
         connection.execute(
@@ -158,7 +175,7 @@ def save_project_snapshot(
             """,
             (
                 snapshot_id, project_id, created_at, fingerprint, source_filename,
-                analysis_root, storage_path.as_posix(), summary["python_file_count"],
+                analysis_root, storage_path.resolve().as_posix(), summary["python_file_count"],
                 summary["function_count"], summary["coverage_status"],
                 json.dumps(summary, ensure_ascii=False, sort_keys=True),
             ),
@@ -269,6 +286,38 @@ def list_project_snapshots(
             (project_id, limit, offset),
         ).fetchall()
     return [_snapshot_row_to_record(row) for row in rows]
+
+
+def read_project_snapshot(
+    snapshot_id: str, *, path: str | Path | None = None, snapshot_dir: str | Path | None = None
+) -> tuple[dict[str, Any], bytes]:
+    """Read only a recorded snapshot inside the configured store; verify every use."""
+    if not re.fullmatch(r"[0-9a-f]{32}", snapshot_id):
+        raise SnapshotError("snapshot_not_found", "没有找到该项目快照。", 404)
+    initialize_database(path)
+    with connect(path) as connection:
+        row = connection.execute(
+            "SELECT * FROM project_snapshots WHERE id = ?", (snapshot_id,)
+        ).fetchone()
+    if row is None:
+        raise SnapshotError("snapshot_not_found", "没有找到该项目快照。", 404)
+    fingerprint = row["project_fingerprint"]
+    root = snapshot_directory(snapshot_dir).resolve()
+    stored = Path(row["storage_path"])
+    if (not re.fullmatch(r"[0-9a-f]{64}", fingerprint)
+            or stored.is_symlink() or stored.resolve() != root / f"{fingerprint}.zip"):
+        raise SnapshotError("snapshot_unavailable", "项目快照存储位置不可用，请重新保存项目。", 503)
+    try:
+        # The byte limit and digest apply to the same open file, before any extraction.
+        if stored.exists() and not stored.is_file():
+            raise SnapshotError("snapshot_unavailable", "项目快照不是可读取的普通文件。", 503)
+        with stored.open("rb") as stream:
+            data = stream.read(MAX_UPLOAD_BYTES + 1)
+    except FileNotFoundError:
+        raise SnapshotError("snapshot_missing", "项目快照文件已丢失，请重新上传并保存项目。", 404) from None
+    if len(data) > MAX_UPLOAD_BYTES or hashlib.sha256(data).hexdigest() != fingerprint:
+        raise SnapshotError("snapshot_corrupted", "项目快照内容已改变，请重新上传并保存项目。", 409)
+    return _snapshot_row_to_record(row), data
 
 
 def save_report(

@@ -28,7 +28,7 @@
 .oi-source-root > label { font-size: var(--oi-text-sm); font-weight: 600; }
 .oi-source-root > input { width: 100%; max-width: 20rem; min-width: 0; font-family: var(--oi-font-code); }
 .oi-source-root > p { margin: 0; font-size: var(--oi-text-sm); color: var(--oi-muted); }
-.oi-upload-actions { display: flex; align-items: center; gap: var(--oi-space-6); justify-content: space-between; padding-top: var(--oi-space-4); border-top: 1px solid var(--oi-line); }
+.oi-upload-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--oi-space-3); justify-content: space-between; padding-top: var(--oi-space-4); border-top: 1px solid var(--oi-line); }
 .oi-upload-actions > span { font-size: var(--oi-text-xs); color: var(--oi-muted); }
 .oi-upload-actions > button { flex-shrink: 0; }
 .oi-upload-context { padding-top: var(--oi-space-6); }
