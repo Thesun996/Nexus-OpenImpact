@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import sqlite3
@@ -21,6 +22,7 @@ from openimpact.repository.zip_inspector import MAX_UPLOAD_BYTES
 SCHEMA_VERSION = 4
 DEFAULT_DATABASE = Path(".openimpact") / "openimpact.sqlite3"
 DEFAULT_SNAPSHOT_DIR = Path(".openimpact") / "snapshots"
+_LOGGER = logging.getLogger(__name__)
 REPORT_SEARCH_COLUMNS = (
     "project_name",
     "source_filename",
@@ -176,18 +178,19 @@ def save_project_snapshot(
     snapshots_root = snapshot_directory(snapshot_dir)
     snapshots_root.mkdir(parents=True, exist_ok=True)
     storage_path = snapshots_root / f"{fingerprint}.zip"
-    if storage_path.is_symlink():
-        raise SnapshotError("snapshot_unavailable", "项目快照无法保存，请检查本地存储。", 503)
-    # A fresh validated upload can repair a damaged file with the same digest.
-    temporary_path = snapshots_root / f".{snapshot_id}.tmp"
-    try:
-        temporary_path.write_bytes(zip_bytes)
-        temporary_path.replace(storage_path)
-    finally:
-        if temporary_path.exists():
-            temporary_path.unlink()
-
     with connect(path) as connection:
+        # Serialize file publication and reference changes with last-reference deletion.
+        connection.execute("BEGIN IMMEDIATE")
+        if storage_path.is_symlink():
+            raise SnapshotError("snapshot_unavailable", "项目快照无法保存，请检查本地存储。", 503)
+        # A fresh validated upload can repair a damaged file with the same digest.
+        temporary_path = snapshots_root / f".{snapshot_id}.tmp"
+        try:
+            temporary_path.write_bytes(zip_bytes)
+            temporary_path.replace(storage_path)
+        finally:
+            if temporary_path.exists():
+                temporary_path.unlink()
         existing_project = None if project_name == "未命名项目" else connection.execute(
             """
             SELECT id, created_at FROM projects
@@ -341,6 +344,7 @@ def delete_project(
 ) -> bool:
     initialize_database(path)
     with connect(path) as connection:
+        connection.execute("BEGIN IMMEDIATE")
         rows = connection.execute(
             "SELECT project_fingerprint, storage_path FROM project_snapshots WHERE project_id = ?",
             (project_id,),
@@ -349,7 +353,7 @@ def delete_project(
         if cursor.rowcount <= 0:
             return False
         candidates = [(row["project_fingerprint"], row["storage_path"]) for row in rows]
-        _delete_unreferenced_snapshot_files(connection, candidates, snapshot_dir=snapshot_dir)
+    _delete_unreferenced_snapshot_files(candidates, path=path, snapshot_dir=snapshot_dir)
     return True
 
 
@@ -362,6 +366,7 @@ def delete_project_snapshot(
 ) -> dict[str, Any] | None:
     initialize_database(path)
     with connect(path) as connection:
+        connection.execute("BEGIN IMMEDIATE")
         where = "id = ?" if project_id is None else "id = ? AND project_id = ?"
         params = (snapshot_id,) if project_id is None else (snapshot_id, project_id)
         row = connection.execute(
@@ -391,7 +396,7 @@ def delete_project_snapshot(
                 (latest["created_at"], snapshot_project_id),
             )
             snapshot["project_deleted"] = False
-        _delete_unreferenced_snapshot_files(connection, [candidate], snapshot_dir=snapshot_dir)
+    _delete_unreferenced_snapshot_files([candidate], path=path, snapshot_dir=snapshot_dir)
     return snapshot
 
 
@@ -428,33 +433,38 @@ def read_project_snapshot(
 
 
 def _delete_unreferenced_snapshot_files(
-    connection: sqlite3.Connection,
     candidates: list[tuple[str, str | None]],
     *,
+    path: str | Path | None = None,
     snapshot_dir: str | Path | None = None,
 ) -> None:
-    root = snapshot_directory(snapshot_dir).resolve()
-    for fingerprint, storage_path in candidates:
-        if not re.fullmatch(r"[0-9a-f]{64}", fingerprint or "") or not storage_path:
-            continue
-        remaining = connection.execute(
-            "SELECT 1 FROM project_snapshots WHERE project_fingerprint = ? LIMIT 1",
-            (fingerprint,),
-        ).fetchone()
-        if remaining is not None:
-            continue
-        stored = Path(storage_path)
-        try:
-            resolved = stored.resolve()
-        except OSError:
-            continue
-        if stored.is_symlink() or resolved != root / f"{fingerprint}.zip":
-            continue
-        try:
-            if stored.is_file():
-                stored.unlink()
-        except FileNotFoundError:
-            pass
+    # Records are already committed. Recheck under the publication lock before unlinking.
+    # ponytail: local cleanup is best effort; locked orphan files need a later retry.
+    try:
+        root = snapshot_directory(snapshot_dir).resolve()
+        with connect(path) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            for fingerprint, storage_path in candidates:
+                if not re.fullmatch(r"[0-9a-f]{64}", fingerprint or "") or not storage_path:
+                    continue
+                remaining = connection.execute(
+                    "SELECT 1 FROM project_snapshots WHERE project_fingerprint = ? LIMIT 1",
+                    (fingerprint,),
+                ).fetchone()
+                if remaining is not None:
+                    continue
+                stored = Path(storage_path)
+                try:
+                    if stored.is_symlink() or stored.resolve() != root / f"{fingerprint}.zip":
+                        continue
+                    if stored.is_file():
+                        stored.unlink()
+                except FileNotFoundError:
+                    pass
+                except OSError:
+                    _LOGGER.warning("Snapshot cleanup deferred: an unreferenced ZIP could not be removed.")
+    except (OSError, sqlite3.Error):
+        _LOGGER.warning("Snapshot cleanup deferred: the local store is temporarily unavailable.")
 
 
 def save_report(
@@ -470,11 +480,7 @@ def save_report(
 
 
 def _insert_report(
-    connection: sqlite3.Connection,
-    report: dict[str, Any],
-    *,
-    source_filename: str | None,
-    analysis_root: str,
+    connection: sqlite3.Connection, report: dict[str, Any], *, source_filename: str | None, analysis_root: str
 ) -> dict[str, Any]:
     record_id = uuid.uuid4().hex
     created_at = datetime.now(timezone.utc).isoformat(timespec="microseconds")
@@ -559,6 +565,14 @@ def delete_report(report_id: str, *, path: str | Path | None = None) -> bool:
     initialize_database(path)
     with connect(path) as connection:
         cursor = connection.execute("DELETE FROM analysis_reports WHERE id = ?", (report_id,))
+        if cursor.rowcount > 0:
+            connection.execute(
+                """UPDATE analysis_tasks SET status = 'failed', result_report_id = NULL,
+                   error_code = 'report_deleted', error_message = ?, updated_at = ?
+                   WHERE result_report_id = ? AND status = 'succeeded'""",
+                ("分析报告已删除，可重新执行任务生成新报告。",
+                 datetime.now(timezone.utc).isoformat(timespec="microseconds"), report_id),
+            )
     return cursor.rowcount > 0
 
 
@@ -697,6 +711,10 @@ def finish_analysis_task(
     *,
     worker_id: str,
     status: str,
+    lease_token: str | None = None,
+    report: dict[str, Any] | None = None,
+    source_filename: str | None = None,
+    analysis_root: str = ".",
     result_report_id: str | None = None,
     error_code: str | None = None,
     error_message: str | None = None,
@@ -708,6 +726,19 @@ def finish_analysis_task(
     initialize_database(path)
     updated_at = datetime.now(timezone.utc).isoformat(timespec="microseconds")
     with connect(path) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        owner = connection.execute(
+            """SELECT id FROM analysis_tasks WHERE id = ? AND status = 'running' AND worker_id = ?
+               AND (? IS NULL OR lease_expires_at = ?)""",
+            (task_id, worker_id, lease_token, lease_token),
+        ).fetchone()
+        if owner is None:
+            return None
+        if report is not None:
+            if status != "succeeded" or lease_token is None:
+                raise ValueError("report publication requires a successful leased execution")
+            record = _insert_report(connection, report, source_filename=source_filename, analysis_root=analysis_root)
+            result_report_id = record["id"]
         cursor = connection.execute(
             """
             UPDATE analysis_tasks
@@ -913,4 +944,6 @@ def _task_row_to_record(row: sqlite3.Row, *, include_execution: bool = False) ->
     }
     if include_execution:
         record["_expected_fingerprint"] = row["expected_fingerprint"]
+        # A fresh claim timestamp fences even a reused worker identifier.
+        record["_lease_token"] = row["lease_expires_at"]
     return record

@@ -299,6 +299,7 @@ def _analyze_and_save_zip(
 def _run_claimed_analysis_task(task: dict[str, object], worker_id: str) -> None:
     """Execute one task leased by the local worker without running uploaded code."""
     task_id = str(task["id"])
+    lease_token = task["_lease_token"]
     try:
         snapshot, data = read_project_snapshot(str(task["project_snapshot_id"]))
         response = _analyze_zip(
@@ -316,6 +317,7 @@ def _run_claimed_analysis_task(task: dict[str, object], worker_id: str) -> None:
             finish_analysis_task(
                 task_id,
                 worker_id=worker_id,
+                lease_token=lease_token,
                 status="failed",
                 error_code=error.get("code") or "analysis_failed",
                 error_message=error.get("message") or "项目影响分析失败，请重试。",
@@ -326,15 +328,18 @@ def _run_claimed_analysis_task(task: dict[str, object], worker_id: str) -> None:
         if "project_name" not in payload:
             project = get_project(snapshot["project_id"])
             payload["project_name"] = project["name"] if project else "未命名项目"
-        complete_analysis_task(task_id, worker_id=worker_id, report=payload,
-                               source_filename=snapshot["source_filename"], analysis_root=snapshot["analysis_root"])
+        finish_analysis_task(task_id, worker_id=worker_id, lease_token=lease_token, status="succeeded",
+                             report=payload, source_filename=snapshot["source_filename"],
+                             analysis_root=snapshot["analysis_root"])
     except SnapshotError as error:
-        finish_analysis_task(task_id, worker_id=worker_id, status="failed", error_code=error.code, error_message=str(error))
+        finish_analysis_task(task_id, worker_id=worker_id, lease_token=lease_token,
+                             status="failed", error_code=error.code, error_message=str(error))
     except Exception:
         _LOGGER.exception("Analysis task failed")
         finish_analysis_task(
             task_id,
             worker_id=worker_id,
+            lease_token=lease_token,
             status="failed",
             error_code="analysis_task_failed",
             error_message="后台分析任务失败，请重试。",

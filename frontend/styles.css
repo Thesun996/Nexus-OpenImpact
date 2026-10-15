@@ -267,13 +267,13 @@ input::placeholder { color: var(--oi-muted); }
 /* Tablet keeps all project/session information, with a horizontal work rail. */
 @media (max-width: 1023px) {
   .oi-shell { display: flex; flex-direction: column; }
-  .oi-rail { position: static; height: auto; flex-direction: row; padding: var(--oi-space-2) var(--oi-space-4); border-right: 0; border-bottom: 1px solid var(--oi-line); }
+  .oi-rail { position: static; height: auto; flex-direction: row; flex-wrap: wrap; padding: var(--oi-space-2) var(--oi-space-4); border-right: 0; border-bottom: 1px solid var(--oi-line); }
   .oi-rail-brand { flex-shrink: 0; }
-  .oi-rail-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--oi-space-2); margin: 0 var(--oi-space-4); }
+  .oi-rail-nav { display: grid; width: auto; flex: 1; min-width: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--oi-space-2); margin: 0 var(--oi-space-4); }
   .oi-nav-item { min-height: var(--oi-control-height); flex-direction: row; gap: var(--oi-space-2); padding: var(--oi-space-2); border-radius: var(--oi-radius-control); font-size: var(--oi-text-sm); }
   .oi-nav-number { font-size: var(--oi-text-sm); }
   .oi-nav-item.is-current::before { inset: auto 0 0; width: auto; height: var(--oi-selection); }
-  .oi-rail-secondary { width: auto; margin: 0; display: flex; gap: var(--oi-space-1); }
+  .oi-rail-secondary { width: auto; max-width: 100%; margin: 0 0 0 auto; display: flex; flex-wrap: wrap; gap: var(--oi-space-1); }
   .oi-scope-link { width: auto; padding: var(--oi-space-2); flex-shrink: 0; }
   .oi-rail-caption { display: none; }
   .oi-topbar { flex-wrap: wrap; gap: var(--oi-space-4); padding: var(--oi-space-4) var(--oi-space-6); }

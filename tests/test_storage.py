@@ -1,7 +1,14 @@
 """SQLite persistence for saved projects and reports."""
 
 import hashlib
+import sqlite3
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from threading import Event
 
+import pytest
+
+from openimpact import storage
 from openimpact.storage import (
     claim_next_analysis_task,
     create_analysis_task,
@@ -17,6 +24,7 @@ from openimpact.storage import (
     list_project_snapshots,
     list_projects,
     list_reports,
+    read_project_snapshot,
     save_project_snapshot,
     save_report,
     update_analysis_task,
@@ -238,6 +246,22 @@ def test_worker_claim_leases_a_task_and_rejects_late_completion(tmp_path):
     assert get_analysis_task(task["id"], path=path)["status"] == "succeeded"
 
 
+def test_old_claim_cannot_finish_a_reclaimed_task_with_the_same_worker_id(tmp_path):
+    path = tmp_path / "tasks.sqlite3"
+    task = create_analysis_task(project_snapshot_id="a" * 32, change={}, path=path)
+    old = claim_next_analysis_task(worker_id="same-worker", path=path)
+    with sqlite3.connect(path) as connection:
+        connection.execute("UPDATE analysis_tasks SET lease_expires_at = '2000-01-01' WHERE id = ?", (task["id"],))
+    new = claim_next_analysis_task(worker_id="same-worker", path=path)
+    assert new["_lease_token"] != old["_lease_token"]
+    assert finish_analysis_task(task["id"], worker_id="same-worker", lease_token=old["_lease_token"],
+                                status="failed", path=path) is None
+    assert get_analysis_task(task["id"], path=path)["status"] == "running"
+    assert finish_analysis_task(task["id"], worker_id="same-worker", lease_token=new["_lease_token"],
+                                status="succeeded", report=report(), path=path)["status"] == "succeeded"
+    assert len(list_reports(path=path)) == 1
+
+
 def test_task_pagination_does_not_move_rows_when_status_changes(tmp_path):
     path = tmp_path / "tasks.sqlite3"
     old = create_analysis_task(project_snapshot_id="a" * 32, change={}, path=path)
@@ -281,3 +305,104 @@ def test_delete_project_snapshot_checks_project_and_removes_empty_project(tmp_pa
     assert deleted["project_deleted"] is True
     assert get_project(project["id"], path=path) is None
     assert not snapshot_file.exists()
+
+
+@pytest.mark.parametrize("delete_whole_project", [False, True])
+def test_save_serializes_shared_zip_publication_with_last_reference_deletion(tmp_path, monkeypatch, delete_whole_project):
+    path, snapshots = tmp_path / "db.sqlite3", tmp_path / "snapshots"
+    old = save_project_snapshot(inspect_report(), b"zip-bytes", path=path, snapshot_dir=snapshots)
+    published, deleting, deleted = Event(), Event(), Event()
+    original_replace = Path.replace
+
+    def replace_then_wait(temporary, destination):
+        result = original_replace(temporary, destination)
+        published.set()
+        assert deleting.wait(2)
+        assert not deleted.wait(0.2), "deletion must wait until the new reference is committed"
+        return result
+
+    def delete_old_reference():
+        assert published.wait(2)
+        deleting.set()
+        try:
+            if delete_whole_project:
+                return delete_project(old["project"]["id"], path=path, snapshot_dir=snapshots)
+            return delete_project_snapshot(old["snapshot"]["id"], path=path, snapshot_dir=snapshots)
+        finally:
+            deleted.set()
+
+    monkeypatch.setattr(Path, "replace", replace_then_wait)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        deletion = pool.submit(delete_old_reference)
+        new = save_project_snapshot(inspect_report("new-project"), b"zip-bytes", path=path, snapshot_dir=snapshots)
+        assert deletion.result(timeout=5)
+    assert read_project_snapshot(new["snapshot"]["id"], path=path, snapshot_dir=snapshots)[1] == b"zip-bytes"
+
+
+@pytest.mark.parametrize("delete_whole_project", [False, True])
+def test_snapshot_cleanup_failure_cannot_restore_deleted_records(tmp_path, monkeypatch, caplog, delete_whole_project):
+    path, snapshots = tmp_path / "db.sqlite3", tmp_path / "snapshots"
+    first = save_project_snapshot(inspect_report(zip_bytes=b"first"), b"first", path=path, snapshot_dir=snapshots)
+    second = save_project_snapshot(inspect_report(zip_bytes=b"second"), b"second", path=path, snapshot_dir=snapshots)
+    original_unlink = Path.unlink
+    attempted = []
+
+    def fail_last_cleanup(stored, *args, **kwargs):
+        if stored.parent == snapshots and stored.suffix == ".zip":
+            attempted.append(stored)
+            # A separate reader must already see the committed reference deletion.
+            with sqlite3.connect(path) as connection:
+                remaining = connection.execute("SELECT id FROM project_snapshots").fetchall()
+            assert len(remaining) == (0 if delete_whole_project else 1)
+            if len(attempted) == (2 if delete_whole_project else 1):
+                raise PermissionError("simulated Windows sharing violation")
+        return original_unlink(stored, *args, **kwargs)
+
+    with monkeypatch.context() as context:
+        context.setattr(Path, "unlink", fail_last_cleanup)
+        if delete_whole_project:
+            assert delete_project(first["project"]["id"], path=path, snapshot_dir=snapshots)
+        else:
+            assert delete_project_snapshot(second["snapshot"]["id"], path=path, snapshot_dir=snapshots)
+    assert "snapshot cleanup" in caplog.text.lower()
+    if delete_whole_project:
+        assert get_project(first["project"]["id"], path=path) is None
+    else:
+        assert read_project_snapshot(first["snapshot"]["id"], path=path, snapshot_dir=snapshots)[1] == b"first"
+    expected = [] if delete_whole_project else [first["snapshot"]]
+    assert list_project_snapshots(first["project"]["id"], path=path) == expected
+    # The occupied, unreferenced file remains retryable after the lock is released.
+    assert attempted[-1].exists()
+    storage._delete_unreferenced_snapshot_files(
+        [(item.stem, str(item)) for item in attempted], path=path, snapshot_dir=snapshots
+    )
+    assert not attempted[-1].exists()
+
+
+@pytest.mark.parametrize("delete_whole_project", [False, True])
+def test_cleanup_rechecks_references_saved_after_deletion_commit(tmp_path, monkeypatch, delete_whole_project):
+    path, snapshots = tmp_path / "db.sqlite3", tmp_path / "snapshots"
+    old = save_project_snapshot(inspect_report(), b"zip-bytes", path=path, snapshot_dir=snapshots)
+    cleanup_started, new_reference_saved = Event(), Event()
+    original_cleanup = storage._delete_unreferenced_snapshot_files
+
+    def delayed_cleanup(*args, **kwargs):
+        cleanup_started.set()
+        assert new_reference_saved.wait(3)
+        return original_cleanup(*args, **kwargs)
+
+    def delete_old_reference():
+        if delete_whole_project:
+            return delete_project(old["project"]["id"], path=path, snapshot_dir=snapshots)
+        return delete_project_snapshot(old["snapshot"]["id"], path=path, snapshot_dir=snapshots)
+
+    monkeypatch.setattr(storage, "_delete_unreferenced_snapshot_files", delayed_cleanup)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        deletion = pool.submit(delete_old_reference)
+        try:
+            assert cleanup_started.wait(2)
+            new = save_project_snapshot(inspect_report("new-project"), b"zip-bytes", path=path, snapshot_dir=snapshots)
+        finally:
+            new_reference_saved.set()
+        assert deletion.result(timeout=5)
+    assert read_project_snapshot(new["snapshot"]["id"], path=path, snapshot_dir=snapshots)[1] == b"zip-bytes"
