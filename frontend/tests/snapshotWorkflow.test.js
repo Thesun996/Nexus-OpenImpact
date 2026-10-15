@@ -52,6 +52,52 @@ test('saved snapshot opens, validates and analyzes without any browser File', as
   assert.equal(h.state().analysisTask.status, 'succeeded')
 })
 
+test('a deleted saved result creates one replacement task on explicit reanalysis', async () => {
+  let deleted = false, submissions = 0, currentTask = task
+  const h = harness({
+    createAnalysisTask: async () => {
+      submissions++
+      currentTask = { ...task, id: (submissions === 1 ? 'd' : 'f').repeat(32) }
+      return { task: currentTask }
+    },
+    getAnalysisTask: async id => deleted && id === taskId
+      ? { ...task, status: 'failed', error_code: 'report_deleted', result_report_id: null }
+      : { ...currentTask, status: 'succeeded', result_report_id: reportId },
+    getReport: async () => {
+      if (deleted && currentTask.id === taskId) throw new ApiError({ status: 404, code: 'report_not_found' })
+      return structuredClone(record)
+    },
+  })
+  await ready(h)
+  await h.actions.validateChange()
+  assert.equal(await h.actions.analyzeProject(), true)
+  deleted = true
+  assert.equal(await h.actions.analyzeProject(), true)
+  assert.equal(submissions, 2)
+  assert.equal(h.state().analysisTask.id, 'f'.repeat(32))
+  assert.equal(h.state().error, null)
+})
+
+test('a legacy task with a missing report clears its cached identity for a later retry', async () => {
+  let removed = false, submissions = 0
+  const h = harness({
+    createAnalysisTask: async () => { submissions++; return { task } },
+    getReport: async () => {
+      if (removed) throw new ApiError({ status: 404, code: 'report_not_found', message: '报告已删除' })
+      return structuredClone(record)
+    },
+  })
+  await ready(h); await h.actions.validateChange()
+  assert.equal(await h.actions.analyzeProject(), true)
+  removed = true
+  assert.equal(await h.actions.analyzeProject(), false)
+  assert.equal(h.state().analysisTask, null)
+  assert.equal(h.state().savedReportId, null)
+  removed = false
+  assert.equal(await h.actions.analyzeProject(), true)
+  assert.equal(submissions, 2)
+})
+
 test('explicit save switches to persisted snapshot; a new upload clears it', async () => {
   const h = harness()
   h.actions.selectFile(zip)

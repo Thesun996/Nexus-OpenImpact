@@ -1,6 +1,7 @@
 """Stored snapshots must produce the same evidence as the uploaded ZIP."""
 
 import hashlib
+import errno
 import io
 import json
 import sqlite3
@@ -93,7 +94,7 @@ def test_snapshot_checks_stored_bytes_before_every_operation(client, tmp_path, o
     assert client.get("/api/v1/reports").json()["items"] == []
 
 
-def test_snapshot_missing_path_tampering_and_symlink_are_safe(client, tmp_path):
+def test_snapshot_missing_and_path_tampering_are_safe(client, tmp_path):
     snapshot = save(client)["snapshot"]
     stored = tmp_path / "snapshots" / f"{snapshot['project_fingerprint']}.zip"
     stored.unlink()
@@ -102,14 +103,27 @@ def test_snapshot_missing_path_tampering_and_symlink_are_safe(client, tmp_path):
     assert missing.json()["error"]["code"] == "snapshot_missing"
     outside = tmp_path / "private.zip"
     outside.write_bytes(SAMPLE.read_bytes())
-    stored.symlink_to(outside)
-    assert post(client, snapshot, "inspect").status_code == 503
-    stored.unlink()
     with sqlite3.connect(tmp_path / "db.sqlite3") as connection:
         connection.execute("UPDATE project_snapshots SET storage_path = ?", (str(outside),))
     response = post(client, snapshot, "inspect")
     assert response.status_code == 503
     assert str(tmp_path) not in response.text
+
+
+def test_snapshot_symlink_is_rejected_when_platform_allows_creation(client, tmp_path):
+    snapshot = save(client)["snapshot"]
+    stored = tmp_path / "snapshots" / f"{snapshot['project_fingerprint']}.zip"
+    outside = tmp_path / "private.zip"
+    outside.write_bytes(SAMPLE.read_bytes())
+    stored.unlink()
+    try:
+        stored.symlink_to(outside)
+    except OSError as error:
+        if error.errno in {errno.EPERM, errno.EACCES} or getattr(error, "winerror", None) == 1314:
+            pytest.skip("当前用户没有创建符号链接的权限")
+        raise
+    assert post(client, snapshot, "inspect").status_code == 503
+    assert outside.read_bytes() == SAMPLE.read_bytes()
 
 
 def test_snapshot_input_errors_and_invalid_changes_never_save_report(client):

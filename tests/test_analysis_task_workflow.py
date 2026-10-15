@@ -1,6 +1,8 @@
 """Task execution preserves snapshot evidence and explicit failures."""
 
 import json
+import sqlite3
+import os
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 import time
@@ -8,7 +10,7 @@ import time
 import pytest
 
 from openimpact import api
-from openimpact.storage import create_analysis_task, get_analysis_task
+from openimpact.storage import create_analysis_task, get_analysis_task, claim_next_analysis_task
 from openimpact.worker import run_once
 from test_backend_stability import live_backend, make_zip, CHANGE
 from test_report_storage_api import demo_zip
@@ -119,3 +121,58 @@ def test_real_task_returns_202_before_analysis_and_health_remains_available(live
         time.sleep(0.01)
     assert finished["status"] == "succeeded"
     assert client.get(f"/api/v1/reports/{finished['result_report_id']}").status_code == 200
+
+
+@pytest.mark.parametrize("replacement_worker", ["replacement", "original"])
+def test_reclaimed_task_publishes_only_the_current_execution_report(task_client, monkeypatch, replacement_worker):
+    snapshot = save_snapshot(task_client, demo_zip())
+    task = submit_task(task_client, snapshot)
+    old_claim = claim_next_analysis_task(worker_id="original")
+    original_analyze = api._analyze_zip
+
+    def slow_execution(*args, **kwargs):
+        result = original_analyze(*args, **kwargs)
+        with sqlite3.connect(os.environ["OPENIMPACT_DB_PATH"]) as db:
+            db.execute("UPDATE analysis_tasks SET lease_expires_at = '2000-01-01' WHERE id = ?", (task["id"],))
+        replacement = claim_next_analysis_task(worker_id=replacement_worker)
+        assert replacement is not None
+        with monkeypatch.context() as context:
+            context.setattr(api, "_analyze_zip", original_analyze)
+            api._run_claimed_analysis_task(replacement, replacement_worker)
+        return result
+
+    monkeypatch.setattr(api, "_analyze_zip", slow_execution)
+    api._run_claimed_analysis_task(old_claim, "original")
+    finished = get_analysis_task(task["id"])
+    reports = task_client.get("/api/v1/reports").json()["items"]
+    assert finished["status"] == "succeeded"
+    assert [row["id"] for row in reports] == [finished["result_report_id"]]
+
+
+def test_report_publication_rolls_back_if_task_completion_fails(task_client):
+    snapshot = save_snapshot(task_client, demo_zip())
+    task = submit_task(task_client, snapshot)
+    with sqlite3.connect(os.environ["OPENIMPACT_DB_PATH"]) as db:
+        db.execute("""CREATE TRIGGER fail_completion BEFORE UPDATE ON analysis_tasks
+                      WHEN NEW.status = 'succeeded' BEGIN SELECT RAISE(ABORT, 'completion failed'); END""")
+    assert run_once(worker_id="rollback")
+    assert get_analysis_task(task["id"])["status"] == "failed"
+    assert task_client.get("/api/v1/reports").json()["items"] == []
+
+
+def test_deleted_task_report_marks_result_unavailable_and_can_be_retried(task_client):
+    snapshot = save_snapshot(task_client, demo_zip())
+    task = submit_task(task_client, snapshot)
+    assert run_once(worker_id="before-delete")
+    report_id = get_analysis_task(task["id"])["result_report_id"]
+    assert task_client.delete(f"/api/v1/reports/{report_id}").status_code == 200
+    after = get_analysis_task(task["id"])
+    assert after["status"] == "failed"
+    assert after["error_code"] == "report_deleted"
+    assert after["result_report_id"] is None
+    assert task_client.get(f"/api/v1/reports/{report_id}").status_code == 404
+    retried = task_client.post(f"/api/v1/analysis-tasks/{task['id']}/retry")
+    assert retried.status_code == 202
+    assert retried.json()["task"]["id"] != task["id"]
+    assert run_once(worker_id="after-delete")
+    assert get_analysis_task(retried.json()["task"]["id"])["status"] == "succeeded"

@@ -79,9 +79,9 @@ OPENIMPACT_API_TARGET=http://127.0.0.1:8010 npm run dev -- --host 127.0.0.1 --po
 
 2026-10-15 当前回归：
 
-- 完整后端：`1091 passed, 1 skipped, 1 warning, 7 subtests passed`。真实 HTTP 测试在允许本地端口绑定的环境中运行通过。
-- 前端：`npm run test`，272 项通过。
-- 前端构建：`npm run build` 通过；仍有超过 500 kB 的 chunk 大小提示。
+- 完整后端：`1112 passed, 3 skipped, 1 warning, 7 subtests passed`。真实 HTTP 测试在允许本地端口绑定的环境中运行通过。
+- 前端：`npm run test`，274 项通过。
+- 前端构建：`npm run check` 中的生产构建通过；本次产物未触发 500 kB chunk 提醒。
 - 本地启动脚本：`run-local-api.sh`、`run-local-worker.sh`、`run-local-frontend.sh` 均可使用；前端脚本已在独立端口启动并返回 Vite 页面入口。
 - 项目库、快照、报告存储和本地分析任务相关后端测试：针对性存储/API/Worker 复验 33 项通过；真实 HTTP 阻塞任务期间健康检查保持可用。
 - 前端任务页：queued/running 状态明确说明本机 Worker 依赖；等待超时会保留任务并提供继续查询和任务页入口，不会重复提交分析。
@@ -92,7 +92,7 @@ OPENIMPACT_API_TARGET=http://127.0.0.1:8010 npm run dev -- --host 127.0.0.1 --po
 - 历史报告增量验收：隔离数据库 22 条报告验证多关键词筛选、分页、删除后补页、迟到请求丢弃、读取失败清空旧详情及来源项目跳转；历史报告不再借用当前其他项目的源码入口。
 - 报告下载验收：当前报告页和历史报告详情页提供完整 JSON 下载；浏览器实测 demo 报告下载文件可解析，目标函数为 `utils.format_date`，新增参数为 `timezone`。
 
-完整后端测试最初在受限沙箱下被本机端口绑定权限阻止；上述结果来自随后获准的完整复验。第三方 Starlette/httpx 弃用警告没有隐藏或转为通过断言。
+2026-10-15 修复后在 Windows 隔离工作树完整复验：3 个跳过项均为当前用户无法创建符号链接的用例，文件缺失、存储路径篡改等安全断言仍执行。第三方 Starlette/httpx 弃用警告保留。此前 macOS 联调与沙箱端口限制记录属于历史阶段，不能代替本次实测。
 
 ## 相关文档
 
@@ -105,8 +105,12 @@ OPENIMPACT_API_TARGET=http://127.0.0.1:8010 npm run dev -- --host 127.0.0.1 --po
 
 ## 提交说明
 
-本轮改动继续提交到 `feature/refine-project`；尚未自动 Commit、Push 或合并主分支。建议标题：
-
-`feat: add local worker and benchmark runner`
+审核修复继续位于 `feature/refine-project`，修复范围与逐项验证见 [修复记录](refine-project-fixes.md)。main 本轮不合并，待负责人复审。
 
 提交源代码、测试和文档；忽略本地数据库、ZIP 快照存储、依赖目录、构建产物和临时验收截图。
+
+## 2026-10-15 审核修复复验
+
+已修复共享 ZIP 并发删除、旧 Worker 额外发布、报告删除后的恢复、评测冻结清单与标签身份校验、零重合 F1、Windows 测试权限，以及窄窗口新增导航的溢出。契约样例指纹差异仅固定测试 ZIP 创建平台元数据，生产指纹和既有样例 JSON 保持原样。
+
+真实浏览器使用本分支 Vite /api 代理、独立 rule API 和 Worker、隔离数据库：直接上传→Inspect→Validate→任务→1/1/1 complete 报告；删除该隔离测试报告后，相同配置重新分析成功，任务页显式重新执行也成功；随后 page.page + zone 为 0/0/0 complete，无旧证据和解释。14 个受控 Demo 的新任务结果与同步路径逐字段一致。原生 Windows reduced-motion 与独立人工 Benchmark 均继续 pending；没有调用真实 DeepSeek。

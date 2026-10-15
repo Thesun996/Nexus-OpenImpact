@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from openimpact.evaluation import BenchmarkError, evaluate_benchmark
+from openimpact.evaluation import BenchmarkError, evaluate_benchmark, _metric_summary
 
 
 def _write(path: Path, text: str) -> str:
@@ -32,6 +32,7 @@ def _case(tmp_path: Path) -> Path:
     truth_path = tmp_path / "cases" / "basic" / "ground-truth.json"
     truth_hash = _write(truth_path, json.dumps({
         "case_id": "basic", "target_symbol_id": "utils.format_date", "change_type": "add_required_parameter",
+        "annotation_status": "locked",
         "annotation": {"annotator": "reviewer-a", "reviewer": "reviewer-b", "label_version": "1"},
         "direct_call_sites": [{"caller_symbol_id": "report.report", "file": "report.py", "line": 4, "column": 11}],
         "indirect_impacts": [], "expected_coverage": "complete",
@@ -81,3 +82,81 @@ def test_evaluate_benchmark_rejects_manifest_path_escape(tmp_path):
 
     assert result["rejected_case_count"] == 1
     assert "不能越出 benchmark 根目录" in result["results"][0]["error"]
+
+
+@pytest.mark.parametrize("mutation", ["unlisted_file", "missing_hash"])
+def test_frozen_source_inventory_must_match_analyzer_inputs(tmp_path, mutation):
+    root = _case(tmp_path)
+    if mutation == "unlisted_file":
+        _write(root / "cases/basic/project/extra.py", "from utils import format_date\ndef extra():\n    return format_date(1)\n")
+    else:
+        manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+        del manifest["cases"][0]["source_hashes"]["report.py"]
+        _write(root / "manifest.json", json.dumps(manifest))
+    result = evaluate_benchmark(root)
+    assert result["accepted_case_count"] == 0
+    assert result["rejected_case_count"] == 1
+    assert "源码清单" in result["results"][0]["error"]
+    assert result["metrics"]["direct"]["f1"] is None
+
+
+def test_frozen_inventory_uses_the_same_ignored_directories_as_analysis(tmp_path):
+    root = _case(tmp_path)
+    _write(root / "cases/basic/project/.venv/ignored.py", "not valid python\n")
+    assert evaluate_benchmark(root)["accepted_case_count"] == 1
+
+
+def _replace_truth(root, update):
+    truth_path = root / "cases/basic/ground-truth.json"
+    truth = json.loads(truth_path.read_text(encoding="utf-8"))
+    update(truth)
+    digest = _write(truth_path, json.dumps(truth))
+    manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    manifest["cases"][0]["ground_truth_sha256"] = digest
+    _write(root / "manifest.json", json.dumps(manifest))
+
+
+@pytest.mark.parametrize("mismatch", ["target", "change_type"])
+def test_truth_identity_is_checked_against_the_actual_change(tmp_path, monkeypatch, mismatch):
+    root = _case(tmp_path)
+    if mismatch == "target":
+        _replace_truth(root, lambda truth: truth.update(target_symbol_id="other.unrelated"))
+    else:
+        _replace_truth(root, lambda truth: truth.update(change_type="remove_parameter"))
+        manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+        manifest["cases"][0]["change_type"] = "remove_parameter"
+        _write(root / "manifest.json", json.dumps(manifest))
+    def must_not_analyze(*args, **kwargs):
+        pytest.fail("mismatched truth must be rejected before source analysis")
+    monkeypatch.setattr("openimpact.evaluation.analyze_project", must_not_analyze)
+    result = evaluate_benchmark(root)
+    assert result["accepted_case_count"] == 0
+    assert result["rejected_case_count"] == 1
+    assert "ChangeSpec" in result["results"][0]["error"]
+
+
+@pytest.mark.parametrize("status", ["pending", "reviewed", "", None, "missing"])
+def test_unlocked_annotations_cannot_produce_formal_metrics(tmp_path, status):
+    root = _case(tmp_path)
+    _replace_truth(root, lambda truth: truth.pop("annotation_status") if status == "missing"
+                   else truth.update(annotation_status=status))
+    result = evaluate_benchmark(root)
+    assert result["accepted_case_count"] == 0
+    assert result["rejected_case_count"] == 1
+    assert "locked" in result["results"][0]["error"]
+    assert result["metrics"]["direct"]["f1"] is None
+    assert result["metrics"]["coverage"]["accuracy"] is None
+
+
+@pytest.mark.parametrize("tp,fp,fn,precision,recall,f1", [
+    (0, 1, 1, 0, 0, 0),
+    (0, 0, 1, None, 0, None),
+    (0, 1, 0, 0, None, None),
+    (0, 0, 0, None, None, None),
+    (1, 1, 1, 0.5, 0.5, 0.5),
+])
+def test_f1_distinguishes_zero_overlap_from_undefined_denominators(tp, fp, fn, precision, recall, f1):
+    metrics = _metric_summary({"true_positive": tp, "false_positive": fp, "false_negative": fn})
+    assert metrics["precision"] == precision
+    assert metrics["recall"] == recall
+    assert metrics["f1"] == f1

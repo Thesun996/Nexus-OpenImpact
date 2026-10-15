@@ -76,6 +76,7 @@ Core Runner 使用完整 ChangeSpec：`change_type`、`target_symbol_id`、`befo
 | --- | --- |
 | case_id / target_symbol_id / change_type | 与 Manifest 和 Change 一致 |
 | annotation | 实际标注者/复核者 ID、时间、标签版本及独立性说明 |
+| annotation_status | 正式计分必须显式为 `locked`；缺省、pending、reviewed 或未知值均不进入计分。仅负责人确认后人工设置，Runner 不会自动锁定 |
 | scope | 支持范围、已知不可判定区域、是否穷尽标注可比较调用点；partial 案例尤其需要说明 |
 | call_assessments | 每个明确目标调用的调用者、位置、before_status、after_status、effect 和人工绑定依据 |
 | direct_call_sites | 只包含 `compatible → incompatible` 的确定调用点 |
@@ -197,3 +198,5 @@ Coverage 当前在 parse_errors、unresolved_calls、unresolved_imports 或模�
 输入不合格、分析异常或标签争议时返回明确状态，并保留其数量；不得静默跳过。单案例失败不能使其余原始记录丢失。公开结果不携带个人绝对路径、密钥或临时环境内容；本地原始报告可放入已忽略的 `.local/`。指标与标签文件不得由 analyzer 输出覆盖。
 
 仓库已提供 `python -m openimpact.evaluation <benchmark-dir>`：它会核验 Manifest、源码、Change 与人工标签的 SHA-256，拒绝不完整或不一致的输入后再调用现有静态分析，并输出 Direct、Indirect 与 Coverage 指标。它不生成 Ground Truth，也没有可对外宣称的独立 Benchmark 分数。交付真实数据后，可优先适配成员 B 的 Runner 或用该入口运行冻结数据；生产 Core 保持冻结。
+
+2026-10-15 审核修复：`source_hashes` 必须完整列出 Scanner 实际参与分析的 Python 文件，路径用 POSIX 相对形式；新增或遗漏源码均拒绝。Manifest、标签与加载后的真实 ChangeSpec 必须匹配目标和变更类型。标签仅声明标注者/复核者不足以计分，还需明确 `annotation_status=locked`；旧资料缺失该字段时须由负责人确认后补录，不可自动迁移成 locked。没有可接纳标签时指标保持 null。测试中的 locked 合成 fixture 仅验证程序行为，不属于独立人工 Ground Truth。

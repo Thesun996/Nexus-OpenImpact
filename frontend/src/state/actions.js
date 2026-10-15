@@ -238,9 +238,15 @@ export function createWorkflowActions({ getState, dispatch, client, loadDemoFile
         }
         if (!snapshot) return { report: await client.analyze(getProjectSource(current), change,
           current.projectFingerprint, { signal, analysisRoot: current.analysisRoot }), snapshot: null }
-        const previous = current.analysisTask
-        const reusable = previous && previous.status !== 'failed'
-          && previous.project_snapshot_id === snapshot.id && sameChange(previous.change, change)
+        let previous = current.analysisTask
+        const sameTask = previous && previous.project_snapshot_id === snapshot.id && sameChange(previous.change, change)
+        // Its persisted result may have been deleted from history since the last view.
+        if (sameTask && previous.status === 'succeeded') {
+          previous = checkedTask(await client.getAnalysisTask(previous.id, { signal }),
+            { id: previous.id, project_snapshot_id: snapshot.id, change })
+          signal.throwIfAborted()
+        }
+        const reusable = sameTask && previous.status !== 'failed'
         const task = checkedTask(reusable ? previous : (await client.createAnalysisTask(snapshot.id,
           change, current.projectFingerprint, { signal })).task,
         { project_snapshot_id: snapshot.id, change })

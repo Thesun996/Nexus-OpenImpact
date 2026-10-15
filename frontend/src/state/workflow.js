@@ -96,7 +96,9 @@ function reduceWorkflow(state, action) {
       return { ...state, ...cleared, loading: { ...state.loading, [action.stage]: true }, error: null }
     }
     case 'REQUEST_FAILED':
-      return { ...state, ...(action.validation ? { validation: action.validation } : {}), loading: { ...state.loading, [action.stage]: false }, error: action.error }
+      return { ...state, ...(action.validation ? { validation: action.validation } : {}),
+        ...(action.stage === 'analyze' && action.error?.code === 'report_not_found' ? { analysisTask: null, savedReportId: null } : {}),
+        loading: { ...state.loading, [action.stage]: false }, error: action.error }
     case 'FINGERPRINT_MISMATCH':
       return { ...createInitialState(state.revision + 1), file: state.file, snapshot: state.snapshot, analysisRoot: state.analysisRoot, health: state.health, error: action.error }
     case 'VALIDATION_RECEIVED':

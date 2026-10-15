@@ -176,18 +176,19 @@ def save_project_snapshot(
     snapshots_root = snapshot_directory(snapshot_dir)
     snapshots_root.mkdir(parents=True, exist_ok=True)
     storage_path = snapshots_root / f"{fingerprint}.zip"
-    if storage_path.is_symlink():
-        raise SnapshotError("snapshot_unavailable", "项目快照无法保存，请检查本地存储。", 503)
-    # A fresh validated upload can repair a damaged file with the same digest.
-    temporary_path = snapshots_root / f".{snapshot_id}.tmp"
-    try:
-        temporary_path.write_bytes(zip_bytes)
-        temporary_path.replace(storage_path)
-    finally:
-        if temporary_path.exists():
-            temporary_path.unlink()
-
     with connect(path) as connection:
+        # Serialize file publication and reference changes with last-reference deletion.
+        connection.execute("BEGIN IMMEDIATE")
+        if storage_path.is_symlink():
+            raise SnapshotError("snapshot_unavailable", "项目快照无法保存，请检查本地存储。", 503)
+        # A fresh validated upload can repair a damaged file with the same digest.
+        temporary_path = snapshots_root / f".{snapshot_id}.tmp"
+        try:
+            temporary_path.write_bytes(zip_bytes)
+            temporary_path.replace(storage_path)
+        finally:
+            if temporary_path.exists():
+                temporary_path.unlink()
         existing_project = None if project_name == "未命名项目" else connection.execute(
             """
             SELECT id, created_at FROM projects
@@ -341,6 +342,7 @@ def delete_project(
 ) -> bool:
     initialize_database(path)
     with connect(path) as connection:
+        connection.execute("BEGIN IMMEDIATE")
         rows = connection.execute(
             "SELECT project_fingerprint, storage_path FROM project_snapshots WHERE project_id = ?",
             (project_id,),
@@ -362,6 +364,7 @@ def delete_project_snapshot(
 ) -> dict[str, Any] | None:
     initialize_database(path)
     with connect(path) as connection:
+        connection.execute("BEGIN IMMEDIATE")
         where = "id = ?" if project_id is None else "id = ? AND project_id = ?"
         params = (snapshot_id,) if project_id is None else (snapshot_id, project_id)
         row = connection.execute(
@@ -465,6 +468,13 @@ def save_report(
     path: str | Path | None = None,
 ) -> dict[str, Any]:
     initialize_database(path)
+    with connect(path) as connection:
+        return _insert_report(connection, report, source_filename=source_filename, analysis_root=analysis_root)
+
+
+def _insert_report(
+    connection: sqlite3.Connection, report: dict[str, Any], *, source_filename: str | None, analysis_root: str
+) -> dict[str, Any]:
     record_id = uuid.uuid4().hex
     created_at = datetime.now(timezone.utc).isoformat(timespec="microseconds")
     change = _change_payload(report)
@@ -483,24 +493,23 @@ def save_report(
         "coverage_status": coverage.get("status") if isinstance(coverage.get("status"), str) else None,
         "summary": summary,
     }
-    with connect(path) as connection:
-        connection.execute(
-            """
-            INSERT INTO analysis_reports (
-                id, created_at, project_name, project_fingerprint, source_filename,
-                analysis_root, change_domain, change_type, target_id, coverage_status,
-                summary_json, report_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                record["id"], record["created_at"], record["project_name"],
-                record["project_fingerprint"], record["source_filename"],
-                record["analysis_root"], record["change_domain"], record["change_type"],
-                record["target_id"], record["coverage_status"],
-                json.dumps(summary, ensure_ascii=False, sort_keys=True),
-                json.dumps(report, ensure_ascii=False, sort_keys=True),
-            ),
-        )
+    connection.execute(
+        """
+        INSERT INTO analysis_reports (
+            id, created_at, project_name, project_fingerprint, source_filename,
+            analysis_root, change_domain, change_type, target_id, coverage_status,
+            summary_json, report_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record["id"], record["created_at"], record["project_name"],
+            record["project_fingerprint"], record["source_filename"],
+            record["analysis_root"], record["change_domain"], record["change_type"],
+            record["target_id"], record["coverage_status"],
+            json.dumps(summary, ensure_ascii=False, sort_keys=True),
+            json.dumps(report, ensure_ascii=False, sort_keys=True),
+        ),
+    )
     return record
 
 
@@ -549,6 +558,14 @@ def delete_report(report_id: str, *, path: str | Path | None = None) -> bool:
     initialize_database(path)
     with connect(path) as connection:
         cursor = connection.execute("DELETE FROM analysis_reports WHERE id = ?", (report_id,))
+        if cursor.rowcount > 0:
+            connection.execute(
+                """UPDATE analysis_tasks SET status = 'failed', result_report_id = NULL,
+                   error_code = 'report_deleted', error_message = ?, updated_at = ?
+                   WHERE result_report_id = ? AND status = 'succeeded'""",
+                ("分析报告已删除，可重新执行任务生成新报告。",
+                 datetime.now(timezone.utc).isoformat(timespec="microseconds"), report_id),
+            )
     return cursor.rowcount > 0
 
 
@@ -647,6 +664,10 @@ def finish_analysis_task(
     *,
     worker_id: str,
     status: str,
+    lease_token: str | None = None,
+    report: dict[str, Any] | None = None,
+    source_filename: str | None = None,
+    analysis_root: str = ".",
     result_report_id: str | None = None,
     error_code: str | None = None,
     error_message: str | None = None,
@@ -658,6 +679,19 @@ def finish_analysis_task(
     initialize_database(path)
     updated_at = datetime.now(timezone.utc).isoformat(timespec="microseconds")
     with connect(path) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        owner = connection.execute(
+            """SELECT id FROM analysis_tasks WHERE id = ? AND status = 'running' AND worker_id = ?
+               AND (? IS NULL OR lease_expires_at = ?)""",
+            (task_id, worker_id, lease_token, lease_token),
+        ).fetchone()
+        if owner is None:
+            return None
+        if report is not None:
+            if status != "succeeded" or lease_token is None:
+                raise ValueError("report publication requires a successful leased execution")
+            record = _insert_report(connection, report, source_filename=source_filename, analysis_root=analysis_root)
+            result_report_id = record["id"]
         cursor = connection.execute(
             """
             UPDATE analysis_tasks
@@ -829,4 +863,6 @@ def _task_row_to_record(row: sqlite3.Row, *, include_execution: bool = False) ->
     }
     if include_execution:
         record["_expected_fingerprint"] = row["expected_fingerprint"]
+        # A fresh claim timestamp fences even a reused worker identifier.
+        record["_lease_token"] = row["lease_expires_at"]
     return record

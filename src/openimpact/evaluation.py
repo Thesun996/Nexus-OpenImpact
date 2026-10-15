@@ -15,9 +15,11 @@ from pathlib import Path
 from typing import Any
 
 from openimpact.analysis.change_file import ChangeFileError, load_change_spec
+from openimpact.analysis.change_spec import ChangeSpec
 from openimpact.analysis.pipeline import analyze_project
 from openimpact.analysis.report import build_report
 from openimpact.explanation.fallback import RuleBasedProvider
+from openimpact.repository.scanner import RepositoryScanner
 
 
 class BenchmarkError(ValueError):
@@ -109,10 +111,11 @@ def _evaluate_case(root: Path, case: dict[str, Any]) -> dict[str, Any]:
     _verify_hash(change_path, case["change_sha256"], f"{case_id}.change_sha256")
     _verify_hash(truth_path, case["ground_truth_sha256"], f"{case_id}.ground_truth_sha256")
     truth = _read_object(truth_path, f"{case_id} ground_truth")
-    _validate_truth(case, truth)
+    change = load_change_spec(change_path)
+    _validate_truth(case, truth, change)
 
     started = time.perf_counter()
-    report = build_report(analyze_project(project, load_change_spec(change_path)), explanation_provider=RuleBasedProvider())
+    report = build_report(analyze_project(project, change), explanation_provider=RuleBasedProvider())
     elapsed_ms = round((time.perf_counter() - started) * 1000, 3)
     if not report["validation"]["valid"]:
         raise BenchmarkError(f"{case_id}: ChangeSpec 未通过现有 Core 校验，不能纳入有效评测。")
@@ -135,15 +138,19 @@ def _evaluate_case(root: Path, case: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _validate_truth(case: dict[str, Any], truth: dict[str, Any]) -> None:
+def _validate_truth(case: dict[str, Any], truth: dict[str, Any], change: ChangeSpec) -> None:
     case_id = _string(case, "case_id")
     for key in ("case_id", "target_symbol_id", "change_type", "annotation", "direct_call_sites", "indirect_impacts", "expected_coverage"):
         if key not in truth:
             raise BenchmarkError(f"{case_id}: ground_truth 缺少 {key}。")
     if truth["case_id"] != case_id or truth["change_type"] != case["change_type"]:
         raise BenchmarkError(f"{case_id}: ground_truth 元数据与 manifest 不一致。")
+    if truth["target_symbol_id"] != change.target_symbol_id or case["change_type"] != change.change_type:
+        raise BenchmarkError(f"{case_id}: 标签/Manifest 与实际 ChangeSpec 的目标或类型不一致。")
+    if truth.get("annotation_status") != "locked":
+        raise BenchmarkError(f"{case_id}: 仅允许 annotation_status=locked 的人工标签计分。")
     annotation = truth["annotation"]
-    if not isinstance(annotation, dict) or not all(isinstance(annotation.get(key), str) and annotation[key]
+    if not isinstance(annotation, dict) or not all(isinstance(annotation.get(key), str) and annotation[key].strip()
                                                    for key in ("annotator", "reviewer", "label_version")):
         raise BenchmarkError(f"{case_id}: ground_truth.annotation 必须包含 annotator、reviewer、label_version。")
     if not isinstance(truth["direct_call_sites"], list) or not isinstance(truth["indirect_impacts"], list):
@@ -153,6 +160,9 @@ def _validate_truth(case: dict[str, Any], truth: dict[str, Any]) -> None:
 def _verify_source_hashes(project: Path, hashes: object, case_id: str) -> None:
     if not isinstance(hashes, dict) or not hashes:
         raise BenchmarkError(f"{case_id}: source_hashes 必须是非空对象。")
+    actual = {path.as_posix() for path in RepositoryScanner(project).scan()}
+    if set(hashes) != actual:
+        raise BenchmarkError(f"{case_id}: source_hashes 源码清单与实际分析输入不一致。")
     for relative, digest in hashes.items():
         path = _relative_path(project, relative, f"{case_id}.source_hashes")
         _verify_hash(path, digest, f"{case_id}.source_hashes[{relative!r}]")
@@ -231,7 +241,7 @@ def _metric_summary(counts: dict[str, int]) -> dict[str, float | int | None]:
     tp, fp, fn = counts["true_positive"], counts["false_positive"], counts["false_negative"]
     precision = _ratio(tp, tp + fp)
     recall = _ratio(tp, tp + fn)
-    f1 = None if precision is None or recall is None else _ratio(2 * precision * recall, precision + recall)
+    f1 = None if precision is None or recall is None else 2 * tp / (2 * tp + fp + fn)
     return {**counts, "precision": precision, "recall": recall, "f1": f1}
 
 

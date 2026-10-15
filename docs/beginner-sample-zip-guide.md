@@ -83,4 +83,3 @@ return greet("Alice")
 ## 通过标准
 
 只要报告明确指出 `main.py` 中的 `greet("Alice")` 少传了 `punctuation`，这个入门样例就算测试通过。
-
