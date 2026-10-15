@@ -79,7 +79,7 @@ OPENIMPACT_API_TARGET=http://127.0.0.1:8010 npm run dev -- --host 127.0.0.1 --po
 
 2026-10-15 当前回归：
 
-- 完整后端：`1112 passed, 3 skipped, 1 warning, 7 subtests passed`。真实 HTTP 测试在允许本地端口绑定的环境中运行通过。
+- 完整后端：`1135 passed, 3 skipped, 1 warning, 7 subtests passed`。真实 HTTP 测试在允许本地端口绑定的环境中运行通过。
 - 前端：`npm run test`，274 项通过。
 - 前端构建：`npm run check` 中的生产构建通过；本次产物未触发 500 kB chunk 提醒。
 - 本地启动脚本：`run-local-api.sh`、`run-local-worker.sh`、`run-local-frontend.sh` 均可使用；前端脚本已在独立端口启动并返回 Vite 页面入口。

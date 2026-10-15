@@ -113,6 +113,9 @@ def _evaluate_case(root: Path, case: dict[str, Any]) -> dict[str, Any]:
     truth = _read_object(truth_path, f"{case_id} ground_truth")
     change = load_change_spec(change_path)
     _validate_truth(case, truth, change)
+    expected_direct = _site_set(truth["direct_call_sites"], _DIRECT_KEYS, case_id, "direct_call_sites")
+    expected_indirect = _site_set(truth["indirect_impacts"], _INDIRECT_KEYS, case_id, "indirect_impacts")
+    expected_coverage = _coverage_status(truth["expected_coverage"], case_id)
 
     started = time.perf_counter()
     report = build_report(analyze_project(project, change), explanation_provider=RuleBasedProvider())
@@ -120,11 +123,8 @@ def _evaluate_case(root: Path, case: dict[str, Any]) -> dict[str, Any]:
     if not report["validation"]["valid"]:
         raise BenchmarkError(f"{case_id}: ChangeSpec 未通过现有 Core 校验，不能纳入有效评测。")
 
-    expected_direct = _site_set(truth["direct_call_sites"], _DIRECT_KEYS, case_id, "direct_call_sites")
     predicted_direct = _site_set(report["direct_impacts"], _DIRECT_KEYS, case_id, "direct_impacts")
-    expected_indirect = _site_set(truth["indirect_impacts"], _INDIRECT_KEYS, case_id, "indirect_impacts")
     predicted_indirect = _site_set(report["indirect_impacts"], _INDIRECT_KEYS, case_id, "predicted indirect_impacts")
-    expected_coverage = _coverage_status(truth["expected_coverage"], case_id)
 
     return {
         "case_id": case_id,
@@ -204,13 +204,22 @@ def _site_set(items: list[object], keys: tuple[str, ...], case_id: str, label: s
     for item in items:
         if not isinstance(item, dict) or any(key not in item for key in keys):
             raise BenchmarkError(f"{case_id}: {label} 条目缺少匹配身份字段。")
+        for key in keys:
+            value = item[key]
+            if key in {"line", "column"}:
+                if type(value) is not int or value < (1 if key == "line" else 0):
+                    raise BenchmarkError(f"{case_id}: {label}.{key} 必须是合法源码位置整数（行从 1 开始，列从 0 开始）。")
+            elif not isinstance(value, str) or not value.strip():
+                raise BenchmarkError(f"{case_id}: {label}.{key} 必须是非空字符串。")
+            if key == "impact_type" and value not in {"indirect_1hop", "indirect_2hop"}:
+                raise BenchmarkError(f"{case_id}: {label}.impact_type 必须是 indirect_1hop 或 indirect_2hop。")
         values.add(tuple(item[key] for key in keys))
     return values
 
 
 def _coverage_status(value: object, case_id: str) -> str:
     status = value.get("status") if isinstance(value, dict) else value
-    if status not in {"complete", "partial"}:
+    if not isinstance(status, str) or status not in {"complete", "partial"}:
         raise BenchmarkError(f"{case_id}: expected_coverage 必须是 complete 或 partial。")
     return status
 

@@ -8,6 +8,7 @@ from threading import Event
 
 import pytest
 
+from openimpact import storage
 from openimpact.storage import (
     claim_next_analysis_task,
     create_analysis_task,
@@ -334,5 +335,74 @@ def test_save_serializes_shared_zip_publication_with_last_reference_deletion(tmp
     with ThreadPoolExecutor(max_workers=1) as pool:
         deletion = pool.submit(delete_old_reference)
         new = save_project_snapshot(inspect_report("new-project"), b"zip-bytes", path=path, snapshot_dir=snapshots)
+        assert deletion.result(timeout=5)
+    assert read_project_snapshot(new["snapshot"]["id"], path=path, snapshot_dir=snapshots)[1] == b"zip-bytes"
+
+
+@pytest.mark.parametrize("delete_whole_project", [False, True])
+def test_snapshot_cleanup_failure_cannot_restore_deleted_records(tmp_path, monkeypatch, caplog, delete_whole_project):
+    path, snapshots = tmp_path / "db.sqlite3", tmp_path / "snapshots"
+    first = save_project_snapshot(inspect_report(zip_bytes=b"first"), b"first", path=path, snapshot_dir=snapshots)
+    second = save_project_snapshot(inspect_report(zip_bytes=b"second"), b"second", path=path, snapshot_dir=snapshots)
+    original_unlink = Path.unlink
+    attempted = []
+
+    def fail_last_cleanup(stored, *args, **kwargs):
+        if stored.parent == snapshots and stored.suffix == ".zip":
+            attempted.append(stored)
+            # A separate reader must already see the committed reference deletion.
+            with sqlite3.connect(path) as connection:
+                remaining = connection.execute("SELECT id FROM project_snapshots").fetchall()
+            assert len(remaining) == (0 if delete_whole_project else 1)
+            if len(attempted) == (2 if delete_whole_project else 1):
+                raise PermissionError("simulated Windows sharing violation")
+        return original_unlink(stored, *args, **kwargs)
+
+    with monkeypatch.context() as context:
+        context.setattr(Path, "unlink", fail_last_cleanup)
+        if delete_whole_project:
+            assert delete_project(first["project"]["id"], path=path, snapshot_dir=snapshots)
+        else:
+            assert delete_project_snapshot(second["snapshot"]["id"], path=path, snapshot_dir=snapshots)
+    assert "snapshot cleanup" in caplog.text.lower()
+    if delete_whole_project:
+        assert get_project(first["project"]["id"], path=path) is None
+    else:
+        assert read_project_snapshot(first["snapshot"]["id"], path=path, snapshot_dir=snapshots)[1] == b"first"
+    expected = [] if delete_whole_project else [first["snapshot"]]
+    assert list_project_snapshots(first["project"]["id"], path=path) == expected
+    # The occupied, unreferenced file remains retryable after the lock is released.
+    assert attempted[-1].exists()
+    storage._delete_unreferenced_snapshot_files(
+        [(item.stem, str(item)) for item in attempted], path=path, snapshot_dir=snapshots
+    )
+    assert not attempted[-1].exists()
+
+
+@pytest.mark.parametrize("delete_whole_project", [False, True])
+def test_cleanup_rechecks_references_saved_after_deletion_commit(tmp_path, monkeypatch, delete_whole_project):
+    path, snapshots = tmp_path / "db.sqlite3", tmp_path / "snapshots"
+    old = save_project_snapshot(inspect_report(), b"zip-bytes", path=path, snapshot_dir=snapshots)
+    cleanup_started, new_reference_saved = Event(), Event()
+    original_cleanup = storage._delete_unreferenced_snapshot_files
+
+    def delayed_cleanup(*args, **kwargs):
+        cleanup_started.set()
+        assert new_reference_saved.wait(3)
+        return original_cleanup(*args, **kwargs)
+
+    def delete_old_reference():
+        if delete_whole_project:
+            return delete_project(old["project"]["id"], path=path, snapshot_dir=snapshots)
+        return delete_project_snapshot(old["snapshot"]["id"], path=path, snapshot_dir=snapshots)
+
+    monkeypatch.setattr(storage, "_delete_unreferenced_snapshot_files", delayed_cleanup)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        deletion = pool.submit(delete_old_reference)
+        try:
+            assert cleanup_started.wait(2)
+            new = save_project_snapshot(inspect_report("new-project"), b"zip-bytes", path=path, snapshot_dir=snapshots)
+        finally:
+            new_reference_saved.set()
         assert deletion.result(timeout=5)
     assert read_project_snapshot(new["snapshot"]["id"], path=path, snapshot_dir=snapshots)[1] == b"zip-bytes"

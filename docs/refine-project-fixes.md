@@ -45,3 +45,15 @@
 - 截图和原始日志只放在忽略的 .local 中。源码 Core、AST、Call Graph、生产 Report schema、原八种 Operation 及真实人工标注均不改动。
 - Worker 租约恢复允许重算，原子发布保证失效批次不写入重复报告；外部模型调用恰好一次不在本次保证范围。
 - 原生 reduced-motion 验收与独立 Benchmark 仍为 pending。main 保持原样，待复审后再合并。
+
+## 复审 P2 收束（2026-10-15）
+
+复审基线 `8db722d`，新增两项缺陷，均已修复；不修改 Core、React、公开 API 字段、Report schema 或真实标注数据。
+
+- RR1：多快照清理时，后一个 ZIP 删除失败会回滚数据库，前面已删除的文件无法恢复。现在先提交记录删除，再用独立写事务重新核对引用并清理；文件清理失败仅记录警告，保留无引用文件待重试。保存发生在两步之间时，新引用的文件受到保护。普通项目删除与单快照删除共用该路径。
+- RR2：数组/对象等错误标签值进入集合后抛出未捕获 TypeError，导致整批 Runner 中断。现在在分析前校验匹配字段和 Coverage 的类型、取值，错误转换为逐案例 BenchmarkError。正常案例继续处理，CLI 保留完整结果并返回 2。未扩大异常吞噬范围，也未修改指标计算口径。
+- 新增 23 个回归用例先在旧实现全部失败，修复后通过；包含已提交删除的可见性、清理失败后的重试、提交删除与清理间的新引用、错误标签矩阵和正常/错误/正常三案例 CLI 混合批次。
+- 存储/评测/快照/任务/报告专项：97 passed、1 skipped。后端完整：1135 passed、3 skipped、1 warning、7 subtests passed。前端 npm run check：274 passed，Production Build 通过。
+- Windows 原生 CreateFileW 文件锁及真实 API 复验：删除返回 200，快照记录为 0，保留 1 个被占用 ZIP；被删除快照请求返回 404。解除占用后，重试清理将剩余 ZIP 移除。该验证与原生 reduced-motion 无关，后者仍 pending。
+- 14 个 Demo 的任务/同步分析结果继续逐字段一致；git diff --check 通过。原始日志在忽略的 .local/p2-*.log，不纳入提交。
+- 当前限制：无引用文件清理没有自动重试队列，解除占用后需要维护清理；不会恢复出指向已删除 ZIP 的有效快照记录。独立 Benchmark 继续 pending。

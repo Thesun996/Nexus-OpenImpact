@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import sqlite3
@@ -21,6 +22,7 @@ from openimpact.repository.zip_inspector import MAX_UPLOAD_BYTES
 SCHEMA_VERSION = 4
 DEFAULT_DATABASE = Path(".openimpact") / "openimpact.sqlite3"
 DEFAULT_SNAPSHOT_DIR = Path(".openimpact") / "snapshots"
+_LOGGER = logging.getLogger(__name__)
 REPORT_SEARCH_COLUMNS = (
     "project_name",
     "source_filename",
@@ -351,7 +353,7 @@ def delete_project(
         if cursor.rowcount <= 0:
             return False
         candidates = [(row["project_fingerprint"], row["storage_path"]) for row in rows]
-        _delete_unreferenced_snapshot_files(connection, candidates, snapshot_dir=snapshot_dir)
+    _delete_unreferenced_snapshot_files(candidates, path=path, snapshot_dir=snapshot_dir)
     return True
 
 
@@ -394,7 +396,7 @@ def delete_project_snapshot(
                 (latest["created_at"], snapshot_project_id),
             )
             snapshot["project_deleted"] = False
-        _delete_unreferenced_snapshot_files(connection, [candidate], snapshot_dir=snapshot_dir)
+    _delete_unreferenced_snapshot_files([candidate], path=path, snapshot_dir=snapshot_dir)
     return snapshot
 
 
@@ -431,33 +433,38 @@ def read_project_snapshot(
 
 
 def _delete_unreferenced_snapshot_files(
-    connection: sqlite3.Connection,
     candidates: list[tuple[str, str | None]],
     *,
+    path: str | Path | None = None,
     snapshot_dir: str | Path | None = None,
 ) -> None:
-    root = snapshot_directory(snapshot_dir).resolve()
-    for fingerprint, storage_path in candidates:
-        if not re.fullmatch(r"[0-9a-f]{64}", fingerprint or "") or not storage_path:
-            continue
-        remaining = connection.execute(
-            "SELECT 1 FROM project_snapshots WHERE project_fingerprint = ? LIMIT 1",
-            (fingerprint,),
-        ).fetchone()
-        if remaining is not None:
-            continue
-        stored = Path(storage_path)
-        try:
-            resolved = stored.resolve()
-        except OSError:
-            continue
-        if stored.is_symlink() or resolved != root / f"{fingerprint}.zip":
-            continue
-        try:
-            if stored.is_file():
-                stored.unlink()
-        except FileNotFoundError:
-            pass
+    # Records are already committed. Recheck under the publication lock before unlinking.
+    # ponytail: local cleanup is best effort; locked orphan files need a later retry.
+    try:
+        root = snapshot_directory(snapshot_dir).resolve()
+        with connect(path) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            for fingerprint, storage_path in candidates:
+                if not re.fullmatch(r"[0-9a-f]{64}", fingerprint or "") or not storage_path:
+                    continue
+                remaining = connection.execute(
+                    "SELECT 1 FROM project_snapshots WHERE project_fingerprint = ? LIMIT 1",
+                    (fingerprint,),
+                ).fetchone()
+                if remaining is not None:
+                    continue
+                stored = Path(storage_path)
+                try:
+                    if stored.is_symlink() or stored.resolve() != root / f"{fingerprint}.zip":
+                        continue
+                    if stored.is_file():
+                        stored.unlink()
+                except FileNotFoundError:
+                    pass
+                except OSError:
+                    _LOGGER.warning("Snapshot cleanup deferred: an unreferenced ZIP could not be removed.")
+    except (OSError, sqlite3.Error):
+        _LOGGER.warning("Snapshot cleanup deferred: the local store is temporarily unavailable.")
 
 
 def save_report(

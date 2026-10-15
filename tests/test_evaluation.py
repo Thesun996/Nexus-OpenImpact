@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from openimpact.evaluation import BenchmarkError, evaluate_benchmark, _metric_summary
+from openimpact.evaluation import BenchmarkError, evaluate_benchmark, _metric_summary, main
 
 
 def _write(path: Path, text: str) -> str:
@@ -15,7 +15,7 @@ def _write(path: Path, text: str) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _case(tmp_path: Path) -> Path:
+def _case(tmp_path: Path, case_id="basic") -> Path:
     project = tmp_path / "cases" / "basic" / "project"
     utils_hash = _write(project / "utils.py", "def format_date(date):\n    return date\n")
     _write(project / "report.py", "from utils import format_date\n\ndef report(date):\n    return format_date(date)\n")
@@ -31,7 +31,7 @@ def _case(tmp_path: Path) -> Path:
     }))
     truth_path = tmp_path / "cases" / "basic" / "ground-truth.json"
     truth_hash = _write(truth_path, json.dumps({
-        "case_id": "basic", "target_symbol_id": "utils.format_date", "change_type": "add_required_parameter",
+        "case_id": case_id, "target_symbol_id": "utils.format_date", "change_type": "add_required_parameter",
         "annotation_status": "locked",
         "annotation": {"annotator": "reviewer-a", "reviewer": "reviewer-b", "label_version": "1"},
         "direct_call_sites": [{"caller_symbol_id": "report.report", "file": "report.py", "line": 4, "column": 11}],
@@ -39,7 +39,7 @@ def _case(tmp_path: Path) -> Path:
     }))
     _write(tmp_path / "manifest.json", json.dumps({
         "benchmark_version": "1", "cases": [{
-            "case_id": "basic", "change_type": "add_required_parameter", "project": "cases/basic/project",
+            "case_id": case_id, "change_type": "add_required_parameter", "project": "cases/basic/project",
             "change": "cases/basic/change.json", "ground_truth": "cases/basic/ground-truth.json",
             "source_hashes": {"utils.py": utils_hash, "report.py": hashlib.sha256((project / "report.py").read_bytes()).hexdigest()},
             "change_sha256": change_hash, "ground_truth_sha256": truth_hash,
@@ -160,3 +160,65 @@ def test_f1_distinguishes_zero_overlap_from_undefined_denominators(tp, fp, fn, p
     assert metrics["precision"] == precision
     assert metrics["recall"] == recall
     assert metrics["f1"] == f1
+
+
+@pytest.mark.parametrize("collection,field,value", [
+    ("direct_call_sites", "file", ["report.py"]),
+    ("direct_call_sites", "caller_symbol_id", {}),
+    ("direct_call_sites", "file", "  "),
+    ("direct_call_sites", "line", True),
+    ("direct_call_sites", "line", 0),
+    ("direct_call_sites", "line", "4"),
+    ("direct_call_sites", "column", False),
+    ("direct_call_sites", "column", -1),
+    ("direct_call_sites", "column", {}),
+    ("indirect_impacts", "impacted_symbol_id", []),
+    ("indirect_impacts", "impact_type", {}),
+    ("indirect_impacts", "impact_type", "direct"),
+    ("indirect_impacts", "impact_type", "indirect_3hop"),
+])
+def test_invalid_label_values_are_rejected_before_analysis(tmp_path, monkeypatch, collection, field, value):
+    root = _case(tmp_path)
+    def update(truth):
+        if collection == "indirect_impacts":
+            truth[collection] = [{"impacted_symbol_id": "page.page", "impact_type": "indirect_1hop"}]
+        truth[collection][0][field] = value
+    _replace_truth(root, update)
+    monkeypatch.setattr("openimpact.evaluation.analyze_project", lambda *a, **kw: pytest.fail("invalid labels reached analysis"))
+    result = evaluate_benchmark(root)
+    assert result["accepted_case_count"] == 0
+    assert result["rejected_case_count"] == 1
+    assert field in result["results"][0]["error"]
+    assert result["metrics"]["direct"]["f1"] is None
+
+
+@pytest.mark.parametrize("coverage", [[], {"status": []}, {"status": {}}, None, True])
+def test_invalid_coverage_type_is_rejected_before_analysis(tmp_path, monkeypatch, coverage):
+    root = _case(tmp_path)
+    _replace_truth(root, lambda truth: truth.update(expected_coverage=coverage))
+    monkeypatch.setattr("openimpact.evaluation.analyze_project", lambda *a, **kw: pytest.fail("invalid coverage reached analysis"))
+    result = evaluate_benchmark(root)
+    assert result["accepted_case_count"] == 0
+    assert result["rejected_case_count"] == 1
+    assert "expected_coverage" in result["results"][0]["error"]
+
+
+def test_one_bad_label_does_not_discard_other_cli_results(tmp_path):
+    cases = []
+    for case_id in ("good-before", "bad", "good-after"):
+        case_root = _case(tmp_path / case_id, case_id=case_id)
+        if case_id == "bad":
+            _replace_truth(case_root, lambda truth: truth["direct_call_sites"][0].update(file=["report.py"]))
+        case = json.loads((case_root / "manifest.json").read_text(encoding="utf-8"))["cases"][0]
+        for key in ("project", "change", "ground_truth"):
+            case[key] = f"{case_id}/{case[key]}"
+        cases.append(case)
+    _write(tmp_path / "manifest.json", json.dumps({"benchmark_version": "1", "cases": cases}))
+    output = tmp_path / "output.json"
+    assert main([str(tmp_path), "--output", str(output)]) == 2
+    result = json.loads(output.read_text(encoding="utf-8"))
+    assert [item["status"] for item in result["results"]] == ["completed", "rejected", "completed"]
+    assert result["results"][1]["case_id"] == "bad"
+    assert result["accepted_case_count"] == 2
+    assert result["rejected_case_count"] == 1
+    assert result["metrics"]["direct"]["true_positive"] == 2
