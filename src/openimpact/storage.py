@@ -754,40 +754,6 @@ def finish_analysis_task(
     return _task_row_to_record(row)
 
 
-def complete_analysis_task(
-    task_id: str,
-    *,
-    worker_id: str,
-    report: dict[str, Any],
-    source_filename: str | None = None,
-    analysis_root: str = ".",
-    path: str | Path | None = None,
-) -> dict[str, Any] | None:
-    """Commit a report and its owning task together, or persist neither."""
-    initialize_database(path)
-    with connect(path) as connection:
-        # Serialize ownership checking with reclaiming and report insertion.
-        connection.execute("BEGIN IMMEDIATE")
-        owned = connection.execute(
-            "SELECT 1 FROM analysis_tasks WHERE id = ? AND status = 'running' AND worker_id = ?",
-            (task_id, worker_id),
-        ).fetchone()
-        if owned is None:
-            return None
-        record = _insert_report(connection, report, source_filename=source_filename, analysis_root=analysis_root)
-        connection.execute(
-            """
-            UPDATE analysis_tasks
-            SET updated_at = ?, status = 'succeeded', result_report_id = ?,
-                error_code = NULL, error_message = NULL, worker_id = NULL, lease_expires_at = NULL
-            WHERE id = ?
-            """,
-            (datetime.now(timezone.utc).isoformat(timespec="microseconds"), record["id"], task_id),
-        )
-        row = connection.execute("SELECT * FROM analysis_tasks WHERE id = ?", (task_id,)).fetchone()
-    return _task_row_to_record(row)
-
-
 def update_analysis_task(
     task_id: str,
     *,

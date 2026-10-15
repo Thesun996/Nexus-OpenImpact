@@ -31,7 +31,6 @@ from openimpact.api_change import ChangeConfigError, build_change_spec, parse_ch
 from openimpact.repository import zip_inspector
 from openimpact.repository.layout import AnalysisRootError
 from openimpact.storage import (
-    complete_analysis_task,
     create_analysis_task,
     delete_project,
     delete_project_snapshot,

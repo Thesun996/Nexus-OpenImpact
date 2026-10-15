@@ -10,7 +10,13 @@ import time
 import pytest
 
 from openimpact import api
-from openimpact.storage import create_analysis_task, get_analysis_task, claim_next_analysis_task
+from openimpact.storage import (
+    claim_next_analysis_task,
+    connect,
+    create_analysis_task,
+    get_analysis_task,
+    update_analysis_task,
+)
 from openimpact.worker import run_once
 from test_backend_stability import live_backend, make_zip, CHANGE
 from test_report_storage_api import demo_zip
