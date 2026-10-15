@@ -2,9 +2,9 @@
 
 当前增量范围：函数签名领域支持用户显式源码根目录、普通包静态相对导入，以及类方法、嵌套函数、类定义体和匿名函数中对明确模块级函数的调用。类定义体与匿名函数使用源码位置标识调用上下文，不推测其外层执行路径。方法分派、重导出及运行时包搜索仍不推断；新增调用上下文不作为变更目标。Module / Symbol 领域保持根目录普通文件限制。最新依据见 [普通包支持契约](docs/package-imports.md) 与 [调用覆盖](docs/call-coverage.md)，后文早期阶段范围为历史基线。
 
-> 更新日期：2026-10-01（Asia/Shanghai）  
-> 文档状态：待项目负责人确认。  
-> 项目阶段：Core MVP v0.1.0 已完成；Phase 2.5 进行后端契约冻结验收。
+> 更新日期：2026-10-15（Asia/Shanghai）
+> 文档状态：范围与架构总纲；当前可用能力、回归结果和未完成项以 [当前项目状态](docs/current-project-status.md) 为准。
+> 项目阶段：Core MVP、当地 ZIP 分析工作流、React 工作台、本地 SQLite 项目库与独立 Worker 已实现；真实账号体系、生产部署和独立人工 Benchmark 仍待后续决定或数据接入。
 > 读者：项目负责人、团队成员、后续 Codex / AI 开发助手、比赛答辩材料整理人员。
 
 本文统一记录产品定位、范围、技术边界、开发约束与当前事实，作为后续开发的项目总纲。本文中的“计划”“建议”“待确认”均不代表功能已实现。功能完成必须有代码、对应测试和可复核结果支撑。
@@ -185,6 +185,8 @@ V1 暂不包含：
 分析目标中的测试文件属于被读取的源码。开发者运行 OpenImpact 自身的受控测试，与运行用户导入仓库的测试是两种不同操作。
 
 ## 8. 技术架构与模块职责
+
+> 本章保留从 Core MVP 逐步演进的设计和实现记录。其中早期段落的“尚未实现”用于描述当时阶段的基线，不能作为当前能力判断；当前事实请查阅 [当前项目状态](docs/current-project-status.md)。
 
 ### 8.1 总体流水线
 
@@ -569,13 +571,13 @@ Pydantic 大版本迁移可作为验证案例，规则设计应能表达一般�
 | --- | --- |
 | 初始项目交接说明 | 已完整阅读 |
 | Phase 0 旧资产审计 | 已完成只读源码与文档审计 |
-| PROJECT.md | 本文为待负责人确认的总纲草案 |
+| PROJECT.md | 范围与架构总纲；当前能力、测试结果和已知限制由 `docs/current-project-status.md` 维护 |
 | 独立代码目录 | 已存在，采用负责人指定的当前项目路径 |
-| Phase 1 分析引擎 | Scanner、AST、Symbol Index、Call Graph、ChangeSpec、Direct / 1-hop / 2-hop、流水线和 CLI 报告已实现；完整源码片段证据尚未实现 |
-| Core MVP v0.1 工程验收 | 版本 `0.1.0`；项目虚拟环境中 `pip install -e .` 成功；清除 `PYTHONPATH` 后导入、中文 / JSON Demo 均成功，摘要为 Direct 1、1-hop 1、2-hop 1、coverage complete |
-| 新项目测试与评测 | Phase 2.5 完整 pytest：155 passed、1 skipped（Windows 符号链接权限）；三步真实 HTTP 与 CLI 回归已验收，真实项目评测尚未实施 |
-| 新项目前端、API、Worker、数据库 | Demo、ZIP inspect、ChangeSpec 校验及用户项目影响分析 API 已实现；前端、Worker、数据库尚未实现 |
-| 新 GitHub 仓库 | 尚未创建或核验 |
+| Phase 1 分析引擎 | Python 静态分析闭环已实现：安全扫描、AST、符号/调用关系、结构化 ChangeSpec、Direct / 1-hop / 2-hop 影响、源码位置及证据报告；不执行上传源码 |
+| Core MVP 工程验收 | 本机 Demo 可稳定复现 Direct 1、1-hop 1、2-hop 1、coverage complete；规则结论保持由 AST、符号与调用关系产生 |
+| 新项目测试与评测 | 完整后端回归为 `1091 passed, 1 skipped, 1 warning, 7 subtests passed`；前端 272 项测试和生产构建通过。独立人工标注 Benchmark 尚未接入，不能宣称准确率 |
+| 新项目前端、API、Worker、数据库 | React 工作台、FastAPI、SQLite 本地项目库/报告历史、ZIP 快照、分析任务与独立本机 Worker 已实现。登录仅为界面演示，尚无真实账号、会话或用户隔离 |
+| GitHub 协作 | 当前开发分支为 `feature/refine-project`；变更需经人工检查后 Commit / Push，并按团队流程决定是否合并到 `main` |
 | A312 | 本轮及当前开发阶段不操作 |
 
 ### 17.2 待确认或需在实现前细化的事项

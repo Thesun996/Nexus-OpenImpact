@@ -27,6 +27,8 @@ npm run dev
 
 开发地址：`http://127.0.0.1:5173`。本地 `/api` 代理到 `http://127.0.0.1:8000`，无需为开发页面修改后端 CORS。
 
+macOS 也可从仓库根目录直接运行 `./scripts/run-local-frontend.sh`。它会检查 `node_modules`，并默认把 `/api` 代理到 `http://127.0.0.1:8000`；需改用其他后端端口时设置 `OPENIMPACT_API_TARGET`。
+
 ```powershell
 npm run check
 ```

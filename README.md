@@ -111,6 +111,7 @@ macOS 本地开发也可以不手动切换目录或 Python 环境，分别运行
 ```bash
 ./scripts/run-local-api.sh
 ./scripts/run-local-worker.sh
+./scripts/run-local-frontend.sh
 ```
 
 ### 解释 Provider 配置

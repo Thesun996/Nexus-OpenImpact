@@ -1,6 +1,6 @@
 # Phase 6.6：Multi Change Type 评测契约
 
-状态：**待负责人和成员 B 确认；尚无已接入的独立 Benchmark 或人工 Ground Truth。**
+状态：**已实现哈希校验的本地 Evaluation Runner；待负责人和成员 B 提供独立 Benchmark 与人工 Ground Truth。**
 
 本契约依据 `integration/multi-change-web@1cd8480` 的真实 Core 数据结构制定。它约定后续交付格式与计算口径，不构成已完成评测的声明，不改变生产 JSON `schema_version=1`。现状与缺口见 [接入核查记录](phase6.6-evaluation-readiness.md)。
 
@@ -196,4 +196,4 @@ Coverage 当前在 parse_errors、unresolved_calls、unresolved_imports 或模�
 
 输入不合格、分析异常或标签争议时返回明确状态，并保留其数量；不得静默跳过。单案例失败不能使其余原始记录丢失。公开结果不携带个人绝对路径、密钥或临时环境内容；本地原始报告可放入已忽略的 `.local/`。指标与标签文件不得由 analyzer 输出覆盖。
 
-本轮仅形成以上契约，**尚未实现或运行独立 Evaluation Runner**。交付真实数据后，优先复用成员 B 的 Runner；若确无实现，再按本契约增加薄编排层及专用指标测试，生产 Core 保持冻结。
+仓库已提供 `python -m openimpact.evaluation <benchmark-dir>`：它会核验 Manifest、源码、Change 与人工标签的 SHA-256，拒绝不完整或不一致的输入后再调用现有静态分析，并输出 Direct、Indirect 与 Coverage 指标。它不生成 Ground Truth，也没有可对外宣称的独立 Benchmark 分数。交付真实数据后，可优先适配成员 B 的 Runner 或用该入口运行冻结数据；生产 Core 保持冻结。

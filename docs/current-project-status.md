@@ -57,7 +57,7 @@ OPENIMPACT_LLM_PROVIDER=rule python -m openimpact.worker
 
 两个进程必须使用相同的 `OPENIMPACT_DB_PATH`、`OPENIMPACT_SNAPSHOT_DIR`；不设置时都会使用 `.openimpact/`。Worker 可用 `--once` 只处理一项排队任务。
 
-macOS 下可直接使用仓库脚本启动，避免误用 Conda Python：`./scripts/run-local-api.sh` 与 `./scripts/run-local-worker.sh`。
+macOS 下可直接使用仓库脚本启动，避免误用 Conda Python：`./scripts/run-local-api.sh`、`./scripts/run-local-worker.sh` 与 `./scripts/run-local-frontend.sh`。前端默认代理到 API 的 `127.0.0.1:8000`。
 
 另一个终端进入 `frontend`：
 
@@ -82,6 +82,7 @@ OPENIMPACT_API_TARGET=http://127.0.0.1:8010 npm run dev -- --host 127.0.0.1 --po
 - 完整后端：`1091 passed, 1 skipped, 1 warning, 7 subtests passed`。真实 HTTP 测试在允许本地端口绑定的环境中运行通过。
 - 前端：`npm run test`，272 项通过。
 - 前端构建：`npm run build` 通过；仍有超过 500 kB 的 chunk 大小提示。
+- 本地启动脚本：`run-local-api.sh`、`run-local-worker.sh`、`run-local-frontend.sh` 均可使用；前端脚本已在独立端口启动并返回 Vite 页面入口。
 - 项目库、快照、报告存储和本地分析任务相关后端测试：针对性存储/API/Worker 复验 33 项通过；真实 HTTP 阻塞任务期间健康检查保持可用。
 - 前端任务页：queued/running 状态明确说明本机 Worker 依赖；等待超时会保留任务并提供继续查询和任务页入口，不会重复提交分析。
 - Benchmark Runner：正常人工标注样例、哈希不匹配拒绝、路径越界拒绝均通过；仓库未宣称已有独立人工 Benchmark 分数。
