@@ -11,7 +11,7 @@ export default function WorkflowSteps({ page }) {
   const { state } = useWorkflow()
   const isDemo = state.mode === 'demo'
   const complete = [
-    Boolean(state.inspect && (isDemo || state.file)),
+    Boolean(state.inspect && (isDemo || state.file || state.snapshot)),
     Boolean(state.changeDomain === 'symbol' ? state.selectedVariableSymbolId : state.changeDomain === 'module' ? state.selectedModuleId : state.selectedSymbolId),
     state.validation?.validation?.valid === true,
     Boolean(state.report),

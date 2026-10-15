@@ -1,5 +1,7 @@
 # Nexus OpenImpact
 
+当前完成内容、验收记录、能力边界与待办见 [现阶段项目报告（2026-10-06）](docs/project-status.md)。
+
 网页已增加报告追问和只读项目源码目录：可从影响证据或回答引用打开完整 Python 文件并定位行号。追问依据当前变更报告，模型不可用时明确使用规则回答。详见 [报告工作台](docs/report-workspace.md)。后端与前端启动方式保持原流程。
 
 普通包支持已扩展：网页可显式选择源码根目录，支持普通包的静态相对导入。src 布局填写 `src`；默认 `.` 保留旧流程。详见 [使用方式与边界](docs/package-imports.md) 和 [包项目 Demo](examples/package_signature_change/README.md)。
@@ -40,12 +42,11 @@ OpenImpact 希望通过 AI 与静态分析结合，
 
 当前阶段：
 
-当前独立集成成果支持三个领域、八种变更：四种函数签名变更、模块重命名/删除、公开模块级变量或常量重命名/删除。CLI、ZIP Inspect / Validate / Analyze 与 Tracework React 均可使用。三个领域分别保持签名兼容性、静态导入绑定、静态符号引用的判定依据；上游传播只建议检查。V1.1 / V1.2 成果尚待负责人最终审核，未合并 main。详见 [两轮交付报告](docs/v1.1-v1.2-delivery.md)、[模块契约](docs/module-changes.md) 和 [符号契约](docs/symbol-changes.md)。
+main 已集成三个领域、八种变更：四种函数签名变更、模块重命名/删除、公开模块级变量或常量重命名/删除。CLI、ZIP Inspect / Validate / Analyze 与 Tracework React 均可使用。三个领域分别保持签名兼容性、静态导入绑定、静态符号引用的判定依据；上游传播只建议检查。后续已补充普通包路径、更多调用作用域、源码阅读、报告追问、测试定位与黑紫登录体验。最新验收和剩余限制见 [现阶段项目报告](docs/project-status.md)；历史阶段记录见 [两轮交付报告](docs/v1.1-v1.2-delivery.md)。
 
 目标：
 
-完成项目基础结构搭建，
-并逐步实现 Python 代码变更影响分析能力。
+完成独立人工标注与效果评价、原生 reduced-motion 补验，并按真实项目证据改进当前支持范围。已有功能验收不代表完整 Python 语义覆盖或独立准确率达标。
 
 ---
 
@@ -98,7 +99,21 @@ python -m openimpact analyze examples/parameter_required_explicit --change examp
 python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
 ```
 
-另开终端调用 `GET http://127.0.0.1:8000/api/v1/health` 或 `POST http://127.0.0.1:8000/api/v1/demo/analyze`。请求与响应字段见 [API 契约](docs/api-contract.md)。
+分析任务由独立的本机 Worker 领取。需要项目库的“开始分析”或失败任务重试时，另开一个终端运行：
+
+```powershell
+python -m openimpact.worker
+```
+
+Worker 和 API 必须使用相同的 `OPENIMPACT_DB_PATH` 与 `OPENIMPACT_SNAPSHOT_DIR`（未设置时均使用仓库内 `.openimpact/`）。开发时可用 `python -m openimpact.worker --once` 只处理一项已排队任务。另开终端可调用 `GET http://127.0.0.1:8000/api/v1/health` 或 `POST http://127.0.0.1:8000/api/v1/demo/analyze`。请求与响应字段见 [API 契约](docs/api-contract.md)。
+
+macOS 本地开发也可以不手动切换目录或 Python 环境，分别运行：
+
+```bash
+./scripts/run-local-api.sh
+./scripts/run-local-worker.sh
+./scripts/run-local-frontend.sh
+```
 
 ### 解释 Provider 配置
 
@@ -125,7 +140,15 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" http://127.0.0.1:80
 
 使用同样的表单字段调用 `POST /api/v1/projects/analyze`，即可对本次上传的 ZIP 生成 Core JSON 影响报告。报告中的 `project_path` 为相对根目录 `.`；`coverage.status=partial` 时需结合诊断查看未覆盖代码，零条影响不代表整个项目确定无影响。调用示例和状态码见 [API 契约](docs/api-contract.md)。
 
-前端开发可直接使用 [前端交接说明](docs/frontend-handoff.md) 与 [真实 HTTP 响应样例](docs/api-samples/inspect-response.json)。V1 每一步均需重新上传 ZIP；服务器不保留用户项目。
+前端开发可直接使用 [前端交接说明](docs/frontend-handoff.md) 与 [真实 HTTP 响应样例](docs/api-samples/inspect-response.json)。上传页选择“保存并读取项目”后，可以刷新页面并从项目库选择“使用此快照分析”，无需再次上传 ZIP。直接读取 ZIP 的原流程仍可使用。快照接口、存储边界和验收见 [项目快照分析](docs/snapshot-workflow.md)；当前仍为本机工作台，没有账号级项目隔离。
+
+独立人工标注 Benchmark 到位后，可运行：
+
+```powershell
+python -m openimpact.evaluation path/to/benchmark --output .local/evaluation-result.json
+```
+
+Runner 会先验证 manifest、源码/变更/标签 SHA-256 和人工复核元数据，再用静态分析输出与标签比较 Direct、Indirect 和 coverage。它不会运行样本源码，也不会使用项目内 Demo 或 analyzer 输出冒充 Ground Truth。目录与字段要求见 [评测契约](docs/evaluation-contract.md)。
 
 ---
 

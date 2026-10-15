@@ -20,11 +20,31 @@ Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 
 
 | HTTP Method | Path | Content-Type | 用途 | 成功状态 |
 | --- | --- | --- | --- | --- |
+| POST | `/api/v1/projects` | `multipart/form-data` | 上传 ZIP，完成 Inspect，并保存项目/快照记录 | 200 |
+| GET | `/api/v1/projects` | 无 | 分页读取已保存项目摘要，可用 `q` 筛选元数据 | 200 |
+| GET | `/api/v1/projects/{project_id}` | 无 | 读取单个已保存项目及最新快照摘要 | 200 |
+| DELETE | `/api/v1/projects/{project_id}` | 无 | 删除一个本机项目及其快照记录 | 200 |
+| GET | `/api/v1/projects/{project_id}/snapshots` | 无 | 分页读取项目快照摘要 | 200 |
+| DELETE | `/api/v1/projects/{project_id}/snapshots/{snapshot_id}` | 无 | 删除一个本机项目快照 | 200 |
 | POST | `/api/v1/projects/inspect` | `multipart/form-data` | 检查上传 ZIP 的模块、Symbol 与覆盖情况 | 200 |
 | POST | `/api/v1/changes/validate` | `multipart/form-data` | 从上传源码构建并校验 ChangeSpec | 200 |
 | POST | `/api/v1/projects/analyze` | `multipart/form-data` | 在本次上传项目上生成完整影响报告 | 200 |
+| POST | `/api/v1/reports` | `multipart/form-data` | 生成影响报告并保存到本地 SQLite 历史记录 | 200 |
+| GET | `/api/v1/reports` | 无 | 分页读取已保存报告摘要，可用 `q` 筛选元数据 | 200 |
+| GET | `/api/v1/reports/{report_id}` | 无 | 读取单条已保存报告及完整 report JSON | 200 |
+| DELETE | `/api/v1/reports/{report_id}` | 无 | 删除一条本机已保存报告 | 200 |
+| POST | `/api/v1/analysis-tasks` | `multipart/form-data` | 基于已保存快照创建本地分析任务 | 202 |
+| GET | `/api/v1/analysis-tasks` | 无 | 分页读取本地分析任务状态 | 200 |
+| GET | `/api/v1/analysis-tasks/{task_id}` | 无 | 读取单个本地分析任务状态和结果引用 | 200 |
+| POST | `/api/v1/analysis-tasks/{task_id}/retry` | 无 | 基于失败任务的原快照和变更创建一项新任务 | 202 |
 
-三个正式业务接口都需要重新上传 ZIP。V1 不保留用户项目，也不提供项目 ID；每次请求在独立临时目录完成并清理。`expected_fingerprint` 是 ZIP 原始字节的 SHA-256 校验值，不是服务端项目查找键。同一源码重新打包也可能产生不同指纹；修改或重新打包后应重新 inspect。文件名只用于展示项目名称的回退值，不参与指纹计算。不接受服务器本地路径、查询参数或额外表单字段。
+三个核心业务接口仍需要重新上传 ZIP：`/api/v1/projects/inspect`、`/api/v1/changes/validate` 和 `/api/v1/projects/analyze` 每次请求在独立临时目录完成并清理。`expected_fingerprint` 是 ZIP 原始字节的 SHA-256 校验值，不是这些核心接口的服务端项目查找键。同一源码重新打包也可能产生不同指纹；修改或重新打包后应重新 inspect。文件名只用于展示项目名称的回退值，不参与指纹计算。不接受服务器本地路径、查询参数或额外表单字段。
+
+项目库接口是新增的本机持久化能力：`POST /api/v1/projects` 接受同一套 ZIP 安全限制，完成 Inspect 后创建项目记录和快照记录，并把 ZIP 快照保存到 `.openimpact/snapshots/`，可用 `OPENIMPACT_SNAPSHOT_DIR` 覆盖。同名项目会追加新的快照版本，无法识别项目名时仍创建独立项目。该接口返回 `project`、`snapshot` 和本次 `inspect`。前端支持从项目库选择快照直接分析，也支持删除本机项目或快照；删除只影响本机 SQLite 记录和未被其他项目引用的 ZIP 快照文件。现阶段不提供用户归属、权限、团队共享或账号级项目管理。
+
+报告历史接口只保存分析报告 JSON 和摘要元数据，不保存上传 ZIP 或源码压缩包。默认 SQLite 路径为 `.openimpact/openimpact.sqlite3`，可用 `OPENIMPACT_DB_PATH` 覆盖；该目录不应提交到版本库。`GET /api/v1/reports` 支持可选查询参数 `q`，仅筛选项目名、上传文件名、变更领域、变更类型、目标 ID 和覆盖状态等元数据，最长 80 个字符；响应包含 `items`、`limit`、`offset`、`query` 和 `has_more`，前端用 `has_more` 决定是否继续加载下一页。删除历史报告只移除本地保存的报告记录，不修改源码或上传 ZIP。原 `/api/v1/projects/analyze` 保持无持久化行为，避免破坏冻结契约。
+
+分析任务接口是本地任务基础能力：`POST /api/v1/analysis-tasks` 基于已保存快照创建任务，只返回 `queued`。独立的本机 `python -m openimpact.worker` 以 SQLite 租约领取任务、执行分析并把成功结果保存为历史报告；API 与 Worker 必须指向相同的本地数据库和快照目录。标准前端在项目库快照或直接上传 ZIP 的“开始分析”中都会创建或复用任务并轮询结果；直接上传 ZIP 会先调用项目库保存接口生成快照。旧的即时上传 Analyze 接口仍保留以兼容冻结契约。任务接口不接收 ZIP 文件，不是生产级队列；当前没有用户归属或自动重试。失败任务支持手动创建一项新的重试任务，旧任务保留不变。
 
 三个接口的 `file` 均为 multipart 文件字段，建议浏览器以 `application/zip` 上传；服务以 ZIP 内容及安全规则判断，不依赖客户端声明的 MIME。每个请求的 multipart 总量最多 5 MiB + 64 KiB，其中 ZIP 文件最多 5 MiB。其余 ZIP 条目和解压限额见下文。前端交接示例见 [frontend-handoff.md](frontend-handoff.md)，真实响应见 [api-samples](api-samples)。
 
@@ -39,6 +59,12 @@ pip install -e .
 python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
 ```
 
+需要处理任务时，在另一个终端运行：
+
+```powershell
+python -m openimpact.worker
+```
+
 运行自动化测试时可安装 `pip install -e ".[test]"`；`httpx` 和 `pytest` 位于该可选依赖中。服务入口为 `openimpact.api:app`。目前 Demo 从当前源码仓库读取，运行服务时需保留 `examples/signature_change/`。
 
 ## `GET /api/v1/health`
@@ -48,6 +74,88 @@ python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
 ```json
 {"status": "ok", "version": "0.1.0"}
 ```
+
+## 项目库接口
+
+`POST /api/v1/projects` 请求体为 `multipart/form-data`，字段与 Inspect 相同：恰好一个 `file` ZIP 文件，可选 `analysis_root`。它会执行同一套 ZIP 安全校验和 Inspect，然后保存项目记录、快照记录和原始 ZIP 快照。若 `inspect.project_name` 与已有项目一致，保存会复用该项目并追加一个快照；响应的 `project.latest_snapshot` 指向刚保存的快照。
+
+成功响应为 HTTP 200：
+
+```json
+{
+  "project": {
+    "id": "<32位hex>",
+    "created_at": "2026-10-13T00:00:00.000000+00:00",
+    "updated_at": "2026-10-13T00:00:00.000000+00:00",
+    "name": "signature_change",
+    "latest_snapshot": {"id": "<32位hex>", "project_id": "<32位hex>"}
+  },
+  "snapshot": {
+    "id": "<32位hex>",
+    "project_id": "<32位hex>",
+    "project_fingerprint": "<ZIP SHA-256>",
+    "source_filename": "signature_change.zip",
+    "analysis_root": ".",
+    "python_file_count": 4,
+    "function_count": 4,
+    "coverage_status": "complete",
+    "summary": {"source_root": "signature_change"}
+  },
+  "inspect": {"project_name": "signature_change", "symbols": []}
+}
+```
+
+`project` 与 `snapshot` 响应不暴露服务端 `storage_path`。ZIP 快照路径只保存在本地 SQLite 中；快照接口按 ID 读取它，不接受客户端文件路径。上方 JSON 为字段节选，真实 Inspect 仍包含完整函数列表，两个位置的 snapshot 内容一致。
+
+`GET /api/v1/projects` 支持 `limit`、`offset` 和可选 `q`，规则与报告历史一致：`limit` 为 1 到 50，`offset` 不能为负数，`q` 最多 80 字符。响应包含 `items`、`limit`、`offset`、`query` 和 `has_more`。`q` 仅筛选项目名、上传文件名、指纹和覆盖状态。
+
+`GET /api/v1/projects/{project_id}` 读取单个项目及最新快照摘要。`GET /api/v1/projects/{project_id}/snapshots` 分页读取该项目的快照摘要。非法或不存在的项目 ID 返回 404 `project_not_found`。
+
+`DELETE /api/v1/projects/{project_id}` 删除一个本机项目及其快照记录。`DELETE /api/v1/projects/{project_id}/snapshots/{snapshot_id}` 删除单个快照；如果这是项目最后一个快照，项目记录也会被删除，响应中的 `project_deleted` 为 `true`。ZIP 快照文件只有在没有其他快照记录引用同一 SHA-256 指纹时才会删除，避免同一文件被多个项目复用时误删。删除接口不修改用户源码仓库，不删除历史报告。
+
+### 复用快照
+
+新增 `POST /api/v1/snapshots/{snapshot_id}/{operation}`，`operation` 支持：
+
+| operation | 必填业务字段 | 可选业务字段 | 返回 |
+| --- | --- | --- | --- |
+| `inspect` | 无 | 无 | 原 Inspect 结果及 `snapshot` 元数据 |
+| `validate` | `change` | 无 | 原 Validate 结果 |
+| `analyze` | `change` | 无 | 原分析报告 |
+| `reports` | `change` | 无 | `{record, report}`，重建并保存服务端报告 |
+| `source` | 无 | `path` | 原源码目录/文件响应 |
+| `questions` | `change`, `question` | `finding_index`, `history` | 原证据追问响应 |
+| `question-suggestions` | `change` | `finding_index` | 原推荐追问响应 |
+
+使用表单文本字段，`change`、`history` 仍为 JSON 字符串。除 Inspect 可选外，每次必须发送 `expected_fingerprint`；不发送 `file` 或 `analysis_root`。后端使用保存时的源码根目录，每次核对 ZIP 字节和指纹，并复用安全解包、静态分析、临时目录清理。请求体最大 64 KiB；重复字段、额外字段、文件字段或查询参数返回 400，缺必填字段或错误指纹格式返回 422。
+
+成功业务结果追加 `project_id`、`project_snapshot_id`、`project_fingerprint`；`reports` 中这些字段位于 `report` 内，并随完整报告保存。原报告 schema_version 和影响证据定义不变。已存在的即时上传接口没有增加必填字段或改变响应。
+
+快照不存在/ID 非法：404 `snapshot_not_found`；文件丢失：404 `snapshot_missing`；存储字节损坏/超限：409 `snapshot_corrupted`；请求指纹不匹配：409 `fingerprint_mismatch`；路径或数据库不可用：503 `snapshot_unavailable`。错误不会返回服务器路径或用固定样例替代真实项目。详细验收见 [项目快照分析](snapshot-workflow.md)。
+
+### 本地分析任务
+
+`POST /api/v1/analysis-tasks` 请求体为 `multipart/form-data`，只接受：
+
+| 字段 | 必填 | 含义 |
+| --- | --- | --- |
+| `project_snapshot_id` | 是 | 已保存快照 ID，32 位 hex |
+| `change` | 是 | JSON 对象，沿用 Analyze 的变更配置 |
+| `expected_fingerprint` | 是 | 保存快照 ZIP 的 SHA-256，用于执行时核对字节 |
+
+成功返回 HTTP 202：
+
+```json
+{"task":{"id":"<32位hex>","status":"queued","project_snapshot_id":"<32位hex>","change":{}}}
+```
+
+Worker 领取后会把任务更新为 `running`，成功后保存报告并写入 `result_report_id`，失败则写入安全的 `error_code` 和 `error_message`。租约超时的 `running` 任务可以由后续 Worker 重新领取；迟到的旧 Worker 不能覆盖新 Worker 的结果。任务执行沿用快照分析的安全读取、指纹核对、静态分析和报告保存规则；不会执行用户源码，也不会把服务器路径写入响应。
+
+`GET /api/v1/analysis-tasks` 支持 `limit` 与 `offset`，规则为 `limit` 1 到 50，`offset` 非负；响应包含 `items`、`limit`、`offset` 和 `has_more`。`GET /api/v1/analysis-tasks/{task_id}` 返回单个任务；任务 ID 非法或不存在返回 404 `task_not_found`。
+
+`POST /api/v1/analysis-tasks/{task_id}/retry` 不接受请求体或查询参数。它只接受状态为 `failed` 的已有任务，读取同一个项目快照和原始变更配置后创建新的 queued 任务，返回 HTTP 202 和新任务对象。旧失败任务保持原有状态和诊断，便于复核；没有重新执行或正在执行的任务返回 409 `task_not_retryable`。快照不存在、缺失或损坏时沿用快照错误码。
+
+输入错误：未知字段、重复字段、查询参数或文件字段返回 400 `unsupported_input`；`change` 不是 JSON 对象返回 422 `invalid_change_json`；分页错误返回 422 `invalid_pagination`；快照不存在按快照接口返回 404 `snapshot_not_found`。创建成功后的指纹不匹配、快照损坏或分析错误会记录为 `failed` 任务，而不是伪造成功报告。
 
 ## `POST /api/v1/demo/analyze`
 
@@ -317,9 +425,13 @@ curl.exe -X POST -F "file=@project.zip;type=application/zip" -F "change=<change.
 | 422 | `invalid_fingerprint` | `expected_fingerprint` 不是 64 位十六进制值 |
 | 422 | `validation.valid=false` | ChangeSpec 配置、目标或 Core 签名校验失败；详见 `validation.diagnostics` 的 `code`、`message` |
 | 500 | `analysis_failed` | 上传项目通过 ZIP 与 ChangeSpec 校验后，内部影响分析失败 |
+| 503 | `database_unavailable` | 项目库或报告历史数据库无法写入或读取 |
+| 404 | `project_not_found` | 项目 ID 不存在 |
+| 404 | `report_not_found` | 历史报告 ID 不存在 |
+| 422 | `invalid_pagination` | 项目库或历史报告分页参数不合法 |
 | 500 | `internal_error` | 未被既有错误分支处理的后端异常（例如建立上传项目索引失败）；仅返回固定安全消息 |
 
-缺少必填字段或 multipart 格式错误时，FastAPI 返回标准 `detail` 格式的 422 / 400；未知路径或 HTTP 方法返回标准 404 / 405。当前接口无认证、项目持久化、Worker 或任意服务器路径输入能力。
+缺少必填字段或 multipart 格式错误时，FastAPI 返回标准 `detail` 格式的 422 / 400；未知路径或 HTTP 方法返回标准 404 / 405。当前接口无认证、Worker 或任意服务器路径输入能力；项目库只保存本机项目/快照摘要和受控 ZIP 快照，报告历史只保存 report JSON 和摘要元数据。
 
 普通 ZIP/输入错误和 HTTP 500 使用 `{"error":{"code":"...","message":"..."}}`；ChangeSpec 配置或校验错误使用 422 的 `validation.valid=false` 与 `validation.diagnostics[]`；FastAPI 对缺字段等框架级错误使用 `{"detail": ...}`。前端需按响应形状和状态码分支处理，不能假设所有非 200 响应都有相同结构。
 

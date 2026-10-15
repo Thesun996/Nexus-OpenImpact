@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { apiClient } from '../../api/client.js'
 import { useWorkflow } from '../../state/WorkflowContext.jsx'
+import { getProjectSource } from '../../state/workflow.js'
 import { createRequestGate, sourceTree } from './requestGate.js'
 import './workspace.css'
 
@@ -8,9 +9,14 @@ const SourceContext = createContext(null)
 const PAGE_LINES = 200
 export const useSourceWorkspace = () => useContext(SourceContext)
 
+// Historical evidence must never open source from an unrelated active project.
+export function WithoutProjectSource({ children }) {
+  return <SourceContext.Provider value={null}>{children}</SourceContext.Provider>
+}
+
 export function SourceLink({ location, sourceHash }) {
   const workspace = useSourceWorkspace()
-  if (!workspace?.snapshot.file || !workspace.snapshot.fingerprint || !location?.file) return null
+  if (!workspace?.snapshot.source || !workspace.snapshot.fingerprint || !location?.file) return null
   return <button type="button" className="oi-source-link" onClick={() => workspace.openFile(location.file, location.line, sourceHash)}>打开完整源码</button>
 }
 
@@ -21,9 +27,10 @@ function Folder({ node, select, selected }) {
 
 export default function SourceWorkspace({ children }) {
   const { state } = useWorkflow()
-  const scope = useMemo(() => ({}), [state.file, state.projectFingerprint, state.analysisRoot])
+  const source = useMemo(() => getProjectSource(state), [state.file, state.snapshot])
+  const scope = useMemo(() => ({}), [source, state.projectFingerprint, state.analysisRoot])
   const latestScope = useRef(scope); latestScope.current = scope
-  const snapshot = { file: state.file, fingerprint: state.projectFingerprint, analysisRoot: state.analysisRoot,
+  const snapshot = { source, fingerprint: state.projectFingerprint, analysisRoot: state.analysisRoot,
     mode: state.mode, revision: state.revision, report: state.report, change: state.validatedChange?.payload }
   const [open, setOpen] = useState(false)
   const [reading, setReading] = useState(null)
@@ -62,7 +69,7 @@ export default function SourceWorkspace({ children }) {
   }, [line, page, current?.file?.path])
 
   async function openFile(path, targetLine = 1, expectedHash) {
-    if (!snapshot.file || !snapshot.fingerprint) return
+    if (!snapshot.source || !snapshot.fingerprint) return
     setOpen(true); setError(null); setLine(targetLine || 1); setPage(Math.floor(Math.max(0, targetLine - 1) / PAGE_LINES)); setSearch('')
     const request = gate.current.begin()
     const requestedScope = scope
@@ -83,7 +90,7 @@ export default function SourceWorkspace({ children }) {
     // Hide the old file while the requested file is being read.
     setReading(previous => previous?.scope === scope ? { scope, payload: { ...previous.payload, file: null } } : null)
     try {
-      const payload = await apiClient.source(snapshot.file, snapshot.fingerprint, { path, analysisRoot: snapshot.analysisRoot, signal: request.controller.signal })
+      const payload = await apiClient.source(snapshot.source, snapshot.fingerprint, { path, analysisRoot: snapshot.analysisRoot, signal: request.controller.signal })
       if (!gate.current.current(request) || latestScope.current !== requestedScope) return
       apply(payload); cache.current.set(path || '', payload)
     } catch (failure) {
@@ -105,7 +112,7 @@ export default function SourceWorkspace({ children }) {
   }
   return <SourceContext.Provider value={{ snapshot, openFile }}>
     {children}
-    <button className="oi-source-launcher" type="button" title="浏览当前项目的 Python 源码" aria-label="打开项目源码" disabled={!snapshot.file || !snapshot.fingerprint}
+    <button className="oi-source-launcher" type="button" title="浏览当前项目的 Python 源码" aria-label="打开项目源码" disabled={!snapshot.source || !snapshot.fingerprint}
       onClick={() => { setOpen(true); if (!current) void openFile() }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h7l2 3h9v11H3z" /><path d="m10 12-3 3 3 3m4-6 3 3-3 3" /></svg><span>项目源码</span></button>
     <dialog className="oi-source-dialog" ref={dialog} aria-labelledby="oi-source-title" onClose={() => setOpen(false)} onCancel={() => { gate.current.cancel(); setLoading(false); setOpen(false) }}>
       <header><div><h2 id="oi-source-title">项目源码</h2><p>只读阅读 · 文件可打开不代表已完整分析</p></div><button type="button" className="ghost-action" onClick={() => { gate.current.cancel(); setLoading(false); setOpen(false) }}>关闭源码</button></header>

@@ -7,7 +7,7 @@ import ExplanationText from '../report/ExplanationText.jsx'
 export default function ReportQuestions({ report, findingIndex }) {
   const workspace = useSourceWorkspace()
   const snapshot = workspace?.snapshot
-  const scope = useMemo(() => ({}), [report, findingIndex, snapshot?.revision, snapshot?.file])
+  const scope = useMemo(() => ({}), [report, findingIndex, snapshot?.revision, snapshot?.source])
   const latest = useRef(scope); latest.current = scope
   const [conversation, setConversation] = useState({ scope, turns: [] })
   const [recommendations, setRecommendations] = useState({ scope, result: null })
@@ -18,7 +18,7 @@ export default function ReportQuestions({ report, findingIndex }) {
   const pending = useRef(false)
   const turns = conversation.scope === scope ? conversation.turns : []
   const suggestions = recommendations.scope === scope ? recommendations.result : null
-  const enabled = snapshot?.mode === 'project' && snapshot.file && snapshot.fingerprint && snapshot.change && snapshot.report === report
+  const enabled = snapshot?.mode === 'project' && snapshot.source && snapshot.fingerprint && snapshot.change && snapshot.report === report
   useEffect(() => {
     gate.current.cancel(); pending.current = false; setConversation({ scope, turns: [] }); setRecommendations({ scope, result: null }); setDraft(''); setBusy(''); setError(null)
     return () => gate.current.cancel()
@@ -32,14 +32,14 @@ export default function ReportQuestions({ report, findingIndex }) {
     if (kind === 'suggestions') setRecommendations({ scope, result: null })
     try {
       if (kind === 'suggestions') {
-        const result = await apiClient.questionSuggestions(snapshot.file, snapshot.change, snapshot.fingerprint, {
+        const result = await apiClient.questionSuggestions(snapshot.source, snapshot.change, snapshot.fingerprint, {
           findingIndex, analysisRoot: snapshot.analysisRoot, signal: request.controller.signal })
         if (!gate.current.current(request) || latest.current !== requestedScope) return
         setRecommendations({ scope, result: checkedSuggestions(result, snapshot.fingerprint, findingIndex) })
         return
       }
       const history = turns.slice(-3).flatMap(turn => [{ role: 'user', content: turn.question.slice(0, 800) }, { role: 'assistant', content: turn.answer.slice(0, 800) }])
-      const result = await apiClient.question(snapshot.file, snapshot.change, snapshot.fingerprint, { question: question.trim(), findingIndex,
+      const result = await apiClient.question(snapshot.source, snapshot.change, snapshot.fingerprint, { question: question.trim(), findingIndex,
         history, analysisRoot: snapshot.analysisRoot, signal: request.controller.signal })
       if (!gate.current.current(request) || latest.current !== requestedScope) return
       if (result.project_fingerprint !== snapshot.fingerprint || result.finding_index !== (findingIndex ?? null)

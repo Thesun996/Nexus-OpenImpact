@@ -27,6 +27,9 @@ def demo_zip() -> bytes:
             if path.is_file():
                 info = zipfile.ZipInfo(f"signature_change/{path.name}", (2026, 1, 1, 0, 0, 0))
                 info.compress_type = zipfile.ZIP_DEFLATED
+                # ZipInfo otherwise inherits Windows/Unix host metadata, changing
+                # the archive digest even when all source bytes are identical.
+                info.create_system = 3
                 data = path.read_bytes()
                 if path.suffix in {".py", ".json"}:
                     # This frozen demo fixture uses Git's LF source bytes regardless

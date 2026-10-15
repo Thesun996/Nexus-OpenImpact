@@ -4,6 +4,8 @@
 
 **结论：当前可见仓库没有成员 B 的可核验独立评测交付。本轮完成评测契约、交付缺口及实际回归记录，独立 Benchmark 评测待真实成果。** 未创建人工标签、未运行独立 Evaluation Runner，所有 Benchmark 指标为未测量。
 
+> 2026-10-15 补充：仓库后来新增了 `src/openimpact/evaluation.py`，作为只接受冻结人工标签和哈希校验输入的本地 Runner。它不属于本次 2026-10-04 的成员 B 成果审计，也没有改变“尚无独立数据集、人工 Ground Truth 或可报告 Benchmark 分数”的结论。
+
 评测要求见 [evaluation-contract.md](evaluation-contract.md)；本次机器可读状态见 [phase6.6-evaluation-readiness.json](phase6.6-evaluation-readiness.json)。
 
 ## 1. 成员 B 成果审计

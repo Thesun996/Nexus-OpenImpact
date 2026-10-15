@@ -18,7 +18,7 @@ export function FunctionSelectView({ state, query, onQueryChange, onSelect, onSe
     <DomainSelector domain="function" mode={state.mode} onSelect={onSelectDomain} />
     <WorkflowNotes current={2} mode={state.mode} /><ErrorNotice error={state.error} />
     {!inspect ? <EmptyWorkflow title={state.loading.inspect ? '正在读取项目' : '尚未读取项目'} message={state.loading.inspect ? '正在上传当前 ZIP 并获取函数列表，请等待请求结束。' : '请返回上传页选择 ZIP 并读取项目，或明确打开演示项目。当前没有可选择的函数。'} navigate={navigate} /> : <>
-      <CoverageNotice coverage={inspect.coverage} /><ProjectOverview inspect={inspect} file={state.file} fingerprint={state.projectFingerprint} mode={state.mode} />
+      <CoverageNotice coverage={inspect.coverage} /><ProjectOverview inspect={inspect} file={state.file} snapshot={state.snapshot} fingerprint={state.projectFingerprint} mode={state.mode} />
       <div className="oi-symbol-workspace">
         <section className="oi-symbol-index" aria-label="函数列表">
           <header><h2>模块级函数</h2><span>{visible.length} / {symbols.length} 条</span></header>

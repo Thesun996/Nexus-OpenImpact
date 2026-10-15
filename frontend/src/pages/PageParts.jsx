@@ -15,7 +15,7 @@ export function ModeNotice({ mode }) {
       <p>
       {mode === 'demo'
         ? '演示模式：当前展示仓库 signature_change 的固定接口样例。结果只属于演示文件，未请求真实分析接口。'
-        : '项目模式：读取、校验和分析会重复上传本次选择的原始 ZIP，按项目指纹校验同一项目版本。刷新页面后需重新选择文件。'}
+        : '项目模式：按项目指纹校验同一项目版本。直接读取的 ZIP 保留在当前会话；已保存的项目可以从项目库重新打开。'}
       </p>
     </details>
   );
@@ -27,6 +27,7 @@ export function ErrorNotice({ error }) {
     <section className="state-message error" role="alert">
       <b>{diagnosticLabel(error.code)}</b>：{reasonLabel(error.message)}
       {error.code === 'fingerprint_mismatch' && <p>本次 ZIP 与此前读取的项目指纹不一致，已清除旧项目结果。请<a href="#upload">返回上传页</a>重新读取当前 ZIP，再选择目标并校验变更。</p>}
+      {error.code === 'task_wait_timeout' && <p>任务已保留在本机任务库中，但在等待时间内没有完成。请确认后端与本机 Worker 都已启动，再点击“继续查询”或前往<a href="#tasks">分析任务</a>刷新状态。</p>}
       <details><summary>技术详情</summary><code>{error.code}</code><p>{error.message}</p></details>
       {error.diagnostics && <DiagnosticsList diagnostics={error.diagnostics} showEmptyState={false} />}
     </section>

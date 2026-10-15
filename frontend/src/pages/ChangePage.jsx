@@ -1,5 +1,6 @@
 import ModuleChangeView from './ModuleChangeView.jsx';
 import SymbolChangeView from './SymbolChangeView.jsx';
+import { useEffect, useRef } from 'react';
 import { useWorkflow } from '../state/WorkflowContext.jsx';
 import { getSelectedSymbol } from '../state/workflow.js';
 import { CHANGE_TYPES, describeChange, getParameterChoices, previewSignature } from '../state/changeDraft.js';
@@ -45,7 +46,20 @@ function draftSummary(change, definition) {
 }
 
 export function ChangeView(props) {
-  return props.state.changeDomain === 'symbol' ? <SymbolChangeView {...props} /> : props.state.changeDomain === 'module' ? <ModuleChangeView {...props} /> : <FunctionChangeView {...props} />;
+  const { state, navigate, onAnalyze } = props;
+  const task = state.analysisTask;
+  const labels = { queued: '任务已提交，等待分析', running: '正在分析项目', succeeded: '分析已完成，正在读取报告', failed: '分析任务失败' };
+  return <>
+    {task && <section className="state-message oi-task-progress" role="status" aria-live="polite">
+      <div><b>{labels[task.status]}</b><p>结果会保存到历史报告。任务 {task.id.slice(0, 8)}</p></div>
+      <div className="heading-actions">
+        {state.error?.stage === 'analyze' && task.status !== 'failed' && !state.loading.analyze
+          && <button className="ghost-action" type="button" onClick={onAnalyze}>继续查询</button>}
+        <button className="ghost-action" type="button" onClick={() => navigate('tasks')}>查看任务</button>
+      </div>
+    </section>}
+    {state.changeDomain === 'symbol' ? <SymbolChangeView {...props} /> : state.changeDomain === 'module' ? <ModuleChangeView {...props} /> : <FunctionChangeView {...props} />}
+  </>;
 }
 
 function FunctionChangeView({ state, onSelectChangeType, onUpdateChange, onValidate, onAnalyze, navigate }) {
@@ -110,6 +124,10 @@ function FunctionChangeView({ state, onSelectChangeType, onUpdateChange, onValid
 
 export default function ChangePage({ navigate }) {
   const { state, actions } = useWorkflow();
-  async function analyze() { if (await actions.analyzeProject()) navigate('report'); }
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  async function analyze() {
+    if (await actions.analyzeProject() && mounted.current && /^#\/?change$/.test(window.location.hash)) navigate('report');
+  }
   return <ChangeView state={state} onSelectChangeType={actions.selectChangeType} onUpdateChange={actions.updateChange} onValidate={() => { void actions.validateChange(); }} onAnalyze={analyze} navigate={navigate} />;
 }
