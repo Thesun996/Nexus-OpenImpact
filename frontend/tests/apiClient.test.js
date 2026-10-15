@@ -187,6 +187,21 @@ test('every project operation forwards cancellation without retrying', async () 
   assert.equal(calls, 11)
 })
 
+test('task list sends search and status with every page and preserves cancellation', async () => {
+  const controller = new AbortController()
+  const client = createApiClient({ fetchImpl: async (url, options) => {
+    const params = new URL(url, 'http://localhost').searchParams
+    assert.equal(params.get('q'), 'format 新增必填参数')
+    assert.equal(params.get('status'), 'failed')
+    assert.equal(params.get('limit'), '5')
+    assert.equal(params.get('offset'), '20')
+    assert.equal(options.signal, controller.signal)
+    return jsonResponse({ items: [], has_more: false })
+  } })
+  await client.listAnalysisTasks({ query: ' format 新增必填参数 ', status: 'failed',
+    limit: 5, offset: 20, signal: controller.signal })
+})
+
 test('409 fingerprint mismatch preserves the backend error for a clear UI failure', async () => {
   const payload = { error: { code: 'fingerprint_mismatch', message: '项目指纹与当前上传文件不一致。' } }
   const client = createApiClient({ fetchImpl: async () => jsonResponse(payload, 409) })

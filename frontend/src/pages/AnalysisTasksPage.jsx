@@ -45,8 +45,14 @@ export function taskChangeLabel(change) {
 export function matchesTaskFilter(task, query, status) {
   if (status && task.status !== status) return false;
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const change = task.change || {};
+  const operation = change.operation || {};
   const haystack = [taskTargetLabel(task.change), taskChangeLabel(task.change), task.status,
-    task.project_snapshot_id, task.result_report_id, task.id].filter(Boolean).join(' ').toLowerCase();
+    task.project_snapshot_id, task.result_report_id, task.id,
+    operation.change_type, change.change_type,
+    ...[change, operation].flatMap(payload => [payload.parameter_name, payload.new_name,
+      payload.new_parameter_name, payload.new_module_name, payload.new_symbol_name]),
+  ].filter(Boolean).join(' ').toLowerCase();
   return terms.every(term => haystack.includes(term));
 }
 
@@ -88,22 +94,39 @@ export default function AnalysisTasksPage({ navigate }) {
   const gate = useRef(createRequestGate());
   const offset = useRef(0);
   const retrying = useRef(false);
+  const mounted = useRef(true);
   const [retryingTaskId, setRetryingTaskId] = useState(null);
-  const busy = status.startsWith('loading');
-  const visibleTasks = tasks.filter(task => matchesTaskFilter(task, query, statusFilter));
+  const busy = status.startsWith('loading') || !!retryingTaskId;
+
+  function updateTask(task) {
+    // A status transition changes filtered offsets; reload before paging further.
+    if (statusFilter && task.status !== statusFilter) {
+      void loadTasks(false, null);
+      return false;
+    }
+    setSelected(task);
+    setTasks(current => current.map(item => item.id === task.id ? task : item));
+    return true;
+  }
+
+  function resetFilter() {
+    gate.current.cancel();
+    setTasks([]); setSelected(null); setResult(null); setReadingReport(false);
+    setHasMore(false); setError(null); setStatus('loading'); offset.current = 0;
+  }
 
   async function readTask(id, request) {
     const signal = request.controller.signal;
     const task = await apiClient.getAnalysisTask(id, { signal });
     if (!gate.current.current(request)) return;
     checkedTask(task, { id });
-    setSelected(task); setStatus('ready');
+    if (!updateTask(task)) return;
+    setStatus('ready');
     if (task.status === 'failed') return;
     try {
       const record = await waitForAnalysisTask(apiClient, task, { signal, onUpdate: updated => {
         if (!gate.current.current(request)) return;
-        setSelected(updated); setReadingReport(updated.status === 'succeeded');
-        setTasks(current => current.map(item => item.id === updated.id ? updated : item));
+        if (updateTask(updated)) setReadingReport(updated.status === 'succeeded');
       } });
       if (gate.current.current(request)) setResult(record);
     } finally { if (gate.current.current(request)) setReadingReport(false); }
@@ -115,7 +138,8 @@ export default function AnalysisTasksPage({ navigate }) {
     setResult(null); setSelected(null); setReadingReport(false);
     if (!append) { setTasks([]); setHasMore(false); offset.current = 0; }
     try {
-      const payload = await apiClient.listAnalysisTasks({ signal: request.controller.signal, limit: TASK_PAGE_SIZE, offset: append ? offset.current : 0 });
+      const payload = await apiClient.listAnalysisTasks({ signal: request.controller.signal,
+        limit: TASK_PAGE_SIZE, offset: append ? offset.current : 0, query, status: statusFilter });
       if (!gate.current.current(request)) return;
       if (!Array.isArray(payload.items)) throw new Error('任务列表响应不完整，请重新读取。');
       const items = payload.items;
@@ -123,7 +147,7 @@ export default function AnalysisTasksPage({ navigate }) {
       offset.current = (append ? offset.current : 0) + items.length;
       setTasks(current => append ? mergeTasks(current, items) : items);
       setHasMore(payload.has_more === true);
-      const nextSelected = append ? preferredId : items.some(item => item.id === preferredId) ? preferredId : items[0]?.id;
+      const nextSelected = append ? preferredId || items[0]?.id : items.some(item => item.id === preferredId) ? preferredId : items[0]?.id;
       if (nextSelected) await readTask(nextSelected, request);
       if (gate.current.current(request)) setStatus('ready');
     } catch (failure) {
@@ -153,29 +177,38 @@ export default function AnalysisTasksPage({ navigate }) {
       const payload = await apiClient.retryAnalysisTask(task.id, { signal: request.controller.signal });
       if (!gate.current.current(request)) return;
       const nextTask = checkedTask(payload.task, { project_snapshot_id: task.project_snapshot_id, change: task.change });
-      setTasks(current => mergeTasks([nextTask], current));
-      await readTask(nextTask.id, request);
-      if (gate.current.current(request)) setStatus('ready');
+      // A retry inserts a new first row; do not keep an offset from the old list.
+      retrying.current = false; setRetryingTaskId(null);
+      if (query || statusFilter) {
+        resetFilter(); setQuery(''); setStatusFilter('');
+      } else {
+        await loadTasks(false, nextTask.id);
+      }
     } catch (failure) {
       if (gate.current.current(request) && failure.name !== 'AbortError') {
         setError(failure.message || '无法重新执行该任务。'); setStatus('error');
       }
     } finally {
       retrying.current = false;
-      if (gate.current.current(request)) setRetryingTaskId(null);
+      if (mounted.current) setRetryingTaskId(null);
     }
   }
 
   useEffect(() => {
-    void loadTasks(false, null);
-    return () => gate.current.cancel();
+    mounted.current = true;
+    return () => { mounted.current = false; gate.current.cancel(); };
   }, []);
+  useEffect(() => {
+    resetFilter();
+    const timeout = window.setTimeout(() => void loadTasks(false, null), query ? 180 : 0);
+    return () => { window.clearTimeout(timeout); gate.current.cancel(); };
+  }, [query, statusFilter]);
 
   return <div className="oi-history-page oi-task-page">
     <section className="page-heading">
       <div><h1>分析任务</h1><p>查看分析进度与已保存的结果</p></div>
       <div className="heading-actions">
-        <span>{tasks.length ? `显示 ${visibleTasks.length} / ${tasks.length} 个任务` : ''}</span>
+        <span>{tasks.length ? `已读取 ${tasks.length} 个${query.trim() || statusFilter ? '匹配' : ''}任务` : ''}</span>
         <button className="ghost-action" type="button" onClick={() => void loadTasks()} disabled={busy}>刷新</button>
         <button className="ghost-action" type="button" onClick={() => navigate('projects')}>项目库</button>
       </div>
@@ -185,9 +218,11 @@ export default function AnalysisTasksPage({ navigate }) {
       <div className="oi-history-list" aria-label="分析任务列表">
         <div className="oi-history-filter oi-task-filter">
           <label htmlFor="oi-task-search">筛选分析任务</label>
-          <input id="oi-task-search" type="search" maxLength={80} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="目标、变更、任务 ID…" />
+          <input id="oi-task-search" type="search" maxLength={80} value={query} disabled={!!retryingTaskId}
+            onChange={(event) => { resetFilter(); setQuery(event.target.value); }} placeholder="目标、变更、任务 ID…" />
           <label htmlFor="oi-task-status">任务状态</label>
-          <select id="oi-task-status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <select id="oi-task-status" value={statusFilter} disabled={!!retryingTaskId}
+            onChange={(event) => { resetFilter(); setStatusFilter(event.target.value); }}>
             <option value="">全部状态</option>
             <option value="queued">排队中</option>
             <option value="running">分析中</option>
@@ -195,13 +230,13 @@ export default function AnalysisTasksPage({ navigate }) {
             <option value="failed">失败</option>
           </select>
         </div>
-        {visibleTasks.length ? visibleTasks.map((task) => <article key={task.id} className={selected?.id === task.id ? 'oi-history-row is-selected' : 'oi-history-row'}>
+        {tasks.length ? tasks.map((task) => <article key={task.id} className={selected?.id === task.id ? 'oi-history-row is-selected' : 'oi-history-row'}>
           <button className="oi-history-open" type="button" aria-pressed={selected?.id === task.id} onClick={() => void openTask(task.id)} disabled={busy}>
             <span><b>{taskTargetLabel(task.change)}</b><small>{formatTime(task.updated_at)}</small></span>
             <code>{taskChangeLabel(task.change)}</code>
             <span><span className={`oi-task-status is-${task.status || 'unknown'}`}>{taskStatusLabel(task.status)}</span>{task.result_report_id ? ` · 报告 ${task.result_report_id.slice(0, 8)}` : ''}</span>
           </button>
-        </article>) : <div className="oi-history-empty" role="status"><b>{busy ? '正在读取分析任务' : error ? '分析任务暂时不可用' : tasks.length ? '没有匹配的分析任务' : '还没有分析任务'}</b></div>}
+        </article>) : <div className="oi-history-empty" role="status"><b>{busy ? '正在读取分析任务' : error ? '分析任务暂时不可用' : query.trim() || statusFilter ? '没有匹配的分析任务' : '还没有分析任务'}</b></div>}
         {tasks.length > 0 && hasMore && <div className="oi-history-more"><button className="ghost-action" type="button" onClick={() => void loadTasks(true)} disabled={busy}>{status === 'loading-more' ? '加载中…' : '加载更多'}</button></div>}
       </div>
       <div className="oi-history-detail"><TaskDetail task={selected} onRetry={retryTask} retrying={retryingTaskId === selected?.id} />

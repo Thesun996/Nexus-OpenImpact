@@ -8,7 +8,9 @@ import time
 import pytest
 
 from openimpact import api
-from openimpact.storage import create_analysis_task, get_analysis_task
+from openimpact.storage import (
+    claim_next_analysis_task, connect, create_analysis_task, get_analysis_task, update_analysis_task,
+)
 from openimpact.worker import run_once
 from test_backend_stability import live_backend, make_zip, CHANGE
 from test_report_storage_api import demo_zip
@@ -83,6 +85,117 @@ def test_task_preserves_source_root_and_matches_synchronous_evidence(task_client
     assert record["analysis_root"] == record["report"]["analysis_layout"]["analysis_root"] == "src"
     for key in ("change", "summary", "evidences", "explanations", "project_snapshot_id", "project_id"):
         assert record["report"][key] == sync[key]
+
+
+def test_replaced_worker_cannot_leave_an_unlinked_report(task_client, monkeypatch):
+    snapshot = save_snapshot(task_client, demo_zip())
+    task = submit_task(task_client, snapshot)
+    original = api._analyze_zip
+    replacement = []
+
+    def analyze_after_takeover(*args, **kwargs):
+        with connect() as connection:
+            connection.execute("UPDATE analysis_tasks SET lease_expires_at = ? WHERE id = ?",
+                               ("2000-01-01T00:00:00+00:00", task["id"]))
+        replacement.append(claim_next_analysis_task(worker_id="replacement"))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(api, "_analyze_zip", analyze_after_takeover)
+    assert run_once(worker_id="original") is True
+    assert get_analysis_task(task["id"])["status"] == "running"
+    assert task_client.get("/api/v1/reports").json()["items"] == []
+
+    monkeypatch.setattr(api, "_analyze_zip", original)
+    api._run_claimed_analysis_task(replacement[0], "replacement")
+    finished = get_analysis_task(task["id"])
+    assert finished["status"] == "succeeded"
+    assert [r["id"] for r in task_client.get("/api/v1/reports").json()["items"]] == [finished["result_report_id"]]
+    # Re-delivery of a completed claim must not create a second history entry.
+    api._run_claimed_analysis_task(replacement[0], "replacement")
+    assert len(task_client.get("/api/v1/reports").json()["items"]) == 1
+
+
+def test_report_save_rolls_back_if_task_completion_fails(task_client):
+    snapshot = save_snapshot(task_client, demo_zip())
+    task = submit_task(task_client, snapshot)
+    with connect() as connection:
+        connection.execute("""
+            CREATE TRIGGER fail_completion BEFORE UPDATE ON analysis_tasks
+            WHEN NEW.status = 'succeeded'
+            BEGIN SELECT RAISE(ABORT, 'simulated completion failure'); END
+        """)
+    assert run_once(worker_id="test-rollback") is True
+    assert get_analysis_task(task["id"])["status"] == "failed"
+    assert task_client.get("/api/v1/reports").json()["items"] == []
+
+
+def test_task_filters_search_all_records_before_pagination(task_client):
+    old = []
+    for index in range(3):
+        task = create_analysis_task(project_snapshot_id="a" * 32, change={
+            "target_symbol_id": f"utils.older_{index}",
+            "added_parameter": {"name": "timezone"},
+        })
+        update_analysis_task(task["id"], status="failed")
+        old.append(task)
+    for index in range(22):
+        create_analysis_task(project_snapshot_id="b" * 32, change={"target_symbol_id": f"other.new_{index}"})
+    response = task_client.get("/api/v1/analysis-tasks", params={
+        "q": " OLDER timezone ", "status": "failed", "limit": 2,
+    })
+    assert response.status_code == 200
+    page = response.json()
+    assert [row["id"] for row in page["items"]] == [old[2]["id"], old[1]["id"]]
+    assert page["query"] == "OLDER timezone"
+    assert page["status"] == "failed"
+    assert page["has_more"] is True
+    last = task_client.get("/api/v1/analysis-tasks", params={
+        "q": "OLDER timezone", "status": "failed", "limit": 2, "offset": 2,
+    }).json()
+    assert [row["id"] for row in last["items"]] == [old[0]["id"]]
+    assert last["has_more"] is False
+    assert task_client.get("/api/v1/analysis-tasks", params={"q": "older", "status": "queued"}).json()["items"] == []
+
+
+@pytest.mark.parametrize("params,code", [
+    ({"status": "invalid"}, "invalid_task_status"),
+    ({"q": "x" * 81}, "invalid_query"),
+])
+def test_task_filters_reject_invalid_input(task_client, params, code):
+    response = task_client.get("/api/v1/analysis-tasks", params=params)
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == code
+
+
+@pytest.mark.parametrize("query", ["新增必填参数", "utils.format", "timezone", "%_", "'", "a" * 32])
+def test_task_search_supports_labels_and_literal_characters(task_client, query):
+    task = create_analysis_task(project_snapshot_id="a" * 32, change={
+        "target_symbol_id": "utils.format", "added_parameter": {"name": "timezone_%_'"},
+    })
+    create_analysis_task(project_snapshot_id="b" * 32, change={"target_symbol_id": "other.call"})
+    response = task_client.get("/api/v1/analysis-tasks", params={"q": query})
+    assert response.status_code == 200
+    assert [row["id"] for row in response.json()["items"]] == [task["id"]]
+
+
+@pytest.mark.parametrize("change,query", [
+    ({"target_symbol_id": "utils.f", "operation": {"change_type": "rename_parameter",
+      "parameter_name": "old", "new_name": "new"}}, "重命名参数 old new"),
+    ({"target_symbol_id": "utils.f", "change_type": "make_parameter_required",
+      "parameter_name": "timeout"}, "可选参数改为必填 timeout"),
+    ({"target_module_id": "utils", "change_type": "rename_module",
+      "new_module_name": "formatting"}, "重命名模块 formatting"),
+    ({"target_symbol_id": "config.LIMIT", "change_type": "rename_module_symbol",
+      "new_symbol_name": "MAX_LIMIT"}, "重命名模块符号 MAX_LIMIT"),
+    ({"target_symbol_id": "工具.计算", "added_parameter": {"name": "时区"}}, "工具 时区"),
+])
+def test_task_search_handles_each_stored_change_shape(task_client, change, query):
+    task = create_analysis_task(project_snapshot_id="a" * 32, change=change)
+    create_analysis_task(project_snapshot_id="b" * 32, change={"target_symbol_id": "other.call"})
+    response = task_client.get("/api/v1/analysis-tasks", params={"q": query})
+    assert response.status_code == 200
+    assert [row["id"] for row in response.json()["items"]] == [task["id"]]
+    assert task_client.get("/api/v1/analysis-tasks", params={"q": "parameter_name"}).json()["items"] == []
 
 
 def test_real_task_returns_202_before_analysis_and_health_remains_available(live_backend, tmp_path, monkeypatch):

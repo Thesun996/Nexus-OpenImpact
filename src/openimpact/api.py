@@ -31,6 +31,7 @@ from openimpact.api_change import ChangeConfigError, build_change_spec, parse_ch
 from openimpact.repository import zip_inspector
 from openimpact.repository.layout import AnalysisRootError
 from openimpact.storage import (
+    complete_analysis_task,
     create_analysis_task,
     delete_project,
     delete_project_snapshot,
@@ -325,9 +326,8 @@ def _run_claimed_analysis_task(task: dict[str, object], worker_id: str) -> None:
         if "project_name" not in payload:
             project = get_project(snapshot["project_id"])
             payload["project_name"] = project["name"] if project else "未命名项目"
-        record = save_report(payload, source_filename=snapshot["source_filename"],
-                             analysis_root=snapshot["analysis_root"])
-        finish_analysis_task(task_id, worker_id=worker_id, status="succeeded", result_report_id=record["id"])
+        complete_analysis_task(task_id, worker_id=worker_id, report=payload,
+                               source_filename=snapshot["source_filename"], analysis_root=snapshot["analysis_root"])
     except SnapshotError as error:
         finish_analysis_task(task_id, worker_id=worker_id, status="failed", error_code=error.code, error_message=str(error))
     except Exception:
@@ -672,17 +672,24 @@ async def create_analysis_task_endpoint(request: Request) -> JSONResponse:
 
 
 @app.get("/api/v1/analysis-tasks")
-def saved_analysis_tasks(limit: int = 20, offset: int = 0) -> JSONResponse:
+def saved_analysis_tasks(limit: int = 20, offset: int = 0, q: str = "", status: str = "") -> JSONResponse:
     if limit < 1 or limit > 50 or offset < 0:
         return _error(422, "invalid_pagination", "limit 必须在 1 到 50 之间，offset 不能为负数。")
+    if len(q) > 80:
+        return _error(422, "invalid_query", "任务搜索内容不能超过 80 个字符。")
+    if status not in {"", "queued", "running", "succeeded", "failed"}:
+        return _error(422, "invalid_task_status", "任务状态筛选值无效。")
+    query = q.strip()
     try:
-        rows = list_analysis_tasks(limit=limit + 1, offset=offset)
+        rows = list_analysis_tasks(limit=limit + 1, offset=offset, query=query, status=status)
         items = rows[:limit]
         return JSONResponse(content={
             "items": items,
             "limit": limit,
             "offset": offset,
             "has_more": len(rows) > limit,
+            "query": query,
+            "status": status,
         })
     except (OSError, sqlite3.Error):
         _LOGGER.exception("Analysis task list failed")

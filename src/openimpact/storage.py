@@ -465,6 +465,17 @@ def save_report(
     path: str | Path | None = None,
 ) -> dict[str, Any]:
     initialize_database(path)
+    with connect(path) as connection:
+        return _insert_report(connection, report, source_filename=source_filename, analysis_root=analysis_root)
+
+
+def _insert_report(
+    connection: sqlite3.Connection,
+    report: dict[str, Any],
+    *,
+    source_filename: str | None,
+    analysis_root: str,
+) -> dict[str, Any]:
     record_id = uuid.uuid4().hex
     created_at = datetime.now(timezone.utc).isoformat(timespec="microseconds")
     change = _change_payload(report)
@@ -483,24 +494,23 @@ def save_report(
         "coverage_status": coverage.get("status") if isinstance(coverage.get("status"), str) else None,
         "summary": summary,
     }
-    with connect(path) as connection:
-        connection.execute(
-            """
-            INSERT INTO analysis_reports (
-                id, created_at, project_name, project_fingerprint, source_filename,
-                analysis_root, change_domain, change_type, target_id, coverage_status,
-                summary_json, report_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                record["id"], record["created_at"], record["project_name"],
-                record["project_fingerprint"], record["source_filename"],
-                record["analysis_root"], record["change_domain"], record["change_type"],
-                record["target_id"], record["coverage_status"],
-                json.dumps(summary, ensure_ascii=False, sort_keys=True),
-                json.dumps(report, ensure_ascii=False, sort_keys=True),
-            ),
-        )
+    connection.execute(
+        """
+        INSERT INTO analysis_reports (
+            id, created_at, project_name, project_fingerprint, source_filename,
+            analysis_root, change_domain, change_type, target_id, coverage_status,
+            summary_json, report_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record["id"], record["created_at"], record["project_name"],
+            record["project_fingerprint"], record["source_filename"],
+            record["analysis_root"], record["change_domain"], record["change_type"],
+            record["target_id"], record["coverage_status"],
+            json.dumps(summary, ensure_ascii=False, sort_keys=True),
+            json.dumps(report, ensure_ascii=False, sort_keys=True),
+        ),
+    )
     return record
 
 
@@ -590,19 +600,59 @@ def get_analysis_task(task_id: str, *, path: str | Path | None = None) -> dict[s
 
 
 def list_analysis_tasks(
-    *, limit: int = 20, offset: int = 0, path: str | Path | None = None
+    *, limit: int = 20, offset: int = 0, query: str | None = None, status: str | None = None,
+    path: str | Path | None = None
 ) -> list[dict[str, Any]]:
     initialize_database(path)
+    clauses: list[str] = []
+    params: list[str] = []
+    if status:
+        clauses.append("status = ?")
+        params.append(status)
+    for term in (query or "").split():
+        clauses.append("""instr(lower(id || ' ' || project_snapshot_id || ' ' ||
+            COALESCE(result_report_id, '') || ' ' || status) || ' ' ||
+            task_search_text(change_json), ?) > 0""")
+        params.append(term.casefold())
+    where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     with connect(path) as connection:
+        connection.create_function("task_search_text", 1, _task_search_text, deterministic=True)
         rows = connection.execute(
-            """
+            f"""
             SELECT * FROM analysis_tasks
+            {where_sql}
             ORDER BY created_at DESC, rowid DESC
             LIMIT ? OFFSET ?
             """,
-            (limit, offset),
+            (*params, limit, offset),
         ).fetchall()
     return [_task_row_to_record(row) for row in rows]
+
+
+def _task_search_text(change_json: str) -> str:
+    change = json.loads(change_json)
+    operation = change.get("operation") if isinstance(change.get("operation"), dict) else {}
+    added = change.get("added_parameter") if isinstance(change.get("added_parameter"), dict) else {}
+    change_type = operation.get("change_type") or change.get("change_type") or (
+        "add_required_parameter" if added else ""
+    )
+    labels = {
+        "add_required_parameter": "新增必填参数",
+        "remove_parameter": "删除参数",
+        "rename_parameter": "重命名参数",
+        "make_parameter_required": "可选参数改为必填",
+        "rename_module": "重命名模块",
+        "remove_module": "删除模块",
+        "rename_module_symbol": "重命名模块符号",
+        "remove_module_symbol": "删除模块符号",
+    }
+    values = [labels.get(change_type, "") if isinstance(change_type, str) else "", change_type, added.get("name")]
+    for payload in (change, operation):
+        values.extend(payload.get(key) for key in (
+            "target_symbol_id", "target_module_id", "target_id", "target_module", "target_symbol",
+            "parameter_name", "new_name", "new_parameter_name", "new_module_name", "new_symbol_name",
+        ))
+    return " ".join(value for value in values if isinstance(value, str)).casefold()
 
 
 def claim_next_analysis_task(
@@ -669,6 +719,40 @@ def finish_analysis_task(
         )
         if cursor.rowcount <= 0:
             return None
+        row = connection.execute("SELECT * FROM analysis_tasks WHERE id = ?", (task_id,)).fetchone()
+    return _task_row_to_record(row)
+
+
+def complete_analysis_task(
+    task_id: str,
+    *,
+    worker_id: str,
+    report: dict[str, Any],
+    source_filename: str | None = None,
+    analysis_root: str = ".",
+    path: str | Path | None = None,
+) -> dict[str, Any] | None:
+    """Commit a report and its owning task together, or persist neither."""
+    initialize_database(path)
+    with connect(path) as connection:
+        # Serialize ownership checking with reclaiming and report insertion.
+        connection.execute("BEGIN IMMEDIATE")
+        owned = connection.execute(
+            "SELECT 1 FROM analysis_tasks WHERE id = ? AND status = 'running' AND worker_id = ?",
+            (task_id, worker_id),
+        ).fetchone()
+        if owned is None:
+            return None
+        record = _insert_report(connection, report, source_filename=source_filename, analysis_root=analysis_root)
+        connection.execute(
+            """
+            UPDATE analysis_tasks
+            SET updated_at = ?, status = 'succeeded', result_report_id = ?,
+                error_code = NULL, error_message = NULL, worker_id = NULL, lease_expires_at = NULL
+            WHERE id = ?
+            """,
+            (datetime.now(timezone.utc).isoformat(timespec="microseconds"), record["id"], task_id),
+        )
         row = connection.execute("SELECT * FROM analysis_tasks WHERE id = ?", (task_id,)).fetchone()
     return _task_row_to_record(row)
 

@@ -164,8 +164,10 @@ export function createApiClient({ fetchImpl = fetch } = {}) {
     createAnalysisTask(snapshotId, change, fingerprint, { signal } = {}) {
       return request('/analysis-tasks', { method: 'POST', body: taskForm(snapshotId, change, fingerprint), signal })
     },
-    listAnalysisTasks({ signal, limit = 20, offset = 0 } = {}) {
+    listAnalysisTasks({ signal, limit = 20, offset = 0, query, status } = {}) {
       const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+      if (query?.trim()) params.set('q', query.trim())
+      if (status) params.set('status', status)
       return request(`/analysis-tasks?${params}`, { method: 'GET', signal })
     },
     getAnalysisTask(taskId, { signal } = {}) {
