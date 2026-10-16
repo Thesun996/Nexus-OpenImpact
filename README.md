@@ -1,8 +1,16 @@
 # Nexus OpenImpact
 
-当前完成内容、验收记录、能力边界与待办见 [现阶段项目报告（2026-10-06）](docs/project-status.md)。
+当前完成内容、验收记录、能力边界与待办见 [当前项目状态](docs/current-project-status.md)；[2026-10-06 项目报告](docs/project-status.md) 保留为历史记录。
 
-网页已增加报告追问和只读项目源码目录：可从影响证据或回答引用打开完整 Python 文件并定位行号。追问依据当前变更报告，模型不可用时明确使用规则回答。详见 [报告工作台](docs/report-workspace.md)。后端与前端启动方式保持原流程。
+Windows 推荐在本目录统一启动 API、Worker、前端：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-local.ps1 -Provider deepseek -PromptKey
+```
+
+按提示隐藏输入 Key，启动后打开 `http://127.0.0.1:5173/`，按 Ctrl+C 统一停止。首次使用需准备 Python / Node 依赖；环境自检、规则测试与端口设置见 [本地启动说明](docs/local-start.md)。
+
+网页已增加报告追问和只读项目源码目录：可从影响证据或回答引用打开完整 Python 文件并定位行号。追问依据当前变更报告，模型不可用时明确使用规则回答。详见 [报告工作台](docs/report-workspace.md)。当前完整流程需要同时运行 API、Worker 与前端。
 
 普通包支持已扩展：网页可显式选择源码根目录，支持普通包的静态相对导入。src 布局填写 `src`；默认 `.` 保留旧流程。详见 [使用方式与边界](docs/package-imports.md) 和 [包项目 Demo](examples/package_signature_change/README.md)。
 
@@ -55,7 +63,7 @@ main 已集成三个领域、八种变更：四种函数签名变更、模块重
 需要 Python 3.11 或更新版本。在 PowerShell 中，将 `<仓库地址>` 替换为团队实际仓库地址：
 
 ```powershell
-git clone "<https://github.com/lhy070311/Nexus-OpenImpact.git>" Nexus-OpenImpact
+git clone "https://github.com/lhy070311/Nexus-OpenImpact.git" Nexus-OpenImpact
 cd Nexus-OpenImpact
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1

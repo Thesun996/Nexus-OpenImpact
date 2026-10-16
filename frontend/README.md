@@ -2,6 +2,8 @@
 
 React + Vite 前端。实际项目模式使用用户选择的 ZIP，执行 Inspect → Validate → Analyze，支持新增必填参数、删除参数、重命名参数、可选参数改为必填。只有主动点击“打开演示项目”才使用保存的新增参数样例响应。
 
+Windows 推荐从仓库根目录运行 `scripts/start-local.ps1`，统一启动 API、Worker 和前端，见 [启动与自检](../docs/local-start.md)。以下手工命令用于规则测试；DeepSeek 体验需确保 API 与 Worker 使用相同模型配置与 Key。
+
 以下命令从本仓库根目录开始，该目录包含 `src/openimpact/` 和 `frontend/`。先按[根 README](../README.md)创建 Python 虚拟环境并完成 editable install；启动后端时使用已激活的该环境。
 
 在 Windows PowerShell 中启动 rule 模式服务：
@@ -16,6 +18,15 @@ Linux/macOS 在仓库根目录执行 `source .venv/bin/activate` 后启动：
 ```sh
 OPENIMPACT_LLM_PROVIDER=rule python -m uvicorn openimpact.api:app --host 127.0.0.1 --port 8000
 ```
+
+还需在同一仓库根目录另开终端启动 Worker。PowerShell 执行：
+
+```powershell
+$env:OPENIMPACT_LLM_PROVIDER = 'rule'
+python -m openimpact.worker
+```
+
+Linux/macOS 使用 `OPENIMPACT_LLM_PROVIDER=rule python -m openimpact.worker`。API 与 Worker 必须使用相同数据库和快照目录；Worker 未运行时，分析任务会留在排队状态。
 
 另开终端，从同一仓库根目录进入 `frontend/` 并启动前端。以下命令适用于 PowerShell 和 Linux/macOS shell：
 
