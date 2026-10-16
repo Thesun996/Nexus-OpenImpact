@@ -28,8 +28,6 @@ jobs:
       PYTHONIOENCODING: utf-8
       PYTHONPATH: ${{ github.workspace }}/src
       OPENIMPACT_LLM_PROVIDER: rule
-      OPENIMPACT_DB_PATH: ${{ runner.temp }}/openimpact-ci.sqlite3
-      OPENIMPACT_SNAPSHOT_DIR: ${{ runner.temp }}/openimpact-ci-snapshots
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -51,13 +49,22 @@ jobs:
         working-directory: frontend
         run: npm ci
       - name: Backend tests
+        env:
+          OPENIMPACT_DB_PATH: ${{ runner.temp }}/openimpact-ci.sqlite3
+          OPENIMPACT_SNAPSHOT_DIR: ${{ runner.temp }}/openimpact-ci-snapshots
         run: python -m pytest -q
       - name: Frontend tests and production build
         working-directory: frontend
         run: npm run check
       - name: Local environment preflight
+        env:
+          OPENIMPACT_DB_PATH: ${{ runner.temp }}/openimpact-ci.sqlite3
+          OPENIMPACT_SNAPSHOT_DIR: ${{ runner.temp }}/openimpact-ci-snapshots
         run: python scripts/run_local.py --provider rule --check
       - name: Start API, Worker and Vite, verify proxy, then stop
+        env:
+          OPENIMPACT_DB_PATH: ${{ runner.temp }}/openimpact-ci.sqlite3
+          OPENIMPACT_SNAPSHOT_DIR: ${{ runner.temp }}/openimpact-ci-snapshots
         run: python scripts/run_local.py --provider rule --smoke-test
       - name: Whitespace check for the integrated change
         run: git diff --check HEAD^ HEAD
