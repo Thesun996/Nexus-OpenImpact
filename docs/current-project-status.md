@@ -1,7 +1,7 @@
 # Nexus OpenImpact 当前项目状态
 
-> 更新日期：2026-10-15（Asia/Shanghai）
-> 当前分支：`feature/refine-project`
+> 更新日期：2026-10-16（Asia/Shanghai）
+> 整合状态：项目库、任务及报告历史已经通过 PR #2 合并 main；本文随当前源码维护。
 > 本文记录当前代码能力及可复核验收结果；设计草案不代表已实现功能。
 
 ## 当前状态
@@ -43,6 +43,14 @@
 
 ## 本地启动
 
+Windows 推荐统一入口：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-local.ps1 -Provider deepseek -PromptKey
+```
+
+可用 `-Check` 只检查环境，规则测试使用 `-Provider rule`，自动启动探测后退出使用 `-SmokeTest`。默认端口为 8000 / 5173，实际模型模式、源码路径及 API / Worker 共用存储配置会明确显示。依赖准备、端口调整、日志及停止方法见 [Windows 统一启动说明](local-start.md)。以下分终端命令保留用于手工规则测试。
+
 在仓库根目录启动后端（Python 3.11+，已安装项目依赖）：
 
 ```sh
@@ -66,12 +74,6 @@ npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
 浏览器打开 `http://127.0.0.1:5173/`。Vite 使用 strictPort，端口被占用时会报错，不会自动换端口。
-
-本轮为避免干扰占用 8000 的旧后端，最新后端使用 8010；前端仍使用 5173，对应启动方式为：
-
-```sh
-OPENIMPACT_API_TARGET=http://127.0.0.1:8010 npm run dev -- --host 127.0.0.1 --port 5173
-```
 
 这些是本地开发服务，服务退出后需要重新启动。更新后端代码后需要重启后端，避免浏览器连接旧版本。不要用普通静态服务器直接打开 React/Vite 源码。
 
@@ -105,7 +107,7 @@ OPENIMPACT_API_TARGET=http://127.0.0.1:8010 npm run dev -- --host 127.0.0.1 --po
 
 ## 提交说明
 
-审核修复继续位于 `feature/refine-project`，修复范围与逐项验证见 [修复记录](refine-project-fixes.md)。main 本轮不合并，待负责人复审。
+项目库与审核修复已通过 PR #2 合并 main，修复范围与逐项验证见 [修复记录](refine-project-fixes.md)。后续变更使用独立分支并经 PR 检查后合并。
 
 提交源代码、测试和文档；忽略本地数据库、ZIP 快照存储、依赖目录、构建产物和临时验收截图。
 
@@ -114,3 +116,12 @@ OPENIMPACT_API_TARGET=http://127.0.0.1:8010 npm run dev -- --host 127.0.0.1 --po
 已修复共享 ZIP 并发删除、旧 Worker 额外发布、报告删除后的恢复、评测冻结清单与标签身份校验、零重合 F1、Windows 测试权限，以及窄窗口新增导航的溢出。契约样例指纹差异仅固定测试 ZIP 创建平台元数据，生产指纹和既有样例 JSON 保持原样。
 
 真实浏览器使用本分支 Vite /api 代理、独立 rule API 和 Worker、隔离数据库：直接上传→Inspect→Validate→任务→1/1/1 complete 报告；删除该隔离测试报告后，相同配置重新分析成功，任务页显式重新执行也成功；随后 page.page + zone 为 0/0/0 complete，无旧证据和解释。14 个受控 Demo 的新任务结果与同步路径逐字段一致。原生 Windows reduced-motion 与独立人工 Benchmark 均继续 pending；没有调用真实 DeepSeek。
+
+## 2026-10-16 启动与自动检查增量
+
+- 新增 PowerShell 统一入口及标准库启动器；使用固定仓库源码，API / Worker 共用存储和模型配置，前端不接收 DeepSeek Key。
+- 19 项启动器专项随完整 pytest 通过；本地完整后端为 1154 passed、3 skipped、1 warning、7 subtests passed。前端仍为 274 passed，Production Build 通过。
+- Windows PowerShell 5.1 实测环境自检、实际三服务启动/代理探测/自动退出、Ctrl+C 清理、占用端口拒绝及原服务保持可用。隔离数据库的真实 TCP 工作流经 Vite /api 与本次 Worker 得到 1/1/1 complete、0/0/0 complete。
+- 隐藏输入已用测试值验证，终端不回显；缺少 Key 明确停止。DeepSeek 自检没有调用模型，不作为 Key 或外网可用性验收。
+- 新增 Windows / Ubuntu PR 工作流，规则测试模式运行完整检查及启动探测；实际远程执行结果以 GitHub Checks 为准，添加 YAML 本身不记作 CI PASS。未修改分支保护。
+- 未修改生产分析算法、React 业务状态或原 API；未锁定人工标签。native reduced-motion verification 与 independent Benchmark 继续 pending。
