@@ -5,7 +5,7 @@ import { useWorkflow } from '../state/WorkflowContext.jsx';
 import { getSelectedSymbol } from '../state/workflow.js';
 import { CHANGE_TYPES, describeChange, getParameterChoices, previewSignature } from '../state/changeDraft.js';
 import { CoverageNotice, DiagnosticsList, EmptyWorkflow, ErrorNotice } from './PageParts.jsx';
-import { diagnosticCount, SignatureText, WorkflowNotes } from '../components/workflow/WorkflowParts.jsx';
+import { diagnosticCount, ProjectDiagnostics, SignatureText, WorkflowNotes } from '../components/workflow/WorkflowParts.jsx';
 
 import { parameterKindLabel } from '../presentation/labels.js';
 
@@ -86,7 +86,7 @@ function FunctionChangeView({ state, onSelectChangeType, onUpdateChange, onValid
     <section className="page-heading"><div><h1>配置签名变更</h1><p>选择一次参数变化，对照前后签名，再校验并分析调用影响。</p></div><div className="heading-actions"><button className="ghost-action" type="button" onClick={() => navigate('functions')}>返回选择</button></div></section>
     <WorkflowNotes current={3} mode={state.mode} /><ErrorNotice error={state.error} />
     {!selected ? <EmptyWorkflow title="尚未选择目标函数" message="请先读取项目并选择一个模块级函数。" navigate={navigate} /> : <>
-      <CoverageNotice coverage={state.inspect?.coverage} />
+      <CoverageNotice coverage={validation?.coverage || state.inspect?.coverage} compact />
       <ChangeTypeSelector changeType={changeType} mode={state.mode} onSelect={onSelectChangeType} />
       <section className="oi-change-workspace">
         <article className="oi-change-original" aria-label="目标函数与原始签名"><h2>目标函数</h2><b>{selected.symbol_id}</b><p><code>{selected.file}:{selected.line}</code></p><span className="oi-field-caption">原始签名</span><SignatureText definition={selected} /><p>此处只读取源码。计划变更不会修改上传项目。</p></article>
@@ -114,7 +114,8 @@ function FunctionChangeView({ state, onSelectChangeType, onUpdateChange, onValid
             <div className="oi-parameter-draft"><span>{valid ? validatedDescription.detail : draftSummary(state.change, selected)}</span>{!valid && <small>候选签名尚未通过校验，不能据此开始分析。</small>}</div>
           </div>
           <p className="oi-validation-message">{state.loading.validate ? '正在使用当前 ZIP 与项目指纹构建并校验变更配置。' : valid ? state.mode === 'demo' ? '演示变更配置已匹配固定案例，可查看演示报告。' : '变更配置校验通过，可以提交分析。' : validation ? '当前配置未通过后端校验，请根据诊断调整参数后重新校验。' : '修改输入后，旧校验与报告立即失效；需重新校验。'}</p>
-          {validation && (validationDiagnostics > 0 || projectDiagnostics > 0 || validation.coverage?.status === 'partial') && <section className="oi-validation-diagnostics" aria-label="后端校验诊断">{validationDiagnostics > 0 && <DiagnosticsList diagnostics={validation.validation?.diagnostics} />}<CoverageNotice coverage={validation.coverage} />{projectDiagnostics > 0 && <DiagnosticsList diagnostics={validation.diagnostics} />}</section>}
+          {validationDiagnostics > 0 && <section className="oi-validation-diagnostics" aria-label="后端校验诊断"><DiagnosticsList diagnostics={validation.validation.diagnostics} /></section>}
+          {validation && projectDiagnostics > 0 && <ProjectDiagnostics diagnostics={validation.diagnostics} coverage={validation.coverage} />}
           <footer className="oi-change-actions"><span>{state.mode === 'demo' ? '下一步展示独立演示结果' : '分析继续使用本次原始 ZIP 与项目指纹。'}</span><button className="primary-action" type="button" onClick={onAnalyze} disabled={!valid || busy}>{state.loading.analyze ? '正在分析…' : state.mode === 'demo' ? '查看演示报告' : '开始分析'}</button></footer>
         </article>
       </section>

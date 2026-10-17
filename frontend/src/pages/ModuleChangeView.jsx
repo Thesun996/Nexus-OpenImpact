@@ -16,7 +16,7 @@ export default function ModuleChangeView({ state, onSelectChangeType, onUpdateCh
     <section className="page-heading"><div><h1>配置模块变更</h1><p>拟定文件布局变化，校验后追踪真实静态导入；不改动源码。</p></div><button type="button" className="ghost-action" onClick={() => navigate('functions')}>返回选择</button></section>
     <WorkflowNotes current={3} mode={state.mode} /><ErrorNotice error={state.validation && state.error ? { ...state.error, diagnostics: undefined } : state.error} />
     {!selected ? <EmptyWorkflow title="尚未选择目标模块" message="先读取 ZIP，在模块领域选择受支持的根模块。" navigate={navigate} /> : <>
-      <CoverageNotice coverage={state.validation?.coverage || state.inspect?.module_coverage} />
+      <CoverageNotice coverage={state.validation?.coverage || state.inspect?.module_coverage} compact />
       <fieldset className="oi-change-type-selector"><legend>模块变更类型</legend><div className="oi-change-type-options">{MODULE_CHANGE_TYPES.map(type => <label className={`oi-change-type-option${changeType === type.value ? ' is-selected' : ''}`} key={type.value}>
         <input name="module-change-type" type="radio" aria-label={type.label} checked={changeType === type.value} onChange={() => onSelectChangeType(type.value)} /><span><b>{type.label}</b><small>{type.description}</small></span>
       </label>)}</div></fieldset>

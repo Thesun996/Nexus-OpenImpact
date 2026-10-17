@@ -34,12 +34,21 @@ export function ErrorNotice({ error }) {
   );
 }
 
-export function CoverageNotice({ coverage }) {
+export function CoverageNotice({ coverage, compact = false }) {
   if (coverage?.status !== 'partial') return null;
+  const explanation = <>
+    <p><b>分析范围不完整。</b> {coverage.message || '部分源码或调用未解析，当前结果只覆盖能够确认的代码。'} 零条影响也不表示整个项目确定无影响；已经确定的影响仍可查看。</p>
+    <CoverageDetails coverage={coverage} />
+  </>;
+  const { python_files: files, parsed_python_files: parsed } = coverage.details || {};
+  const missingSources = Number.isSafeInteger(files) && Number.isSafeInteger(parsed) && parsed >= 0 && files > parsed ? files - parsed : 0;
+  if (compact) return <details className="oi-coverage-notice">
+    <summary><b>分析范围</b><span>{missingSources ? `${missingSources} 个文件未解析` : '部分关系待确认'}</span><small>查看说明</small></summary>
+    <div>{explanation}</div>
+  </details>;
   return (
     <section className="state-message" role="alert">
-      <b>分析范围不完整。</b> {coverage.message || '部分源码或调用未解析，当前结果只覆盖能够确认的代码。'} 零条影响也不表示整个项目确定无影响；已经确定的影响仍可查看。
-      <CoverageDetails coverage={coverage} />
+      {explanation}
     </section>
   );
 }

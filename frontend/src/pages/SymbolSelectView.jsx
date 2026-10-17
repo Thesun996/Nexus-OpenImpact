@@ -1,18 +1,16 @@
 import { reasonLabel } from '../presentation/labels.js';
 import { getSelectedVariableSymbol } from '../state/workflow.js';
-import { CoverageNotice, DiagnosticsList, EmptyWorkflow, ErrorNotice } from './PageParts.jsx';
-import DomainSelector from '../components/workflow/DomainSelector.jsx';
+import { CoverageNotice, DiagnosticsList, EmptyWorkflow } from './PageParts.jsx';
+import SelectionLayout from '../components/workflow/SelectionLayout.jsx';
 import { symbolDiagnosticEntries, SYMBOL_REASONS } from './symbolReportData.js';
 
-export default function SymbolSelectView({ state, query, onQueryChange, onSelectModule, onSelectVariableSymbol, onSelectDomain, onReset, navigate }) {
+export default function SymbolSelectView({ state, query, onQueryChange, onSelectModule, onSelectVariableSymbol, onSelectDomain, onReset, navigate, contentOnly }) {
   const selected = getSelectedVariableSymbol(state);
   const modules = state.inspect?.module_inventory?.modules || [];
   const symbols = (state.inspect?.symbol_inventory?.symbols || []).filter(s => s.module_id === state.selectedModuleId && `${s.symbol_id} ${s.file}`.toLowerCase().includes(query.toLowerCase()));
-  return <div className="oi-workflow-page oi-functions-page">
-    <section className="page-heading"><div><h1>选择模块符号</h1><p>先确认模块，再选择本次源码中的公开变量或常量。</p></div><button className="ghost-action" onClick={onReset}>重新开始</button></section>
-    <DomainSelector domain="symbol" mode={state.mode} onSelect={onSelectDomain} /><ErrorNotice error={state.error} />
+  return <SelectionLayout domain="symbol" mode={state.mode} error={state.error} onReset={onReset} onSelectDomain={onSelectDomain} contentOnly={contentOnly}>
     {!state.inspect ? <EmptyWorkflow title="尚未读取项目" message="请先上传原始 Python ZIP。" navigate={navigate} /> : <>
-      <CoverageNotice coverage={state.inspect.symbol_coverage} />
+      <CoverageNotice coverage={state.inspect.symbol_coverage} compact />
       <fieldset className="oi-operation-parameters"><legend>选择所属模块</legend><div className="oi-symbol-module-options">{modules.map(module => <label className={`oi-operation-parameter${module.module_id === state.selectedModuleId ? ' is-selected' : ''}`} key={module.file}>
         <input type="radio" name="symbol-module" aria-label={`符号模块 ${module.module_id}`} disabled={!module.selectable} checked={module.module_id === state.selectedModuleId} onChange={() => onSelectModule(module.module_id)} /><span><code>{module.file}</code><small>{module.selectable ? '根模块' : `不可选：${reasonLabel(module.reason)}`}</small></span>
       </label>)}</div></fieldset>
@@ -25,5 +23,5 @@ export default function SymbolSelectView({ state, query, onQueryChange, onSelect
       </section><aside className="oi-symbol-preview"><h2>原始定义</h2>{selected ? <><b>{selected.symbol_id}</b><p><code>{selected.file}:{selected.line}</code></p><pre className="code-block"><code>{selected.definition}</code></pre><p>仅分析拟定变更，不修改源码。</p></> : <p>禁用候选保留原因说明；后端校验为最终依据。</p>}</aside></div>
       <details className="oi-review-section"><summary>符号解析边界与诊断</summary><DiagnosticsList diagnostics={symbolDiagnosticEntries(state.inspect.symbol_diagnostics)} /></details>
     </>}
-  </div>;
+  </SelectionLayout>;
 }
