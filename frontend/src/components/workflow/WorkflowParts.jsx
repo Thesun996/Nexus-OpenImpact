@@ -1,4 +1,5 @@
 import { statusLabel } from '../../presentation/labels.js';
+import { diagnosticEntries } from '../../presentation/diagnostics.js';
 import { formatSignature } from '../../state/workflow.js';
 import { DiagnosticsList, ModeNotice, WorkflowSteps } from '../../pages/PageParts.jsx';
 import './workflow-pages.css';
@@ -36,5 +37,7 @@ export function diagnosticCount(diagnostics) {
 
 export function ProjectDiagnostics({ diagnostics, coverage }) {
   const count = diagnosticCount(diagnostics);
-  return <details className="oi-project-diagnostics" open={count > 0 || coverage?.status === 'partial'}><summary>解析诊断 <span>{count} 条记录</span></summary><DiagnosticsList diagnostics={diagnostics} /></details>;
+  const sourceError = diagnosticEntries(diagnostics).some(({ category, detail }) => ['parse_errors', 'parse_diagnostics', 'syntax_diagnostics'].includes(category)
+    || ['syntax_error', 'SyntaxError', 'read_error', 'encoding_error'].includes(detail.kind || detail.code));
+  return <details className="oi-project-diagnostics" open={sourceError}><summary>解析诊断 <span>{count} 条记录{coverage?.status === 'partial' ? ' · 部分关系待确认' : ''}</span></summary><DiagnosticsList diagnostics={diagnostics} /></details>;
 }

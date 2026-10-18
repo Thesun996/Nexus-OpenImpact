@@ -103,6 +103,21 @@
 .oi-change-type-option input[type="radio"], .oi-change-form .oi-operation-parameter input[type="radio"] { width: 1rem; height: 1rem; min-height: 1rem; flex: 0 0 1rem; margin: .25rem 0 0; padding: 0; accent-color: var(--oi-trace); }
 .oi-change-type-option.is-disabled, .oi-operation-parameter.is-disabled { cursor: default; background: var(--oi-soft); }
 .oi-change-type-option:focus-within, .oi-operation-parameter:focus-within { outline: var(--oi-selection) solid var(--oi-trace); outline-offset: var(--oi-focus-offset); }
+.oi-domain-selector .oi-change-type-options { position: relative; isolation: isolate; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.oi-domain-selector .oi-change-type-option { position: relative; z-index: 1; transition: background-color var(--oi-motion-feedback); }
+.oi-domain-selector .oi-change-type-option.is-selected { background: transparent; border-left-color: transparent; }
+.oi-domain-marker { z-index: 0; --oi-motion-feedback: var(--oi-motion-enter); }
+.oi-domain-marker::before { inset: 0; width: auto; background: var(--oi-trace-soft); border-left: var(--oi-selection) solid var(--oi-trace); border-radius: var(--oi-radius-control); }
+.oi-domain-content { min-width: 0; }
+.oi-domain-content.is-switching { animation: oi-domain-arrive var(--oi-motion-reading) var(--oi-ease-arrive); }
+@keyframes oi-domain-arrive { from { opacity: .7; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 767px) {
+  .oi-domain-selector .oi-change-type-options { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .oi-domain-content.is-switching { animation: none; }
+  .oi-domain-selector .oi-change-type-option { transition: none; }
+}
 .oi-operation-parameters { min-inline-size: 0; border: 0; margin: 0; padding: 0; }
 .oi-operation-parameters > legend { font-size: var(--oi-text-sm); padding: 0; margin-bottom: var(--oi-space-3); }
 .oi-change-form .oi-operation-parameter { display: flex; align-items: start; gap: var(--oi-space-3); min-height: var(--oi-control-height); border: 1px solid var(--oi-line); border-left: var(--oi-selection) solid transparent; border-radius: var(--oi-radius-control); padding: var(--oi-space-3); margin-top: var(--oi-space-2); cursor: pointer; }

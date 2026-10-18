@@ -8,7 +8,7 @@ import { createServer } from 'vite'
 import { createInitialState, workflowReducer } from '../src/state/workflow.js'
 import { createChangeDraft } from '../src/state/changeDraft.js'
 
-let server, UploadView, FunctionSelectView, ChangeView, SignatureText, WorkflowProvider
+let server, UploadView, FunctionSelectView, ModuleSelectView, SymbolSelectView, SelectionLayout, ChangeView, SignatureText, WorkflowProvider
 const inspect = JSON.parse(readFileSync(new URL('../src/demo/fixtures/inspect.json', import.meta.url), 'utf8'))
 const validated = JSON.parse(readFileSync(new URL('../src/demo/fixtures/validate.json', import.meta.url), 'utf8'))
 const noop = () => {}
@@ -18,6 +18,9 @@ before(async () => {
     cacheDir: 'node_modules/.vite-workflow-rendering-tests', logLevel: 'silent', server: { middlewareMode: true }, appType: 'custom' })
   ;({ UploadView } = await server.ssrLoadModule('/src/pages/UploadPage.jsx'))
   ;({ FunctionSelectView } = await server.ssrLoadModule('/src/pages/FunctionSelectPage.jsx'))
+  ;({ default: ModuleSelectView } = await server.ssrLoadModule('/src/pages/ModuleSelectView.jsx'))
+  ;({ default: SymbolSelectView } = await server.ssrLoadModule('/src/pages/SymbolSelectView.jsx'))
+  ;({ default: SelectionLayout } = await server.ssrLoadModule('/src/components/workflow/SelectionLayout.jsx'))
   ;({ ChangeView } = await server.ssrLoadModule('/src/pages/ChangePage.jsx'))
   ;({ SignatureText } = await server.ssrLoadModule('/src/components/workflow/WorkflowParts.jsx'))
   ;({ WorkflowProvider } = await server.ssrLoadModule('/src/state/WorkflowContext.jsx'))
@@ -78,6 +81,23 @@ test('failed Inspect stays failed and displays the real diagnostic without a suc
   assert.ok(html.includes('invalid_zip'))
   assert.ok(html.includes(state.error.message))
   assert.ok(!html.includes('aria-label="已读取项目概览"'))
+})
+
+test('three domains share one selection frame without duplicate headings, radios or content trees', () => {
+  const state = project()
+  for (const [domain, View, title] of [['function', FunctionSelectView, '选择分析函数'], ['module', ModuleSelectView, '选择分析模块'], ['symbol', SymbolSelectView, '选择模块符号']]) {
+    const html = render(SelectionLayout, state, { domain, mode: state.mode, children: createElement(View, {
+      state: { ...state, changeDomain: domain }, query: '', contentOnly: true, navigate: noop,
+    }) })
+    assert.equal((html.match(/<h1>/g) || []).length, 1)
+    assert.equal((html.match(/name="change-domain"/g) || []).length, 3)
+    assert.equal((html.match(/class="oi-domain-content"/g) || []).length, 1)
+    assert.ok(html.includes(`<h1>${title}</h1>`))
+    assert.ok(html.includes(`data-domain="${domain}"`))
+    const radios = html.match(/<input\b[^>]*name="change-domain"[^>]*>/g)
+    assert.equal(radios.filter(radio => radio.includes('checked=""')).length, 1)
+    assert.ok(radios.find(radio => radio.includes(`value="${domain}"`)).includes('checked=""'))
+  }
 })
 
 test('function index shows complete distinct Symbols, files and original structured signatures', () => {

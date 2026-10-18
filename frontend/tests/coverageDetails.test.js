@@ -5,11 +5,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
 import { fileURLToPath } from 'node:url';
 
-let server, CoverageNotice;
+let server, CoverageNotice, ErrorNotice, ProjectDiagnostics;
 before(async () => {
   server = await createServer({ root: fileURLToPath(new URL('..', import.meta.url)), configFile: false,
     cacheDir: 'node_modules/.vite-coverage', logLevel: 'silent', server: { middlewareMode: true }, appType: 'custom' });
-  CoverageNotice = (await server.ssrLoadModule('/src/pages/PageParts.jsx')).CoverageNotice;
+  ({ CoverageNotice, ErrorNotice } = await server.ssrLoadModule('/src/pages/PageParts.jsx'));
+  ({ ProjectDiagnostics } = await server.ssrLoadModule('/src/components/workflow/WorkflowParts.jsx'));
 });
 after(async () => { await server?.close(); });
 const render = coverage => renderToStaticMarkup(createElement(CoverageNotice, { coverage }));
@@ -42,4 +43,42 @@ test('invalid or missing detail counts are not rendered as trusted facts', () =>
   assert.ok(!html.includes('源码解析：'));
   assert.ok(!html.includes('调用关系：'));
   assert.ok(html.includes('分析范围不完整'));
+});
+
+test('compact coverage starts collapsed while retaining the real scope and zero-result caveat', () => {
+  const coverage = { status: 'partial', message: '此项目含未确认的静态调用。', details: { parsed_python_files: 2, python_files: 3 } };
+  const original = JSON.stringify(coverage);
+  const html = renderToStaticMarkup(createElement(CoverageNotice, { coverage, compact: true }));
+  assert.match(html, /^<details class="oi-coverage-notice">/);
+  assert.doesNotMatch(html, /<details[^>]*\bopen/);
+  assert.match(html, /<summary>.*分析范围.*1 个文件未解析.*查看说明.*<\/summary>/);
+  for (const text of [coverage.message, '2 / 3', '零条影响也不表示整个项目确定无影响']) assert.ok(html.includes(text));
+  assert.equal(JSON.stringify(coverage), original);
+  assert.equal(renderToStaticMarkup(createElement(CoverageNotice, { coverage: { status: 'complete' }, compact: true })), '');
+});
+
+test('report coverage remains an immediate alert and configuration errors stay visible', () => {
+  assert.match(render({ status: 'partial' }), /^<section class="state-message" role="alert">/);
+  const error = { code: 'invalid_change', message: '参数名称无效', diagnostics: [{ code: 'invalid_signature', message: '默认参数后不能出现必填位置参数' }] };
+  const html = renderToStaticMarkup(createElement(ErrorNotice, { error }));
+  assert.match(html, /^<section[^>]*role="alert"/);
+  assert.ok(html.includes(error.message));
+  assert.ok(html.includes(error.diagnostics[0].message));
+});
+
+test('project diagnostics are collapsed without dropping positions or partial status', () => {
+  const diagnostics = { unresolved_imports: [{ code: 'unresolved_import', file: 'client.py', line: 3, reason: '无法确认项目内目标模块' }] };
+  const html = renderToStaticMarkup(createElement(ProjectDiagnostics, { diagnostics, coverage: { status: 'partial' } }));
+  assert.match(html, /^<details class="oi-project-diagnostics">/);
+  assert.ok(html.includes('1 条记录 · 部分关系待确认'));
+  assert.ok(html.includes('client.py:3'));
+});
+
+test('source parse failures remain expanded, distinct from folded uncertain relationships', () => {
+  const diagnostics = { parse_errors: [{ code: 'syntax_error', file: 'broken.py', line: 1, reason: '源码语法错误' }] };
+  const html = renderToStaticMarkup(createElement(ProjectDiagnostics, { diagnostics, coverage: { status: 'partial' } }));
+  assert.match(html, /^<details class="oi-project-diagnostics" open="">/);
+  assert.ok(html.includes('broken.py:1'));
+  const compact = renderToStaticMarkup(createElement(CoverageNotice, { coverage: { status: 'partial' }, compact: true }));
+  assert.ok(compact.includes('部分关系待确认'));
 });

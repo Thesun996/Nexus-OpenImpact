@@ -13,7 +13,7 @@ export default function SymbolChangeView({ state, onSelectChangeType, onUpdateCh
     <section className="page-heading"><div><h1>配置符号变更</h1><p>拟定变量或常量名称变化，追踪真实静态引用。</p></div><button className="ghost-action" onClick={() => navigate('functions')}>返回选择</button></section>
     <ErrorNotice error={state.validation && state.error ? { ...state.error, diagnostics: undefined } : state.error} />
     {!selected ? <EmptyWorkflow title="尚未选择模块符号" message="请先从当前 ZIP 选择受支持的公开定义。" navigate={navigate} /> : <>
-      <CoverageNotice coverage={state.validation?.coverage || state.inspect.symbol_coverage} />
+      <CoverageNotice coverage={state.validation?.coverage || state.inspect.symbol_coverage} compact />
       <fieldset className="oi-change-type-selector"><legend>符号变更类型</legend><div className="oi-change-type-options">{SYMBOL_CHANGE_TYPES.map(type => <label className={`oi-change-type-option${type.value === changeType ? ' is-selected' : ''}`} key={type.value}><input name="symbol-change-type" aria-label={type.label} type="radio" checked={type.value === changeType} onChange={() => onSelectChangeType(type.value)} /><span><b>{type.label}</b><small>{type.description}</small></span></label>)}</div></fieldset>
       <section className="oi-change-workspace"><article className="oi-change-original"><h2>目标定义</h2><b>{selected.symbol_id}</b><p><code>{selected.file}:{selected.line}</code></p><pre className="code-block"><code>{selected.definition}</code></pre></article>
         <article className="oi-change-input"><h2>{rename ? '拟定新符号名' : '拟定删除定义'}</h2><form className="oi-change-form" onSubmit={event => { event.preventDefault(); if (configured && !busy) onValidate(); }}>

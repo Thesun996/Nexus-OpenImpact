@@ -55,15 +55,13 @@ export function LoginView({ onEnter, leaving = false, reducedMotion = false, onE
         <p className="oi-login-product">代码变更影响分析</p>
         <h1 id="oi-login-title" ref={heading} tabIndex={-1}>进入项目工作台</h1>
         <p className="oi-login-intro">从你的 Python 项目开始。</p>
-        <div className="oi-login-demo-note" id="oi-login-demo-note"><span aria-hidden="true" />演示登录，无需填写账号密码。</div>
         <div className="oi-login-fields">
-          <label htmlFor="oi-login-account">用户名 <span>选填</span></label>
-          <input id="oi-login-account" type="text" placeholder="你的称呼" autoComplete="off" aria-describedby="oi-login-demo-note" />
-          <label htmlFor="oi-login-password">密码 <span>选填</span></label>
-          <input id="oi-login-password" type="password" placeholder="可留空，请勿填写真实密码" autoComplete="off" aria-describedby="oi-login-demo-note" />
+          <label htmlFor="oi-login-account">用户名</label>
+          <input id="oi-login-account" type="text" placeholder="请输入用户名" autoComplete="off" />
+          <label htmlFor="oi-login-password">密码</label>
+          <input id="oi-login-password" type="password" placeholder="请输入密码" autoComplete="off" />
         </div>
         <button className="oi-login-submit primary-action" type="submit" aria-disabled={leaving}>登录</button>
-        <p className="oi-login-footnote">点击登录即可进入。本页不验证或保存账号信息。</p>
       </form>
       <p className="oi-login-footer">Nexus OpenImpact<span>让代码变更有据可查</span></p>
     </section>

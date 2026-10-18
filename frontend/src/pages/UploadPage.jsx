@@ -12,7 +12,7 @@ export function UploadView({ state, dragging, onDragOver, onDragLeave, onDrop, o
     : phase === 'failed' ? '读取未完成，请检查错误后重试' : phase === 'selected' ? '文件已保留，尚未读取' : '等待选择 ZIP';
   return <div className="oi-workflow-page oi-upload-page">
     <section className="page-heading"><div><h1>上传 Python ZIP</h1><p>从一份真实源码开始，追踪一次小改动的影响。</p></div><div className="heading-actions"><span>最大 5 MiB · .zip</span></div></section>
-    <WorkflowNotes current={1} mode={state.mode} /><ErrorNotice error={state.error} /><CoverageNotice coverage={state.inspect?.coverage} />
+    <WorkflowNotes current={1} mode={state.mode} /><ErrorNotice error={state.error} /><CoverageNotice coverage={state.inspect?.coverage} compact />
     <section className="oi-upload-workspace">
       <article className="oi-upload-surface" aria-label="项目 ZIP" aria-busy={state.loading.inspect}>
         <header><h2>选择项目文件</h2><p role="status" data-upload-state={phase} className={`oi-upload-status is-${phase}`}>{status}</p></header>

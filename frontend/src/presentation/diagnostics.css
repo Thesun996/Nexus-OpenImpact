@@ -7,5 +7,13 @@
 .oi-diagnostic-group > summary::after { content: '+'; color: var(--oi-trace); font-family: var(--oi-font-code); }
 .oi-diagnostic-group[open] > summary::after { content: '−'; }
 .oi-diagnostic-group > p { max-width: 48rem; font-size: var(--oi-text-sm); color: var(--oi-muted); }
-.oi-diagnostic-group > summary:focus-visible { outline: var(--oi-selection) solid var(--oi-trace); outline-offset: var(--oi-focus-offset); }
+.oi-diagnostic-group > summary:focus-visible, .oi-coverage-notice > summary:focus-visible { outline: var(--oi-selection) solid var(--oi-trace); outline-offset: var(--oi-focus-offset); }
 .oi-diagnostic-groups .diagnostic-item code { overflow-wrap: anywhere; white-space: pre-wrap; }
+.oi-coverage-notice { margin-block: var(--oi-space-4); border-block: 1px solid var(--oi-line); font-size: var(--oi-text-sm); }
+.oi-coverage-notice > summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--oi-space-3); min-height: var(--oi-control-height); padding-block: var(--oi-space-2); cursor: pointer; }
+.oi-coverage-notice > summary::before { content: '+'; color: var(--oi-trace); }
+.oi-coverage-notice[open] > summary::before { content: '−'; }
+.oi-coverage-notice > summary > span { color: var(--oi-muted); }
+.oi-coverage-notice > summary > small { margin-left: auto; color: var(--oi-trace); font-size: inherit; }
+.oi-coverage-notice > div { padding-bottom: var(--oi-space-3); max-width: 80ch; }
+.oi-coverage-notice > div > p { margin-block: var(--oi-space-2); line-height: 1.65; }

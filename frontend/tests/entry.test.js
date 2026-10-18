@@ -32,11 +32,12 @@ test('splash has a single accessible brand and words wrap as words', () => {
   assert.match(html, /<button[^>]*type="button"[^>]*>跳过动画<\/button>/)
 })
 
-test('login truthfully offers an optional frontend demo without external authentication', () => {
+test('login uses conventional field copy and preserves the frontend-only entry behavior', () => {
   const html = renderToStaticMarkup(createElement(LoginView, { onEnter: () => {} }))
-  assert.ok(html.includes('演示登录，无需填写账号密码。'))
-  assert.ok(html.includes('本页不验证或保存账号信息。'))
-  assert.ok(html.includes('请勿填写真实密码'))
+  assert.ok(html.includes('placeholder="请输入用户名"'))
+  assert.ok(html.includes('placeholder="请输入密码"'))
+  assert.doesNotMatch(html, /演示|选填|无需填写|可留空|不验证或保存|请勿填写真实密码/)
+  assert.ok(!html.includes('aria-describedby="oi-login-demo-note"'))
   assert.ok(!html.includes('required'))
   assert.ok(!html.includes('action='))
   assert.ok(!html.includes('name="password"'))
