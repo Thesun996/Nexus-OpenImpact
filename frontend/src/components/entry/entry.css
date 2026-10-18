@@ -1,6 +1,7 @@
 /* Brand entry is the single expressive moment; workbench reading stays quiet. */
 .oi-entry { min-height: 100dvh; background: var(--oi-canvas); }
-.oi-entry-portal { min-height: 100dvh; background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--oi-brand-purple) 18%, var(--oi-canvas)), var(--oi-canvas) 70%); }
+.oi-entry-portal { position: relative; min-height: 100dvh; background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--oi-brand-purple) 18%, var(--oi-canvas)), var(--oi-canvas) 70%); }
+.oi-entry-theme-toggle { position: absolute; z-index: 2; top: 1.5rem; right: 1.5rem; }
 .oi-entry-workbench { min-height: 100dvh; animation: oi-login-arrive var(--oi-motion-enter) var(--oi-ease-page); }
 .oi-entry-workbench.is-reduced { animation: none; }
 .oi-splash { position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 2rem 1rem; background: radial-gradient(ellipse at 50% 10%, var(--oi-brand-purple), transparent 72%), var(--oi-canvas); }
@@ -60,6 +61,7 @@
   .oi-login-submit.primary-action { margin-top: 2rem; }
   .oi-login-footer { position: static; margin-top: 2.5rem; }
   .oi-splash-skip { bottom: 1.5rem; right: 1.5rem; }
+  .oi-entry-theme-toggle { top: 1rem; right: 1rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   .oi-login, .oi-entry-workbench { animation: none; }

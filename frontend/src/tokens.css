@@ -3,6 +3,7 @@
   font-family: 'IBM Plex Sans'; font-style: normal; font-weight: 400; font-display: swap;
   src: url('./assets/fonts/IBMPlexSans-Regular.woff2') format('woff2');
 }
+
 @font-face {
   font-family: 'IBM Plex Sans'; font-style: normal; font-weight: 500; font-display: swap;
   src: url('./assets/fonts/IBMPlexSans-Medium.woff2') format('woff2');
@@ -77,4 +78,18 @@
   --oi-ease-depart: cubic-bezier(.7, 0, .84, 0);
   --oi-ease-page: cubic-bezier(.22, 1, .36, 1);
   --oi-motion-travel: 6px;
+}
+
+/* The blue theme keeps the same dark workspace structure while shifting the action and trace colors. */
+:root[data-theme='blue'] {
+  --oi-canvas: #06111D;
+  --oi-surface: #0B1B2B;
+  --oi-ink: #EFF8FF;
+  --oi-rule: #6E8BA3;
+  --oi-trace: #55B9FF;
+  --oi-change: #FFB7A8;
+  --oi-brand-purple: #1769A8;
+  --oi-on-accent: #04101B;
+  --oi-shadow: #0000004D;
+  --oi-backdrop: #06111DCC;
 }

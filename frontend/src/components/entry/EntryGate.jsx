@@ -4,6 +4,15 @@ import { startBrandReveal } from './brandReveal.js'
 import { startLoginDissolve } from './loginDissolve.js'
 import './entry.css'
 
+function EntryThemeToggle({ theme = 'purple', onThemeChange = () => {} }) {
+  return <button className="oi-theme-toggle oi-entry-theme-toggle" type="button"
+    onClick={() => onThemeChange(theme === 'blue' ? 'purple' : 'blue')}
+    aria-pressed={theme === 'blue'} aria-label={theme === 'blue' ? '切换到深紫主题' : '切换到科技蓝主题'}>
+    <span className="oi-theme-swatch" aria-hidden="true" />
+    <span>{theme === 'blue' ? '科技蓝' : '深紫'}</span>
+  </button>
+}
+
 export function BrandSplash({ onComplete }) {
   const title = useRef(null)
   useEffect(() => startBrandReveal([...title.current.querySelectorAll('[data-brand-character]')], onComplete), [onComplete])
@@ -18,7 +27,7 @@ export function BrandSplash({ onComplete }) {
   </main>
 }
 
-export function LoginView({ onEnter, leaving = false, reducedMotion = false, onExited }) {
+export function LoginView({ onEnter, leaving = false, reducedMotion = false, onExited, theme, onThemeChange }) {
   const view = useRef(null)
   const heading = useRef(null)
   useEffect(() => { heading.current?.focus({ preventScroll: true }) }, [])
@@ -28,6 +37,7 @@ export function LoginView({ onEnter, leaving = false, reducedMotion = false, onE
     return startLoginDissolve(view.current, onExited)
   }, [leaving, reducedMotion, onExited])
   return <main ref={view} className={`oi-entry oi-login${leaving ? ' is-leaving' : ''}`} aria-labelledby="oi-login-title">
+    <EntryThemeToggle theme={theme} onThemeChange={onThemeChange} />
     <section className="oi-login-story" aria-label="项目介绍">
       <div className="oi-login-story-content">
         <p className="oi-entry-brand"><span className="oi-entry-brand-dot" aria-hidden="true" />Nexus OpenImpact</p>
@@ -60,7 +70,7 @@ export function LoginView({ onEnter, leaving = false, reducedMotion = false, onE
   </main>
 }
 
-export default function EntryGate({ children, onEnter }) {
+export default function EntryGate({ children, onEnter, theme, onThemeChange }) {
   const reducedMotion = useReducedMotionPreference()
   const [stage, setStage] = useState('splash')
   const entered = useRef(false)
@@ -87,7 +97,7 @@ export default function EntryGate({ children, onEnter }) {
   if (stage === 'workbench') return <div ref={workbench} className={`oi-entry-workbench${enteredWithoutMotion.current ? ' is-reduced' : ''}`}>{children}</div>
   if (stage === 'login' || stage === 'leaving' || reducedMotion) return <div className="oi-entry-portal">
     <LoginView leaving={stage === 'leaving'} reducedMotion={reducedMotion} onExited={enterWorkbench}
-      onEnter={() => { if (reducedMotion) enterWorkbench(); else setStage('leaving') }} />
+      onEnter={() => { if (reducedMotion) enterWorkbench(); else setStage('leaving') }} theme={theme} onThemeChange={onThemeChange} />
   </div>
-  return <BrandSplash onComplete={showLogin} />
+  return <div className="oi-entry-portal"><BrandSplash onComplete={showLogin} /><EntryThemeToggle theme={theme} onThemeChange={onThemeChange} /></div>
 }

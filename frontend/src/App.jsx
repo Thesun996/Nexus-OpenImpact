@@ -22,7 +22,18 @@ function currentPage() {
 
 export default function App() {
   const [route, setRoute] = useState(() => ({ page: currentPage(), direction: 0, sequence: 0 }))
+  const [theme, setTheme] = useState(() => {
+    try {
+      return window.localStorage.getItem('openimpact-theme') === 'blue' ? 'blue' : 'purple'
+    } catch {
+      return 'purple'
+    }
+  })
   const { page } = route
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    try { window.localStorage.setItem('openimpact-theme', theme) } catch { /* Storage may be unavailable in private contexts. */ }
+  }, [theme])
   function moveTo(next) {
     setRoute((previous) => previous.page === next ? previous : { page: next, direction: pageDirection(previous.page, next), sequence: previous.sequence + 1 })
   }
@@ -36,5 +47,5 @@ export default function App() {
     moveTo(currentPage())
   }
   const Page = pages[page]
-  return <EntryGate onEnter={() => navigate('upload')}><WorkflowProvider><AppShell page={page} navigate={navigate}><WorkflowPages {...route}><Suspense fallback={<section className="detail-card empty-state-card" role="status"><h2>正在加载页面</h2></section>}><Page navigate={navigate} /></Suspense></WorkflowPages></AppShell></WorkflowProvider></EntryGate>
+  return <EntryGate onEnter={() => navigate('upload')} theme={theme} onThemeChange={setTheme}><WorkflowProvider><AppShell page={page} navigate={navigate} theme={theme} onThemeChange={setTheme}><WorkflowPages {...route}><Suspense fallback={<section className="detail-card empty-state-card" role="status"><h2>正在加载页面</h2></section>}><Page navigate={navigate} /></Suspense></WorkflowPages></AppShell></WorkflowProvider></EntryGate>
 }

@@ -10,7 +10,7 @@ const navigation = [
   { label: '分析报告', page: 'report' },
 ]
 
-export default function AppShell({ page, navigate, children }) {
+export default function AppShell({ page, navigate, children, theme = 'purple', onThemeChange = () => {} }) {
   const { state, actions } = useWorkflow()
   const navRef = useRef(null)
   const isDemo = state.mode === 'demo'
@@ -74,6 +74,11 @@ export default function AppShell({ page, navigate, children }) {
             <span className="oi-file-name" title={fileName}>{fileName}</span>
           </div>
           <div className="oi-top-actions">
+            <button className="oi-theme-toggle" type="button" onClick={() => onThemeChange(theme === 'blue' ? 'purple' : 'blue')}
+              aria-pressed={theme === 'blue'} aria-label={theme === 'blue' ? '切换到深紫主题' : '切换到科技蓝主题'}>
+              <span className="oi-theme-swatch" aria-hidden="true" />
+              <span>{theme === 'blue' ? '科技蓝' : '深紫'}</span>
+            </button>
             <button className={`oi-connection ${healthStatus === 'ok' ? 'is-connected' : healthStatus === 'error' ? 'is-error' : ''}`}
               type="button" onClick={() => void actions.checkHealth()} disabled={healthStatus === 'checking'}
               aria-label={`${healthLabel}，检查后端连接`}>
