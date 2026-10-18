@@ -21,7 +21,8 @@ test('the app applies and persists the selected theme through the topbar control
   assert.match(shell, /切换到深紫主题/)
 })
 
-test('the workbench navigation keeps the planned scope page available', () => {
-  assert.match(shell, />功能范围<\/a>/)
-  assert.match(app, /PlannedPage/)
+test('the workbench omits the scope entry while preserving the other navigation and route', () => {
+  assert.doesNotMatch(shell, /href="#planned"|>功能范围<\/a>/)
+  for (const label of ['项目库', '分析任务', '历史报告']) assert.ok(shell.includes(`>${label}</a>`))
+  assert.match(app, /planned: PlannedPage/)
 })
