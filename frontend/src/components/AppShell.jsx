@@ -16,10 +16,6 @@ export default function AppShell({ page, navigate, children, theme = 'purple', o
   const isDemo = state.mode === 'demo'
   const projectName = state.inspect?.project_name || '尚未读取项目'
   const fileName = state.file?.name || state.snapshot?.source_filename || (isDemo ? '固定 signature_change 样例' : '等待选择原始 ZIP')
-  const healthStatus = state.health?.status || 'idle'
-  const healthLabel = healthStatus === 'ok' ? '后端已连接'
-    : healthStatus === 'checking' ? '正在检查连接'
-      : healthStatus === 'error' ? '后端连接失败' : '连接待检查'
 
   function startProject() {
     actions.reset()
@@ -77,13 +73,6 @@ export default function AppShell({ page, navigate, children, theme = 'purple', o
               aria-pressed={theme === 'blue'} aria-label={theme === 'blue' ? '切换到深紫主题' : '切换到科技蓝主题'}>
               <span className="oi-theme-swatch" aria-hidden="true" />
               <span>{theme === 'blue' ? '科技蓝' : '深紫'}</span>
-            </button>
-            <button className={`oi-connection ${healthStatus === 'ok' ? 'is-connected' : healthStatus === 'error' ? 'is-error' : ''}`}
-              type="button" onClick={() => void actions.checkHealth()} disabled={healthStatus === 'checking'}
-              aria-label={`${healthLabel}，检查后端连接`}>
-              <span className="oi-connection-dot" aria-hidden="true" />
-              <span>{healthLabel}</span>
-              {healthStatus === 'ok' && state.health?.version && <small>v{state.health.version}</small>}
             </button>
             <button className="ghost-action oi-new-project" type="button" onClick={startProject}>新项目</button>
           </div>
