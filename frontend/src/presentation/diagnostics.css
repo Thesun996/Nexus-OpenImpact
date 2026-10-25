@@ -9,6 +9,9 @@
 .oi-diagnostic-group > p { max-width: 48rem; font-size: var(--oi-text-sm); color: var(--oi-muted); }
 .oi-diagnostic-group > summary:focus-visible, .oi-coverage-notice > summary:focus-visible { outline: var(--oi-selection) solid var(--oi-trace); outline-offset: var(--oi-focus-offset); }
 .oi-diagnostic-groups .diagnostic-item code { overflow-wrap: anywhere; white-space: pre-wrap; }
+.oi-coverage-summary { color: var(--oi-muted); font-size: var(--oi-text-sm); }
+.oi-coverage-summary > p { margin-block: 0 var(--oi-space-2); }
+.oi-coverage-summary > .oi-coverage-notice { margin-block: 0; }
 .oi-coverage-notice { margin-block: var(--oi-space-4); border-block: 1px solid var(--oi-line); font-size: var(--oi-text-sm); }
 .oi-coverage-notice > summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--oi-space-3); min-height: var(--oi-control-height); padding-block: var(--oi-space-2); cursor: pointer; }
 .oi-coverage-notice > summary::before { content: '+'; color: var(--oi-trace); }

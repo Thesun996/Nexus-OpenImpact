@@ -53,7 +53,7 @@ export default function ReportQuestions({ report, findingIndex }) {
     }
   }
   return <section className="oi-report-questions" aria-label="围绕本次分析继续提问">
-    <header><div><h2>继续了解这次变更</h2><p>{findingIndex != null ? '围绕当前选中的影响记录提问；切换记录后开始新的对话。' : '当前没有确定影响记录，可以询问报告的分析范围。'}</p></div><span>源码证据优先</span></header>
+    <header><div><h2>继续了解这次变更</h2><p>{findingIndex != null ? '围绕当前选中的影响记录提问；切换记录后开始新的对话。' : '当前没有确定影响记录，可以询问报告的分析范围。'}</p></div><small className="oi-provider-note">回答依据本次报告与源码证据。</small></header>
     <div className="oi-question-suggestions" aria-busy={busy === 'suggestions'}>
       <button className="oi-generate-questions" type="button" disabled={!enabled || !!busy} onClick={() => void runRequest('suggestions')}>{suggestions?.status === 'available' ? '重新生成推荐追问' : '生成推荐追问'}</button>
       <p className="oi-question-generation-note">让模型根据当前变更和源码证据提出检查问题；每次主动生成请求一次模型，也可以直接输入问题。</p>
@@ -61,7 +61,6 @@ export default function ReportQuestions({ report, findingIndex }) {
       {suggestions?.questions.map(item => <button type="button" key={item.question} disabled={!enabled || !!busy} onClick={() => void runRequest('answer', item.question)}>{item.question}</button>)}
     </div>
     {!enabled && <p>请在实际项目模式完成分析后提问。演示记录不发送真实模型请求。</p>}
-    {report.coverage?.status === 'partial' && <p className="state-message">覆盖不完整，回答仅依据本次已解析的证据。</p>}
     <div className="oi-question-conversation" aria-live="polite" aria-busy={busy === 'answer'}>{turns.map((turn, index) => <article key={index}>
       <h3>{turn.question}</h3><span className="oi-question-provider">{turn.provider === 'deepseek' ? '模型辅助回答' : turn.provider === 'fallback' ? '规则回答 · 模型暂不可用' : '规则回答'}{turn.status === 'limited' ? ' · 证据或回答范围有限' : ''}</span>
       <ExplanationText text={turn.answer} />

@@ -90,8 +90,8 @@ function FunctionReportResults({ report, mode = 'project', initialSelectedIndex 
           </div>
         </div> : <div className="oi-report-empty" role="status">
           <span aria-hidden="true">∅</span><h2>当前没有确定影响</h2>
-          <p>当前已解析范围内没有确定直接影响或间接影响。{report.coverage?.status === 'partial' ? '覆盖不完整，不能据此判断全项目无影响。' : '请结合人工检查与已有问题阅读结果。'}</p>
-          <p>没有对应的传播路径、源码证据和中文解释，页面保留真实零结果。</p>
+          <p>当前可确认范围内，未发现本次变更的确定影响。</p>
+          <p>可结合人工检查与已有问题继续核查。</p>
         </div>}
         <ReviewNotes report={report} sectionRefs={sectionRefs} />
         <ReportDiagnostics report={report} />
@@ -139,7 +139,7 @@ export default function ReportPage({ navigate }) {
   }
 
   return <div className="oi-report-page">
-    <section className="page-heading"><div><h1>分析报告</h1><p>{report ? report.change_domain === 'symbol' ? '从静态符号引用追到真实定义与源码证据。' : report.change_domain === 'module' ? '从静态导入依赖追到真实源码，理解拟定模块变更。' : '从调用路径追到真实源码，理解这次变更的影响。' : '当前会话尚未产生分析报告。'}</p></div><div className="heading-actions"><span>覆盖状态 <b>{report ? statusLabel(report.coverage?.status) : '尚未分析'}</b></span><ReportDownload report={report} projectName={state.inspect?.project_name} mode={state.mode} />{report && (!report.change_domain || report.change_domain === 'function') && <button className="ghost-action" type="button" onClick={() => navigate('graph')}>查看代码关系图</button>}<button className="ghost-action" type="button" onClick={() => navigate('history')}>历史报告</button><button className="ghost-action" type="button" onClick={() => navigate('change')}>调整变更</button><button className="primary-action" type="button" onClick={() => void saveCurrentReport()} disabled={!canSaveReport || saveState.status === 'saving' || currentReportSaved} title={state.mode === 'demo' ? '演示模式不写入本地数据库。' : !report ? '请先完成一次分析。' : currentReportSaved ? '当前报告已保存到历史。' : undefined}>{saveState.status === 'saving' ? '保存中…' : currentReportSaved ? '已保存到历史' : '保存到历史'}</button></div></section>
+    <section className="page-heading"><div><h1>分析报告</h1><p>{report ? report.change_domain === 'symbol' ? '从静态符号引用追到真实定义与源码证据。' : report.change_domain === 'module' ? '从静态导入依赖追到真实源码，理解拟定模块变更。' : '从调用路径追到真实源码，理解这次变更的影响。' : '当前会话尚未产生分析报告。'}</p></div><div className="heading-actions"><span>分析范围 <b>{report ? report.coverage?.status === 'partial' ? '部分覆盖' : statusLabel(report.coverage?.status) : '尚未分析'}</b></span><ReportDownload report={report} projectName={state.inspect?.project_name} mode={state.mode} />{report && (!report.change_domain || report.change_domain === 'function') && <button className="ghost-action" type="button" onClick={() => navigate('graph')}>查看代码关系图</button>}<button className="ghost-action" type="button" onClick={() => navigate('history')}>历史报告</button><button className="ghost-action" type="button" onClick={() => navigate('change')}>调整变更</button><button className="primary-action" type="button" onClick={() => void saveCurrentReport()} disabled={!canSaveReport || saveState.status === 'saving' || currentReportSaved} title={state.mode === 'demo' ? '演示模式不写入本地数据库。' : !report ? '请先完成一次分析。' : currentReportSaved ? '当前报告已保存到历史。' : undefined}>{saveState.status === 'saving' ? '保存中…' : currentReportSaved ? '已保存到历史' : '保存到历史'}</button></div></section>
     {saveState.status === 'saved' && <section className="state-message" role="status">已保存到历史：<b>{saveState.record?.project_name || '未命名项目'}</b></section>}
     {saveState.status === 'error' && <section className="state-message error" role="alert">{saveState.error}</section>}
     <details className="oi-report-process"><summary>分析流程与会话说明</summary><WorkflowSteps current={4} /><ModeNotice mode={state.mode} /></details>

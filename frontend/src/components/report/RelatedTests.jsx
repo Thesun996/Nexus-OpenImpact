@@ -7,7 +7,7 @@ export default function RelatedTests({ report }) {
     <header><h2>相关测试与检查理由</h2><span>{candidates.length} 个候选</span></header>
     <p>依据真实调用路径定位候选测试。未实际收集或运行测试，关联不保证测试会执行到受影响位置或运行失败。</p>
     {candidates.length > 0 && <p>上方辅助解释未使用这份测试列表；本区补充具体候选位置，实际覆盖与执行结果仍需确认。</p>}
-    {report.coverage?.status === 'partial' && <p className="state-message warning" role="status">覆盖不完整，测试定位也不完整；未列出的测试仍可能需要检查。</p>}
+    {report.coverage?.status === 'partial' && <p className="oi-provider-note">未列出的测试仍可能需要检查。</p>}
     {!candidates.length && <p role="status">{related?.status === 'unavailable'
       ? '相关测试定位暂不可用，请结合源码与已有影响结果人工选择测试。'
       : related ? '当前支持的路径内未定位到相关测试。空列表不代表无需回归测试。'

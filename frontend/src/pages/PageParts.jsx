@@ -36,19 +36,21 @@ export function ErrorNotice({ error }) {
 
 export function CoverageNotice({ coverage, compact = false }) {
   if (coverage?.status !== 'partial') return null;
-  const explanation = <>
-    <p><b>分析范围不完整。</b> {coverage.message || '部分源码或调用未解析，当前结果只覆盖能够确认的代码。'} 零条影响也不表示整个项目确定无影响；已经确定的影响仍可查看。</p>
-    <CoverageDetails coverage={coverage} />
-  </>;
   const { python_files: files, parsed_python_files: parsed } = coverage.details || {};
   const missingSources = Number.isSafeInteger(files) && Number.isSafeInteger(parsed) && parsed >= 0 && files > parsed ? files - parsed : 0;
-  if (compact) return <details className="oi-coverage-notice">
-    <summary><b>分析范围</b><span>{missingSources ? `${missingSources} 个文件未解析` : '部分关系待确认'}</span><small>查看说明</small></summary>
-    <div>{explanation}</div>
+  const details = <details className="oi-coverage-notice">
+    <summary><b>分析详情</b><span>{missingSources ? `${missingSources} 个文件未解析` : '部分关系待确认'}</span><small>展开查看</small></summary>
+    <div>
+      {coverage.message && <p>{coverage.message}</p>}
+      <p>零条确定影响仅适用于当前可确认范围，不能据此判断整个项目无影响。</p>
+      <CoverageDetails coverage={coverage} />
+    </div>
   </details>;
+  if (compact) return details;
   return (
-    <section className="state-message" role="alert">
-      {explanation}
+    <section className="oi-coverage-summary" aria-label="分析范围">
+      <p>结果基于已确认的代码关系，未确认部分可在「分析详情」查看。</p>
+      {details}
     </section>
   );
 }

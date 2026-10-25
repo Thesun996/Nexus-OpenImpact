@@ -172,7 +172,7 @@ test('zero-impact report renders actual zero counts without earlier source or ex
   report.summary.indirect_2hop_count = 0
   const html = render(report)
   assert.equal((html.match(/<strong>0<\/strong>/g) || []).length, 5)
-  assert.ok(html.includes('当前已解析范围内没有确定直接影响或间接影响'))
+  assert.ok(html.includes('当前可确认范围内，未发现本次变更的确定影响。'))
   assert.ok(!html.includes('utils.format_date'))
   assert.ok(!html.includes('timezone'))
   assert.ok(!html.includes('return format_date'))
@@ -253,8 +253,8 @@ test('partial, manual review, unresolved and pre-existing data stay separate fro
   report.summary.pre_existing_problem_count = 1
   report.summary.unresolved_call_count = 1
   const html = render(report)
-  assert.ok(html.includes('分析范围不完整'))
-  assert.ok(html.includes('零条影响也不表示整个项目确定无影响'))
+  assert.ok(html.includes('结果基于已确认的代码关系'))
+  assert.ok(html.includes('不能据此判断整个项目无影响'))
   assert.ok(html.includes('extra.uncertain'))
   assert.ok(html.includes('extra.py:3:0'))
   assert.ok(html.includes('不作为确定间接传播起点'))

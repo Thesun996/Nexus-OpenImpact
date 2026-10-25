@@ -63,7 +63,9 @@ test('zero partial result is visible without fabricated findings, sources or exp
   const report = structuredClone(fixture.report); report.import_impacts = []; report.module_indirect_impacts = []; report.evidences = []; report.explanations = []
   report.summary.direct_import_count = report.summary.indirect_1hop_module_count = report.summary.indirect_2hop_module_count = 0
   report.coverage.status = 'partial'; report.diagnostics.import_diagnostics = [{ code: 'dynamic_import', file: 'x.py', line: 1, message: '人工检查' }]
-  const html = render(ReportResults, { report }); assert.ok(html.includes('分析范围不完整')); assert.ok(html.includes('当前没有确定影响'))
+  const html = render(ReportResults, { report }); assert.ok(html.includes('结果基于已确认的代码关系')); assert.ok(html.includes('当前没有确定影响'))
+  assert.ok(html.includes('当前可确认范围内，未发现本次变更的确定影响。'))
+  assert.ok(html.includes('不能据此判断整个项目无影响'))
   assert.ok(html.includes('dynamic_import')); assert.ok(!html.includes('from utils import format_date'))
 })
 test('unknown module schema cannot be mistaken for frozen Function report v1', () => {

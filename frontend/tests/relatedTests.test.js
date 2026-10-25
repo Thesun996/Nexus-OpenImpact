@@ -33,11 +33,13 @@ test('zero candidates and legacy report never claim tests are unnecessary', () =
   assert.ok(render({}).includes('当前报告未提供测试定位信息'));
   assert.ok(!render({}).includes('tests.test_report'));
 });
-test('partial coverage is visible before expandable limitations', () => {
+test('partial test boundary remains visible as a concise note before expandable limitations', () => {
   const value = report(); value.coverage.status = 'partial';
   const html = render(value);
-  assert.ok(html.includes('覆盖不完整，测试定位也不完整'));
-  assert.ok(html.indexOf('覆盖不完整') < html.indexOf('oi-test-limits'));
+  assert.match(html, /<p class="oi-provider-note">未列出的测试仍可能需要检查。<\/p>/);
+  assert.ok(html.indexOf('未列出的测试仍可能需要检查') < html.indexOf('oi-test-limits'));
+  assert.ok(!html.includes('覆盖不完整'));
+  assert.ok(!render(report()).includes('未列出的测试仍可能需要检查'));
 });
 test('unavailable source does not display old code or hide the whole test record', () => {
   const value = report(); value.related_tests.candidates[0].paths[0].call_sites[0].status = 'unavailable';

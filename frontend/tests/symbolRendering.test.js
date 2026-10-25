@@ -45,6 +45,6 @@ test('source renders as plain text; mismatch never lends another explanation',()
 test('zero partial and unknown schema do not impersonate complete Function reports',()=>{
   const report=structuredClone(fixture.report); report.reference_impacts=[]; report.symbol_indirect_impacts=[]; report.evidences=[]; report.explanations=[]; report.coverage.status='partial'
   for(const key of Object.keys(report.summary))report.summary[key]=0
-  let html=render(ReportResults,{report}); assert.ok(html.includes('当前没有确定影响')); assert.ok(html.includes('零结果不证明项目没有其他影响'))
+  let html=render(ReportResults,{report}); assert.ok(html.includes('当前没有确定影响')); assert.ok(html.includes('当前可确认范围内，未发现本次变更的确定影响。')); assert.ok(html.includes('不能据此判断整个项目无影响'))
   report.schema_version=2; html=render(ReportResults,{report}); assert.ok(html.includes('符号报告版本不可识别'))
 })

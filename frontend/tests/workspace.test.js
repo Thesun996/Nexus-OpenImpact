@@ -59,13 +59,18 @@ after(async () => { await server?.close() })
 
 test('partial and demo questions show the real boundaries instead of fabricated answers', () => {
   const html = renderToStaticMarkup(createElement(ReportQuestions, { report: { coverage: { status: 'partial' } } }))
-  assert.ok(html.includes('覆盖不完整'))
+  assert.match(html, /<small class="oi-provider-note">回答依据本次报告与源码证据。<\/small>/)
+  assert.equal((html.match(/回答依据本次报告与源码证据。/g) || []).length, 1)
+  assert.ok(!html.includes('覆盖不完整'))
+  assert.ok(!html.includes('源码证据优先'))
   assert.ok(html.includes('演示记录不发送真实模型请求'))
   assert.ok(html.includes('继续了解这次变更'))
   assert.ok(html.includes('disabled'))
   assert.ok(!html.includes('模型调用成功'))
   assert.ok(html.includes('生成推荐追问'))
   assert.ok(!html.includes('我应该先检查哪些位置？'))
+  const complete = renderToStaticMarkup(createElement(ReportQuestions, { report: { coverage: { status: 'complete' } } }))
+  assert.ok(complete.includes('回答依据本次报告与源码证据。'))
 })
 
 test('recommendations use the same uploaded snapshot without answer history or a fixed question', async () => {

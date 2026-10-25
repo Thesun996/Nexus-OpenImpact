@@ -28,7 +28,7 @@ export default function ModuleReportView({ report }) {
       <p>只分析虚拟项目布局，不重命名或删除源码。直接影响统计真实导入引用；间接影响按上游模块去重，不代表确定运行失败。</p>
     </section>
     <div className="oi-module-counts" aria-label="模块影响统计">{counts.map(([group, label, value]) => <div key={label}><small>{group}</small><b>{value ?? 0}</b><span>{label}</span></div>)}</div>
-    <p className="oi-explanation-note">{report.coverage.message}</p>
+    {report.coverage.status !== 'partial' && <p className="oi-explanation-note">{report.coverage.message}</p>}
     <div className="oi-report-workspace">
       <section className="oi-impact-index" aria-label="模块影响索引"><header><h2>导入影响索引</h2><span>{findings.length} 条</span></header>
         {findings.map((item, slot) => <button className={`oi-symbol-row${slot === index ? ' is-selected' : ''}`} type="button" aria-pressed={slot === index} key={item.finding_id} onClick={() => setSelection({ report, index: slot })}>
@@ -50,7 +50,7 @@ export default function ModuleReportView({ report }) {
         </article><aside className="oi-explanation-panel" aria-label="当前导入的中文辅助解释"><h2>中文辅助解释</h2>
           {isUsableExplanation(explanation) ? <><p className="oi-explanation-summary">{explanation.summary}</p><ExplanationText text={explanation.why_affected} /><h3>建议检查</h3><ExplanationText text={explanation.suggested_check} ordered /><p className="oi-explanation-note">规则解释 · 业务风险 {riskLabel(explanation.risk_level)} · 解释置信度 {explanation.confidence}，不表示运行失败概率。</p></> : <div className="oi-report-unavailable"><b>解释暂不可用</b><p>请直接阅读静态证据与诊断。</p></div>}
         </aside></div>
-      </div> : <div className="oi-report-empty" role="status"><span>∅</span><h2>当前没有确定影响</h2><p>{report.coverage.status === 'partial' ? '覆盖不完整，零结果不证明项目没有其他影响。' : '受支持的静态引用未因本次虚拟模块变更产生断裂。'}</p><p>没有对应的源码证据与解释，不使用演示 数据填充。</p></div>}
+      </div> : <div className="oi-report-empty" role="status"><span>∅</span><h2>当前没有确定影响</h2><p>当前可确认范围内，未发现本次变更的确定影响。</p><p>暂无对应的传播路径、源码证据与解释。</p></div>}
         <section className="oi-review-section"><h2>分析边界与诊断</h2><p>条件、局部、动态、相对和复杂包导入保持人工检查或未解析，不参与确定传播。</p><DiagnosticsList diagnostics={moduleDiagnosticEntries(report.diagnostics)} /></section>
       </div>
     </div>
