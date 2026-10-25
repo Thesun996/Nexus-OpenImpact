@@ -116,7 +116,7 @@ python -m openimpact.worker
 
 ### 代码关系图
 
-`POST /api/v1/projects/graph` 接受 `file` ZIP，以及可选的 `expected_fingerprint` 和 `analysis_root`；它只执行 ZIP 校验、AST 解析、符号索引和显式调用关系构建，不执行上传源码，也不依赖变更配置。成功响应包含 `graph.nodes`、`graph.edges`、`diagnostics` 和 `coverage`。节点是当前 V1 范围内的模块级 Python 函数，边是静态解析确认的函数调用；未解析调用不会进入 `graph.edges`。
+`POST /api/v1/projects/graph` 接受 `file` ZIP，以及可选的 `expected_fingerprint` 和 `analysis_root`；它只执行 ZIP 校验、AST 解析、符号索引和显式调用关系构建，不执行上传源码，也不依赖变更配置。成功响应包含 `graph.nodes`、`graph.edges`、`diagnostics` 和 `coverage`。节点包含模块级 Python 函数，以及已确认调用边所需的真实调用上下文（类方法、嵌套函数、类定义体和 lambda）；这些上下文不会因此成为 Inspect 的可选变更目标。每条边的 source / target 都有对应节点；未解析调用不会进入 `graph.edges`。解析诊断沿用 Inspect 的安全文案，不返回服务器临时绝对路径。
 
 已保存快照使用 `POST /api/v1/snapshots/{snapshot_id}/graph`，不上传文件，只接受 `expected_fingerprint` 文本字段。后端从快照记录读取 ZIP，并在分析前核对指纹。快照不存在、损坏或指纹不匹配时沿用快照接口的 404、409 错误结构。
 

@@ -1,3 +1,33 @@
+export function createGraphLayout(nodes) {
+  const animated = nodes.length <= 12
+  const columns = Math.max(1, Math.ceil(Math.sqrt(nodes.length)))
+  const width = animated ? 760 : Math.max(760, columns * 220 + 120)
+  const height = animated ? 480 : Math.max(480, Math.ceil(nodes.length / columns) * 140 + 160)
+  const positions = nodes.map((node, index) => {
+    const angle = -Math.PI / 2 + index * Math.PI * 2 / Math.max(nodes.length, 1)
+    const x = animated ? width / 2 + (nodes.length === 1 ? 0 : Math.cos(angle) * 250) : 80 + index % columns * 220
+    const y = animated ? height / 2 + (nodes.length === 1 ? 0 : Math.sin(angle) * 125) : 80 + Math.floor(index / columns) * 140
+    return { node, x, y, homeX: x, homeY: y, vx: 0, vy: 0 }
+  })
+  return { width, height, positions, animated }
+}
+
+export function defaultGraphViewport(layout, size) {
+  // Keep one view unit per CSS pixel; large worlds are explored by panning.
+  return {
+    x: layout.animated ? (layout.width - size.width) / 2 : 0,
+    y: layout.animated ? (layout.height - size.height) / 2 : 0,
+    width: size.width,
+    height: size.height,
+  }
+}
+
+export function zoomGraphViewport(current, factor, size) {
+  const width = Math.max(size.width / 4, Math.min(size.width * 2, current.width * factor))
+  const height = width * size.height / size.width
+  return { x: current.x + (current.width - width) / 2, y: current.y + (current.height - height) / 2, width, height }
+}
+
 export function clampGraphPosition(point, width, height) {
   return {
     x: Math.max(40, Math.min(width - 40, point.x)),

@@ -174,20 +174,22 @@ def _extract_python(
                 target.write(chunk)
 
 
+def safe_parse_message(kind: str, message: str) -> str:
+    """Keep public parse diagnostics free of server read/encoding paths."""
+    if kind == "read_error":
+        return "无法读取项目源文件。"
+    if kind == "encoding_error":
+        return "项目源文件编码无法解析。"
+    return message
+
+
 def _result(
     index: SymbolIndex, filename: str | None, fingerprint: str,
     stripped_root: str | None, source_count: int, occupied_names: tuple[str, ...] = (),
 ) -> dict:
-    def safe_message(kind: str, message: str) -> str:
-        if kind == "read_error":
-            return "无法读取项目源文件。"
-        if kind == "encoding_error":
-            return "项目源文件编码无法解析。"
-        return message
-
     parse_errors = [
         {"file": path.as_posix(), "kind": item.kind,
-         "message": safe_message(item.kind, item.message),
+         "message": safe_parse_message(item.kind, item.message),
          "line": item.lineno, "column": item.col_offset}
         for path, diagnostics in sorted(index.parse_diagnostics.items())
         for item in diagnostics

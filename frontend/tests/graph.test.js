@@ -17,8 +17,103 @@ test('关系图只从函数分析证据生成节点和调用边', () => {
 })
 
 test('没有报告或非函数报告时不生成猜测关系', () => {
-  assert.deepEqual(buildEvidenceGraph(null), { nodes: [], edges: [], supported: false })
+  assert.deepEqual(buildEvidenceGraph(null), { nodes: [], edges: [], paths: [], supported: false })
   assert.equal(buildEvidenceGraph({ change_domain: 'module' }).supported, false)
+})
+
+function projectPayload(calls) {
+  const ids = [...new Set(calls.flatMap(call => [call.source, call.target]))]
+  return { graph: { nodes: ids.map(id => ({ id, kind: 'function' })), edges: calls } }
+}
+
+function directCall(column = 4, caller = 'caller.f') {
+  return { caller_symbol_id: caller, target_symbol_id: 'utils.f', file: 'caller.py', line: 2, column, impact_type: 'direct' }
+}
+
+function directEvidence(call) {
+  return { status: 'available', impact_type: 'direct', target_symbol: call.target_symbol_id,
+    location: { file: call.file, line: call.line, column: call.column },
+    evidence_reference: `call:${call.file}:${call.line}:${call.column}`, propagation_path: [] }
+}
+
+function callEdge(column = 4, source = 'caller.f', target = 'utils.f') {
+  return { id: `${source}->${target}:${column}`, source, target,
+    location: { file: 'caller.py', line: 2, column } }
+}
+
+test('项目图仅高亮真实Direct调用点，同调用者的兼容或既有问题保持普通调用', () => {
+  const direct = directCall()
+  const report = { change: { target_symbol_id: 'utils.f' }, direct_impacts: [direct],
+    pre_existing_problems: [directCall(8)], evidences: [directEvidence(direct)] }
+  const graph = buildProjectGraph(projectPayload([callEdge(), callEdge(8), callEdge(12), callEdge(4, 'unrelated.f')]), report)
+  assert.deepEqual(graph.edges.map(edge => edge.impactType), ['direct', 'call', 'call', 'call'])
+  assert.equal(graph.nodes.find(node => node.id === 'caller.f').role, 'direct')
+  assert.equal(graph.nodes.find(node => node.id === 'unrelated.f').role, 'function')
+  assert.equal(graph.nodes.find(node => node.id === 'caller.f').kind, 'function')
+  assert.ok(graph.edges[0].evidence)
+  const wrongIdentity = buildProjectGraph(projectPayload([callEdge(), { ...callEdge(), location: { ...callEdge().location, file: 'other.py' } },
+    { ...callEdge(), location: { ...callEdge().location, line: 3 } }, callEdge(4, 'caller.f', 'other.f')]), report)
+  assert.deepEqual(wrongIdentity.edges.map(edge => edge.impactType), ['direct', 'call', 'call', 'call'])
+})
+
+test('没有Direct记录或缺少精确位置时，调用目标相同也不猜测影响', () => {
+  const incomplete = { ...directCall(), column: undefined }
+  for (const report of [null, { change: { target_symbol_id: 'utils.f' }, direct_impacts: [] },
+    { change: { target_symbol_id: 'utils.f' }, direct_impacts: [incomplete] },
+    { change_domain: 'module', direct_impacts: [directCall()] }]) {
+    assert.equal(buildProjectGraph(projectPayload([callEdge()]), report).edges[0].impactType, 'call')
+  }
+})
+
+test('回退图保留同一行不同列的Direct，并以真实独立路径表示分支', () => {
+  const calls = [directCall(4), directCall(14), directCall(4, 'other.f')]
+  const graph = buildEvidenceGraph({ direct_impacts: calls, evidences: calls.map(directEvidence) })
+  assert.equal(graph.edges.length, 3)
+  assert.deepEqual(graph.edges.map(edge => edge.location.column), [4, 14, 4])
+  assert.equal(new Set(graph.edges.map(edge => edge.id)).size, 3)
+  assert.deepEqual(graph.paths.map(path => path.symbols), [
+    ['caller.f', 'utils.f'], ['caller.f', 'utils.f'], ['other.f', 'utils.f'],
+  ])
+  assert.equal(new Set(graph.paths.map(path => path.id)).size, 3)
+})
+
+test('报告Evidence身份不符时不借用别的证据或传播路径', () => {
+  const report = structuredClone(fixture)
+  report.evidences[0].location.column += 1
+  report.evidences[1].propagation_path[0].symbols[0] = 'invented.f'
+  const graph = buildEvidenceGraph(report)
+  assert.equal(graph.edges.find(edge => edge.impactType === 'direct').evidence, null)
+  assert.ok(graph.nodes.every(node => node.id !== 'invented.f'))
+  assert.ok(graph.paths.every(path => path.symbols[0] !== 'invented.f'))
+})
+
+test('共享传播调用点去重，保留Direct优先级并拒绝无证据的间接高亮', () => {
+  const report = structuredClone(fixture)
+  report.indirect_impacts.push(structuredClone(report.indirect_impacts[1]))
+  report.evidences.push(structuredClone(report.evidences[2]))
+  const fallback = buildEvidenceGraph(report)
+  assert.equal(fallback.edges.length, 3)
+  assert.equal(fallback.paths.length, 3)
+  assert.equal(fallback.edges.find(edge => edge.target === 'utils.format_date').impactType, 'direct')
+  const payload = { graph: { nodes: fallback.nodes.map(node => ({ id: node.id })),
+    edges: fallback.edges.map(edge => ({ id: edge.id, source: edge.source, target: edge.target, location: edge.location })) } }
+  const graph = buildProjectGraph(payload, report)
+  assert.deepEqual(graph.edges.map(edge => edge.impactType), ['direct', 'indirect_1hop', 'indirect_2hop'])
+  assert.equal(graph.nodes.find(node => node.id === 'dashboard.dashboard').role, 'upstream')
+  const noEvidence = buildProjectGraph(payload, { ...report, evidences: [] })
+  assert.deepEqual(noEvidence.edges.map(edge => edge.impactType), ['direct', 'call', 'call'])
+})
+
+test('传播边按真实路径深度标识，末端调用缺少Direct记录时不推测Direct', () => {
+  const report = structuredClone(fixture)
+  // A valid 2-hop path still proves its intermediate edge when a separate
+  // 1-hop Evidence slot is unavailable; it does not make that edge 2-hop.
+  report.evidences[1] = null
+  const graph = buildEvidenceGraph(report)
+  assert.equal(graph.edges.find(edge => edge.source === 'dashboard.dashboard').impactType, 'indirect_1hop')
+  assert.equal(graph.edges.find(edge => edge.source === 'page.page').impactType, 'indirect_2hop')
+  const indirectOnly = { ...fixture, direct_impacts: [], evidences: fixture.evidences.slice(1) }
+  assert.equal(buildEvidenceGraph(indirectOnly).edges.find(edge => edge.target === 'utils.format_date').impactType, 'call')
 })
 
 test('完整项目图保留所有节点，并把未解析调用放在诊断中', () => {

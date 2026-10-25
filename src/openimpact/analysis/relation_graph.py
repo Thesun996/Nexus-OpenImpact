@@ -5,6 +5,7 @@ from typing import Any
 from openimpact.analysis.call_graph import CallGraph
 from openimpact.analysis.symbol_index import SymbolIndex
 from openimpact.repository.layout import layout_metadata
+from openimpact.repository.zip_inspector import safe_parse_message
 
 
 def build_relation_graph(index: SymbolIndex) -> dict[str, Any]:
@@ -14,10 +15,14 @@ def build_relation_graph(index: SymbolIndex) -> dict[str, Any]:
     without presenting a guess as a confirmed relationship.
     """
     graph = CallGraph(index).build()
+    node_symbols = dict(index.symbols)
+    # Callers include source-addressed contexts, without adding change targets.
+    for edge in graph.edges:
+        node_symbols.setdefault(edge.caller_symbol_id, index.callers[edge.caller_symbol_id])
     nodes = [
         {
             "id": symbol.symbol_id,
-            "kind": "function",
+            "kind": getattr(symbol.definition, "kind", "function"),
             "module": symbol.module,
             "name": symbol.qualified_name,
             "file": symbol.file.as_posix(),
@@ -32,7 +37,7 @@ def build_relation_graph(index: SymbolIndex) -> dict[str, Any]:
                 for parameter in getattr(symbol.definition, "parameters", ())
             ],
         }
-        for _, symbol in sorted(index.symbols.items())
+        for _, symbol in sorted(node_symbols.items())
     ]
     edges = [
         {
@@ -74,7 +79,7 @@ def build_relation_graph(index: SymbolIndex) -> dict[str, Any]:
             "kind": diagnostic.kind,
             "line": diagnostic.lineno,
             "column": diagnostic.col_offset,
-            "message": diagnostic.message,
+            "message": safe_parse_message(diagnostic.kind, diagnostic.message),
         }
         for path, diagnostics in sorted(index.parse_diagnostics.items())
         for diagnostic in diagnostics

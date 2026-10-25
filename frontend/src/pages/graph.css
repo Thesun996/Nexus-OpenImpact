@@ -6,10 +6,10 @@
 .oi-graph-stats span { margin-top: 4px; color: var(--oi-muted); }
 .oi-graph-layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(260px, .8fr); gap: 16px; }
 .oi-graph-canvas { position: relative; min-height: 390px; padding: 12px; border: 1px solid var(--oi-line); border-radius: 10px; background: var(--oi-surface); overflow: hidden; }
-.oi-graph-canvas svg { width: 100%; min-height: 360px; overflow: visible; touch-action: none; user-select: none; cursor: grab; }
+.oi-graph-canvas svg { display: block; width: 100%; height: 480px; overflow: hidden; touch-action: none; user-select: none; cursor: grab; }
 .oi-graph-canvas svg:active { cursor: grabbing; }
 .oi-graph-tools { position: absolute; z-index: 2; top: 14px; right: 14px; display: flex; gap: 6px; padding: 5px; border: 1px solid var(--oi-line); border-radius: 8px; background: color-mix(in srgb, var(--oi-surface) 92%, transparent); box-shadow: 0 8px 24px color-mix(in srgb, var(--oi-canvas) 28%, transparent); backdrop-filter: blur(8px); }
-.oi-graph-tools button { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--oi-ink); font: 600 18px/1 var(--oi-font-ui); cursor: pointer; }
+.oi-graph-tools button { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--oi-ink); font: 600 18px/1 var(--oi-font-ui); cursor: pointer; }
 .oi-graph-tools button:hover, .oi-graph-tools button:focus-visible { border-color: var(--oi-trace); background: var(--oi-soft); outline: none; }
 .oi-graph-edges { pointer-events: none; }
 .oi-graph-edges line { stroke: var(--oi-rule); stroke-width: 2.25; opacity: .82; transition: stroke 160ms ease, opacity 160ms ease; }
@@ -18,17 +18,25 @@
 .oi-graph-canvas #oi-graph-arrow-active path { fill: var(--oi-trace); }
 .oi-graph-node { cursor: grab; outline: none; }
 .oi-graph-node circle { fill: var(--oi-rule); stroke: color-mix(in srgb, var(--oi-ink) 76%, transparent); stroke-width: 1.5; transition: transform 140ms ease, filter 140ms ease, stroke-width 140ms ease; }
-.oi-graph-node text { fill: var(--oi-ink); font-size: 12px; pointer-events: none; paint-order: stroke; stroke: var(--oi-surface); stroke-width: 3px; stroke-linejoin: round; }
+.oi-graph-node text { fill: var(--oi-ink); font-size: 16px; pointer-events: none; paint-order: stroke; stroke: var(--oi-surface); stroke-width: 3px; stroke-linejoin: round; }
 .oi-graph-node.is-target circle { fill: var(--oi-trace); stroke: var(--oi-trace); }
 .oi-graph-node.is-direct circle { fill: var(--oi-change); stroke: var(--oi-change); }
 .oi-graph-node.is-upstream circle { fill: var(--oi-rule); stroke: var(--oi-rule); }
-.oi-graph-node:hover circle { transform: scale(1.08); filter: drop-shadow(0 0 8px color-mix(in srgb, var(--oi-trace) 45%, transparent)); }
+.oi-graph-node:hover circle { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--oi-trace) 45%, transparent)); }
 .oi-graph-node.is-selected circle, .oi-graph-node:focus circle { stroke: var(--oi-ink); stroke-width: 4; filter: drop-shadow(0 0 10px color-mix(in srgb, var(--oi-trace) 55%, transparent)); }
 .oi-graph-node.is-dragging { cursor: grabbing; }
 .oi-graph-node.is-dragging circle { stroke-width: 4; filter: drop-shadow(0 0 12px color-mix(in srgb, var(--oi-trace) 65%, transparent)); }
 .oi-graph-legend { display: flex; flex-wrap: wrap; gap: 14px; padding: 10px 4px; color: var(--oi-muted); font-size: 13px; }
 .oi-graph-legend span::before { content: ''; display: inline-block; width: 9px; height: 9px; margin-right: 6px; border-radius: 50%; background: currentColor; }
-.oi-graph-legend .is-target { color: var(--oi-trace); }.oi-graph-legend .is-direct { color: var(--oi-change); }.oi-graph-legend .is-upstream { color: var(--oi-selection); }
+.oi-graph-legend .is-target { color: var(--oi-trace); }.oi-graph-legend .is-direct { color: var(--oi-change); }.oi-graph-legend .is-upstream { color: var(--oi-rule); }
+.oi-graph-view-hint { color: var(--oi-muted); font-size: var(--oi-text-sm); }
+.oi-graph-node-list { display: flex; flex-wrap: wrap; gap: 8px; max-height: 260px; overflow: auto; margin-top: 12px; padding: 4px; }
+.oi-graph-node-list button { max-width: 100%; min-height: 44px; overflow-wrap: anywhere; border: 1px solid var(--oi-rule); border-radius: var(--oi-radius-control); background: var(--oi-soft); color: var(--oi-ink); font-family: var(--oi-font-code); }
+.oi-graph-node-list button[aria-pressed='true'] { border-color: var(--oi-trace); background: var(--oi-trace-soft); }
+.oi-graph-paths { display: grid; gap: 12px; }
+.oi-graph-chain-items > span { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.oi-graph-chain-items b { overflow-wrap: anywhere; }
+.oi-graph-chain input { width: 100%; margin-top: 8px; }
 .oi-graph-evidence { padding: 20px; border: 1px solid var(--oi-line); border-radius: 10px; background: var(--oi-surface); }
 .oi-graph-evidence h2 { margin: 0 0 8px; overflow-wrap: anywhere; }.oi-graph-evidence p { color: var(--oi-muted); }
 .oi-graph-location { font-family: var(--oi-font-code); font-size: var(--oi-text-xs); }
@@ -39,7 +47,7 @@
 .oi-graph-chain h2 { margin: 0 0 12px; font-size: var(--oi-text-section); }
 .oi-graph-chain-items { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .oi-graph-chain-items b { padding: 7px 10px; border: 1px solid var(--oi-rule); border-radius: var(--oi-radius-control); color: var(--oi-ink); background: var(--oi-soft); font-family: var(--oi-font-code); font-size: var(--oi-text-xs); }
-.oi-graph-chain-items b.is-target { border-color: var(--oi-trace); }.oi-graph-chain-items b.is-direct { border-color: var(--oi-change); }.oi-graph-chain-items b.is-upstream { border-color: var(--oi-selection); }
+.oi-graph-chain-items b.is-target { border-color: var(--oi-trace); }.oi-graph-chain-items b.is-direct { border-color: var(--oi-change); }.oi-graph-chain-items b.is-upstream { border-color: var(--oi-rule); }
 .oi-graph-chain-items i { color: var(--oi-muted); font-style: normal; }.oi-graph-chain p { margin: 12px 0 0; color: var(--oi-muted); font-size: var(--oi-text-xs); }
 .oi-graph-unresolved { display: grid; gap: 14px; padding: 18px; border: 1px solid color-mix(in srgb, var(--oi-change) 50%, var(--oi-line)); border-radius: 10px; background: var(--oi-surface); }
 .oi-graph-unresolved h2 { margin: 0 0 6px; font-size: var(--oi-text-section); }.oi-graph-unresolved p { margin: 0; color: var(--oi-muted); }

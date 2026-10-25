@@ -1,72 +1,79 @@
-const list = (value) => Array.isArray(value) ? value : []
+import { correspondingEvidence, reportFindings } from './reportData.js'
 
-function addNode(nodes, id, role = 'path') {
-  if (!id || nodes.has(id)) return
-  nodes.set(id, { id, label: id, role })
+const list = (value) => Array.isArray(value) ? value : []
+const impactPriority = { call: 0, indirect_2hop: 1, indirect_1hop: 2, direct: 3 }
+const rolePriority = { function: 0, upstream: 1, direct: 2, target: 3 }
+
+function callIdentity(source, target, location) {
+  if (!source || !target || !location?.file || location.line == null || location.column == null) return null
+  return JSON.stringify([source, target, location.file, location.line, location.column])
+}
+
+function addNode(nodes, id, role) {
+  if (!id) return
+  const existing = nodes.get(id)
+  if (!existing || rolePriority[role] > rolePriority[existing.role]) nodes.set(id, { id, label: id, role })
 }
 
 export function buildEvidenceGraph(report) {
   const nodes = new Map()
   const edges = new Map()
-  if (!report || report.change_domain && report.change_domain !== 'function') return { nodes: [], edges: [], supported: false }
+  const paths = new Map()
+  if (!report || report.change_domain && report.change_domain !== 'function') return { nodes: [], edges: [], paths: [], supported: false }
 
   const addPath = (symbols, callSites, impactType, evidence) => {
     const ids = list(symbols)
+    const calls = list(callSites)
+    if (ids.length < 2 || calls.length !== ids.length - 1) return
+    const keys = calls.map((call, index) => callIdentity(ids[index], ids[index + 1], call))
+    if (keys.some(key => key == null)) return
+    const pathId = JSON.stringify(keys)
+    if (!paths.has(pathId)) paths.set(pathId, { id: pathId, symbols: ids, callSites: calls, impactType, evidence })
     ids.forEach((id, index) => addNode(nodes, id, index === ids.length - 1 ? 'target' : impactType === 'direct' && index === 0 ? 'direct' : 'upstream'))
-    ids.slice(0, -1).forEach((source, index) => {
-      const target = ids[index + 1]
-      const location = callSites[index] || null
-      const key = `${source}->${target}@${location?.file || ''}:${location?.line || ''}`
-      if (!edges.has(key)) edges.set(key, { id: key, source, target, impactType, location, evidence })
+    keys.forEach((key, index) => {
+      const upstreamDepth = ids.length - index - 2
+      const edgeImpact = impactType === 'direct' ? 'direct' : upstreamDepth === 0 ? 'call' : upstreamDepth === 1 ? 'indirect_1hop' : 'indirect_2hop'
+      const existing = edges.get(key)
+      if (!existing || impactPriority[edgeImpact] > impactPriority[existing.impactType]) {
+        edges.set(key, { id: key, source: ids[index], target: ids[index + 1], impactType: edgeImpact, location: calls[index], evidence })
+      }
     })
   }
 
-  list(report.direct_impacts).forEach((finding, index) => {
-    addPath([finding.caller_symbol_id, finding.target_symbol_id], [finding], 'direct', list(report.evidences)[index])
+  reportFindings(report).forEach((finding, index) => {
+    const evidence = correspondingEvidence(report, index, finding)
+    if (finding.impact_type === 'direct') {
+      addPath([finding.caller_symbol_id, finding.target_symbol_id], [finding], 'direct', evidence)
+    } else if (evidence) {
+      list(evidence.propagation_path).forEach(path => addPath(path.symbols, path.call_sites, finding.impact_type, evidence))
+    }
   })
-  list(report.indirect_impacts).forEach((finding, index) => {
-    const evidence = list(report.evidences)[list(report.direct_impacts).length + index]
-    list(evidence?.propagation_path).forEach(path => addPath(path.symbols, path.call_sites, finding.impact_type, evidence))
-  })
-  const graphEdges = [...edges.values()]
-  const outgoing = new Map()
-  graphEdges.forEach(edge => {
-    if (!outgoing.has(edge.source)) outgoing.set(edge.source, [])
-    outgoing.get(edge.source).push(edge.target)
-  })
-  const incoming = new Set(graphEdges.map(edge => edge.target))
-  const starts = [...nodes.keys()].filter(id => !incoming.has(id))
-  function longestPath(id, seen = new Set()) {
-    if (seen.has(id)) return [id]
-    const next = (outgoing.get(id) || []).filter(target => !seen.has(target))
-    if (!next.length) return [id]
-    const nextSeen = new Set(seen).add(id)
-    return next.map(target => [id, ...longestPath(target, nextSeen)]).sort((left, right) => right.length - left.length)[0]
-  }
-  const orderedIds = starts.flatMap(start => longestPath(start)).filter((id, index, all) => all.indexOf(id) === index)
-  const remaining = [...nodes.keys()].filter(id => !orderedIds.includes(id))
-  const orderedNodes = [...orderedIds, ...remaining].map(id => nodes.get(id))
-  return { nodes: orderedNodes, edges: graphEdges, supported: true }
+  // Preserve a readable node order without inferring a new path between branches.
+  const orderedIds = new Set([...paths.values()].sort((left, right) => right.symbols.length - left.symbols.length).flatMap(path => path.symbols))
+  return { nodes: [...orderedIds].map(id => nodes.get(id)), edges: [...edges.values()], paths: [...paths.values()], supported: true }
 }
 
 export function buildProjectGraph(payload, report = null) {
   const rawNodes = list(payload?.graph?.nodes)
   const rawEdges = list(payload?.graph?.edges)
-  if (!rawNodes.length) return { nodes: [], edges: [], supported: false, unresolved: list(payload?.diagnostics?.unresolved_calls) }
-  const target = report?.change?.target_symbol_id
-  const directCallers = new Set(list(report?.direct_impacts).map(item => item.caller_symbol_id))
+  const diagnostics = payload?.diagnostics && typeof payload.diagnostics === 'object' && !Array.isArray(payload.diagnostics) ? payload.diagnostics : {}
+  if (!rawNodes.length) return { nodes: [], edges: [], paths: [], supported: false, diagnostics, unresolved: list(diagnostics.unresolved_calls) }
+  const evidenceGraph = buildEvidenceGraph(report)
+  const findingsByCall = new Map(evidenceGraph.edges.map(edge => [callIdentity(edge.source, edge.target, edge.location), edge]))
+  const target = evidenceGraph.supported ? report?.change?.target_symbol_id : null
+  const edges = rawEdges.map(edge => {
+    const finding = findingsByCall.get(callIdentity(edge.source, edge.target, edge.location))
+    return { ...edge, impactType: finding?.impactType || 'call', location: edge.location || null, evidence: finding?.evidence || null }
+  })
+  const directCallers = new Set(edges.filter(edge => edge.impactType === 'direct').map(edge => edge.source))
+  const upstreamCallers = new Set(edges.filter(edge => edge.impactType.startsWith('indirect_')).map(edge => edge.source))
   const nodes = rawNodes.map(node => ({
     id: node.id,
     label: node.id,
-    role: node.id === target ? 'target' : directCallers.has(node.id) ? 'direct' : 'upstream',
+    kind: node.kind,
+    role: node.id === target ? 'target' : directCallers.has(node.id) ? 'direct' : upstreamCallers.has(node.id) ? 'upstream' : 'function',
     file: node.file,
     line: node.line,
   }))
-  const edges = rawEdges.map(edge => ({
-    ...edge,
-    impactType: edge.target === target ? 'direct' : 'upstream',
-    location: edge.location || null,
-    evidence: null,
-  }))
-  return { nodes, edges, supported: true, unresolved: list(payload?.diagnostics?.unresolved_calls), coverage: payload.coverage }
+  return { nodes, edges, paths: evidenceGraph.paths, supported: true, diagnostics, unresolved: list(diagnostics.unresolved_calls), coverage: payload.coverage }
 }
