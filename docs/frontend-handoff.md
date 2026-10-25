@@ -2,7 +2,7 @@
 
 普通包增量：上传页的“源码根目录”缺省为 `.`，src 布局填 `src`。三个业务请求在 FormData 中追加同一 `analysis_root`，并检查响应 `analysis_layout`，默认省略时视为 `.`。切换目录取消旧请求、更新 revision 并清空 Inspect / Validate / Report；更换 ZIP 重置目录，409 保留目录方便重新读取。Change JSON、fingerprint 与三个领域工作流不变。`diagnostics.unsupported_scopes` 为新的可选诊断数组，需要显示具体排除范围；详见 [普通包能力](package-imports.md)。
 
-更新日期：2026-10-03，补充 Web MVP 三人成果整合验收方案。Backend v1 提供健康检查与三个正式业务接口，字段、状态码与大小限制以 [API 契约](api-contract.md) 为准。后端报告版本为 `schema_version=1`；公开字段和 API 路径保持不变。本轮不开发 React，使用 rule 模式联调。
+更新日期：2026-10-24。Backend v1 提供健康检查、核心分析接口和代码关系图接口，字段、状态码与大小限制以 [API 契约](api-contract.md) 为准。后端报告版本为 `schema_version=1`；公开字段和 API 路径保持不变。React 工作台已经接入上传、函数选择、变更配置、任务、报告和代码关系图页面；本文保留后端联调边界，关系图的专门说明见 [代码关系图说明](relation-graph.md)。
 
 ## 启动后端与健康检查
 
@@ -48,6 +48,8 @@ curl、PowerShell、pytest HTTP 客户端能收到响应，不能证明浏览器
 | POST `/api/v1/projects/inspect` | multipart：恰好一个 `file` 文件字段 | 模块、`symbols[]`、`project_fingerprint`、coverage、diagnostics |
 | POST `/api/v1/changes/validate` | multipart：各一个 `file`、`change` 文本，可选一个 `expected_fingerprint` 文本 | `change_spec`、`validation`、项目指纹及诊断 |
 | POST `/api/v1/projects/analyze` | 与 validate 相同 | 完整 Core JSON Report |
+| POST `/api/v1/projects/graph` | multipart：`file`，可选指纹和源码根目录 | 静态函数节点、调用边、诊断和 coverage |
+| POST `/api/v1/snapshots/{snapshot_id}/graph` | 表单：`expected_fingerprint` | 从已保存快照读取同样的关系图结果 |
 
 `change` 是 `JSON.stringify(...)` 后的普通表单字符串；不能以整个 JSON 请求体代替 multipart，也不能把 `change` 作为文件或 Blob 上传。当前不接受 query 参数、服务器路径、重复字段或额外表单字段。ZIP 最多 5 MiB，整个 multipart 最多 5 MiB + 64 KiB；其余文件数、解压限额见 API 契约。
 
@@ -166,8 +168,9 @@ const report = await postForm(
 2. 启动 rule 后端，检查 health 200。
 3. 上传同一 Demo ZIP，从 inspect 选择 `utils.format_date`，提交新增必填参数 `timezone`、`positional_or_keyword`，validate 应返回 valid=true。
 4. analyze 应返回 Direct / 1-hop / 2-hop 各 1、complete，以及三条相对应的 Evidence / Explanation。预期路径为 `page.page → dashboard.dashboard → report.report → utils.format_date`。
-5. 试用无效 ZIP、非法参数与旧指纹，确认页面按三类错误结构处理；partial / unavailable 时保留可用结果并提示限制。
-6. 前端页面的实际浏览器联调由成员完成；本轮接口与 HTTP 测试通过不等于未确认的跨域配置已经可用。
+5. 进入“代码关系图”，确认完整项目图显示已解析函数节点和调用方向；点击节点能看到定义位置及关系证据，未解析调用单独显示为待人工检查。
+6. 试用无效 ZIP、非法参数与旧指纹，确认页面按三类错误结构处理；partial / unavailable 时保留可用结果并提示限制。
+7. 前端页面的实际浏览器联调由成员完成；本轮接口与 HTTP 测试通过不等于未确认的跨域配置已经可用。
 
 ## 实际响应样例
 

@@ -40,6 +40,16 @@ def post(client, snapshot, operation, **fields):
                        data={"expected_fingerprint": snapshot["project_fingerprint"], **fields})
 
 
+def test_saved_snapshot_graph_reuses_snapshot_bytes(client):
+    snapshot = save(client)["snapshot"]
+    response = post(client, snapshot, "graph")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["project_fingerprint"] == snapshot["project_fingerprint"]
+    assert payload["graph"]["nodes"]
+    assert payload["graph"]["edges"]
+
+
 def test_saved_snapshot_full_workflow_without_file(client):
     created = save(client)
     snapshot = created["snapshot"]

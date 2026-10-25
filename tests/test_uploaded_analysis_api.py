@@ -1,6 +1,7 @@
 """Full uploaded-project HTTP analysis reuses the ZIP importer and Core report."""
 
 import io
+import hashlib
 import json
 import zipfile
 from pathlib import Path
@@ -71,6 +72,54 @@ def test_demo_zip_matches_cli_core_report_with_relative_project_root():
     expected = build_report(core_analyze_project(DEMO, load_change_spec(DEMO / "change.json")))
     expected["project_path"] = "."
     assert report == json.loads(json.dumps(expected, ensure_ascii=False))
+
+
+def test_project_graph_returns_all_indexed_functions_and_only_resolved_edges():
+    data = demo_zip()
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/projects/graph",
+            files={"file": ("project.zip", data, "application/zip")},
+        )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["schema_version"] == 1
+    assert payload["project_fingerprint"] == hashlib.sha256(data).hexdigest()
+    assert [node["id"] for node in payload["graph"]["nodes"]] == [
+        "dashboard.dashboard", "page.page", "report.report", "utils.format_date",
+    ]
+    assert [(edge["source"], edge["target"]) for edge in payload["graph"]["edges"]] == [
+        ("dashboard.dashboard", "report.report"),
+        ("page.page", "dashboard.dashboard"),
+        ("report.report", "utils.format_date"),
+    ]
+    assert payload["diagnostics"]["unresolved_calls"] == []
+    assert payload["coverage"]["status"] == "complete"
+
+
+def test_project_graph_keeps_unresolved_calls_out_of_edges():
+    data = make_zip({"a.py": "def f(): return missing()\n"})
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/projects/graph",
+            files={"file": ("project.zip", data, "application/zip")},
+        )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["graph"]["edges"] == []
+    assert payload["diagnostics"]["unresolved_calls"][0]["expression"] == "missing"
+    assert payload["coverage"]["status"] == "partial"
+
+
+def test_project_graph_rejects_stale_fingerprint():
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/projects/graph",
+            data={"expected_fingerprint": "0" * 64},
+            files={"file": ("project.zip", demo_zip(), "application/zip")},
+        )
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "fingerprint_mismatch"
 
 
 def test_analyzes_uploaded_project_without_builtin_demo_and_uses_one_snapshot():

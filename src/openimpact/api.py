@@ -21,6 +21,7 @@ from openimpact.analysis.module_facts import ModuleInventory
 from openimpact.analysis.module_pipeline import analyze_module_project
 from openimpact.analysis.module_report import build_module_report
 from openimpact.analysis.pipeline import analyze_project
+from openimpact.analysis.relation_graph import build_relation_graph
 from openimpact.analysis.report import build_report
 from openimpact.analysis.symbol_index import SymbolIndex
 from openimpact.analysis.variable_symbols import VariableInventory
@@ -67,6 +68,7 @@ class _ZipBodyLimit:
                 or (not scope["path"].startswith("/api/v1/snapshots/") and scope["path"] not in {
                     "/api/v1/projects/inspect", "/api/v1/changes/validate",
                     "/api/v1/projects/analyze",
+                    "/api/v1/projects/graph",
                     "/api/v1/projects",
                     "/api/v1/reports",
                     "/api/v1/analysis-tasks",
@@ -199,6 +201,19 @@ def _validated_spec(
 
 def _inspect_zip(data: bytes, filename: str | None, *, analysis_root: str = ".") -> JSONResponse:
     return JSONResponse(content=zip_inspector.inspect_python_zip(data, filename, analysis_root=analysis_root))
+
+
+def _graph_zip(data: bytes, filename: str | None, expected_fingerprint: str | None, *, analysis_root: str = ".") -> JSONResponse:
+    if error := _fingerprint_error(data, expected_fingerprint):
+        return error
+    with zip_inspector.indexed_python_zip(data, filename, analysis_root=analysis_root) as (index, inspection):
+        graph = build_relation_graph(index)
+        return JSONResponse(content={
+            "project_name": inspection["project_name"],
+            "project_fingerprint": inspection["project_fingerprint"],
+            "source_root": inspection.get("source_root"),
+            **graph,
+        })
 
 
 def _create_project_snapshot(data: bytes, filename: str | None, *, analysis_root: str = ".") -> JSONResponse:
@@ -498,6 +513,38 @@ async def inspect_project(request: Request, file: UploadFile = File(...), analys
         analysis_root = (await request.form()).get("analysis_root", analysis_root)
         data = await _read_zip(file)
         return await run_in_threadpool(_inspect_zip, data, file.filename,
+                                      **({"analysis_root": analysis_root} if analysis_root != "." else {}))
+    except AnalysisRootError as error:
+        return _error(422, error.code, str(error))
+    except zip_inspector.ZipInspectionError as error:
+        return _error(error.status_code, error.code, str(error))
+    except OSError:
+        return _error(503, "inspection_unavailable", "临时导入或源码读取失败。")
+    finally:
+        await file.close()
+
+
+@app.post("/api/v1/projects/graph")
+async def graph_project(
+    request: Request,
+    file: UploadFile = File(...),
+    expected_fingerprint: str | None = Form(None),
+    analysis_root: str = Form("."),
+) -> JSONResponse:
+    form_items = (await request.form()).multi_items()
+    keys = [key for key, _ in form_items]
+    if (request.query_params or keys.count("file") != 1 or keys.count("expected_fingerprint") > 1
+            or keys.count("analysis_root") > 1
+            or set(keys) - {"file", "expected_fingerprint", "analysis_root"}):
+        await file.close()
+        return _error(400, "unsupported_input", "仅接受 file 及可选 expected_fingerprint、analysis_root 字段。")
+    if expected_fingerprint is not None and not re.fullmatch(r"[0-9a-fA-F]{64}", expected_fingerprint):
+        await file.close()
+        return _error(422, "invalid_fingerprint", "expected_fingerprint 必须是 SHA-256 十六进制值。")
+    try:
+        analysis_root = (await request.form()).get("analysis_root", analysis_root)
+        data = await _read_zip(file)
+        return await run_in_threadpool(_graph_zip, data, file.filename, expected_fingerprint,
                                       **({"analysis_root": analysis_root} if analysis_root != "." else {}))
     except AnalysisRootError as error:
         return _error(422, error.code, str(error))
