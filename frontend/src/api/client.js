@@ -120,6 +120,9 @@ export function createApiClient({ fetchImpl = fetch } = {}) {
     inspect(file, { signal, analysisRoot = '.', fingerprint } = {}) {
       return request(projectPath(file, 'inspect', '/projects/inspect'), { method: 'POST', body: projectForm(file, undefined, fingerprint, analysisRoot), signal })
     },
+    relationGraph(file, { signal, analysisRoot = '.', fingerprint } = {}) {
+      return request(projectPath(file, 'graph', '/projects/graph'), { method: 'POST', body: projectForm(file, undefined, fingerprint, analysisRoot), signal })
+    },
     createProject(file, { signal, analysisRoot = '.' } = {}) {
       return request('/projects', { method: 'POST', body: projectForm(file, undefined, undefined, analysisRoot), signal })
     },

@@ -18,6 +18,7 @@ router = APIRouter()
 # the stored snapshot and cannot be overridden by request data.
 _FIELDS = {
     "inspect": (set(), set()),
+    "graph": (set(), set()),
     "validate": ({"change"}, set()),
     "analyze": ({"change"}, set()),
     "reports": ({"change"}, set()),
@@ -28,7 +29,7 @@ _FIELDS = {
 
 
 def _run_snapshot(snapshot_id, operation, fields):
-    from openimpact.api import _error, _inspect_zip, _validate_zip, _analyze_zip, _fingerprint_error
+    from openimpact.api import _error, _inspect_zip, _graph_zip, _validate_zip, _analyze_zip, _fingerprint_error
     from openimpact.workspace_api import _source, _question, _suggestions
 
     snapshot, data = read_project_snapshot(snapshot_id)
@@ -40,6 +41,8 @@ def _run_snapshot(snapshot_id, operation, fields):
     fingerprint = snapshot["project_fingerprint"]
     if operation == "inspect":
         result = _inspect_zip(data, filename, analysis_root=root)
+    elif operation == "graph":
+        result = _graph_zip(data, filename, fingerprint, analysis_root=root)
     elif operation == "validate":
         result = _validate_zip(data, filename, fields["change"], fingerprint, analysis_root=root)
     elif operation in {"analyze", "reports"}:

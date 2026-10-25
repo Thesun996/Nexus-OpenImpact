@@ -55,6 +55,7 @@ export default function AppShell({ page, navigate, children, theme = 'purple', o
         <div className="oi-rail-secondary">
           <a className={page === 'projects' ? 'oi-scope-link is-current' : 'oi-scope-link'} href="#projects" onClick={(event) => handleNavigation(event, 'projects')}>项目库</a>
           <a className={page === 'tasks' ? 'oi-scope-link is-current' : 'oi-scope-link'} href="#tasks" onClick={(event) => handleNavigation(event, 'tasks')}>分析任务</a>
+          <a className={page === 'graph' ? 'oi-scope-link is-current' : 'oi-scope-link'} href="#graph" onClick={(event) => handleNavigation(event, 'graph')}>代码关系图</a>
           <a className={page === 'history' ? 'oi-scope-link is-current' : 'oi-scope-link'} href="#history" onClick={(event) => handleNavigation(event, 'history')}>历史报告</a>
         </div>
         <span className="oi-rail-caption" aria-hidden="true">Change<br />Trace<br />Evidence</span>

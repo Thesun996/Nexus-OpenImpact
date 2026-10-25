@@ -26,6 +26,7 @@ Phase 2.1 提供仓库内置 `examples/signature_change/` 的分析。Phase 2.2 
 | DELETE | `/api/v1/projects/{project_id}` | 无 | 删除一个本机项目及其快照记录 | 200 |
 | GET | `/api/v1/projects/{project_id}/snapshots` | 无 | 分页读取项目快照摘要 | 200 |
 | DELETE | `/api/v1/projects/{project_id}/snapshots/{snapshot_id}` | 无 | 删除一个本机项目快照 | 200 |
+| POST | `/api/v1/projects/graph` | `multipart/form-data` | 从上传 ZIP 构建静态函数关系图 | 200 |
 | POST | `/api/v1/projects/inspect` | `multipart/form-data` | 检查上传 ZIP 的模块、Symbol 与覆盖情况 | 200 |
 | POST | `/api/v1/changes/validate` | `multipart/form-data` | 从上传源码构建并校验 ChangeSpec | 200 |
 | POST | `/api/v1/projects/analyze` | `multipart/form-data` | 在本次上传项目上生成完整影响报告 | 200 |
@@ -113,6 +114,27 @@ python -m openimpact.worker
 
 `DELETE /api/v1/projects/{project_id}` 删除一个本机项目及其快照记录。`DELETE /api/v1/projects/{project_id}/snapshots/{snapshot_id}` 删除单个快照；如果这是项目最后一个快照，项目记录也会被删除，响应中的 `project_deleted` 为 `true`。ZIP 快照文件只有在没有其他快照记录引用同一 SHA-256 指纹时才会删除，避免同一文件被多个项目复用时误删。删除接口不修改用户源码仓库，不删除历史报告。
 
+### 代码关系图
+
+`POST /api/v1/projects/graph` 接受 `file` ZIP，以及可选的 `expected_fingerprint` 和 `analysis_root`；它只执行 ZIP 校验、AST 解析、符号索引和显式调用关系构建，不执行上传源码，也不依赖变更配置。成功响应包含 `graph.nodes`、`graph.edges`、`diagnostics` 和 `coverage`。节点包含模块级 Python 函数，以及已确认调用边所需的真实调用上下文（类方法、嵌套函数、类定义体和 lambda）；这些上下文不会因此成为 Inspect 的可选变更目标。每条边的 source / target 都有对应节点；未解析调用不会进入 `graph.edges`。解析诊断沿用 Inspect 的安全文案，不返回服务器临时绝对路径。
+
+已保存快照使用 `POST /api/v1/snapshots/{snapshot_id}/graph`，不上传文件，只接受 `expected_fingerprint` 文本字段。后端从快照记录读取 ZIP，并在分析前核对指纹。快照不存在、损坏或指纹不匹配时沿用快照接口的 404、409 错误结构。
+
+响应节选：
+
+```json
+{
+  "graph": {
+    "nodes": [{"id": "report.report", "kind": "function", "file": "report.py", "line": 1}],
+    "edges": [{"source": "dashboard.dashboard", "target": "report.report", "kind": "call", "location": {"file": "dashboard.py", "line": 5}, "resolution_basis": "explicit_import"}]
+  },
+  "diagnostics": {"unresolved_calls": [], "parse_errors": [], "ambiguous_modules": [], "ambiguous_symbols": [], "unsupported_scopes": []},
+  "coverage": {"status": "complete", "resolved_calls": 1, "unresolved_calls": 0}
+}
+```
+
+`coverage.status=partial` 只表示当前支持范围内存在解析或静态解析不完整；它不能被解释为运行时依赖的完整覆盖率。前端应把 `diagnostics.unresolved_calls` 展示为待人工检查，而不能把它们画成确定关系。
+
 ### 复用快照
 
 新增 `POST /api/v1/snapshots/{snapshot_id}/{operation}`，`operation` 支持：
@@ -120,6 +142,7 @@ python -m openimpact.worker
 | operation | 必填业务字段 | 可选业务字段 | 返回 |
 | --- | --- | --- | --- |
 | `inspect` | 无 | 无 | 原 Inspect 结果及 `snapshot` 元数据 |
+| `graph` | 无 | 无 | 项目函数节点、静态调用边及关系诊断 |
 | `validate` | `change` | 无 | 原 Validate 结果 |
 | `analyze` | `change` | 无 | 原分析报告 |
 | `reports` | `change` | 无 | `{record, report}`，重建并保存服务端报告 |

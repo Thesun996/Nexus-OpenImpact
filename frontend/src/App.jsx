@@ -12,9 +12,10 @@ const ReportPage = lazy(() => import('./pages/ReportPage.jsx'))
 const HistoryPage = lazy(() => import('./pages/HistoryPage.jsx'))
 const ProjectLibraryPage = lazy(() => import('./pages/ProjectLibraryPage.jsx'))
 const AnalysisTasksPage = lazy(() => import('./pages/AnalysisTasksPage.jsx'))
+const GraphPage = lazy(() => import('./pages/GraphPage.jsx'))
 const PlannedPage = lazy(() => import('./pages/PlannedPage.jsx'))
 
-const pages = { upload: UploadPage, functions: FunctionSelectPage, change: ChangePage, report: ReportPage, projects: ProjectLibraryPage, tasks: AnalysisTasksPage, history: HistoryPage, planned: PlannedPage }
+const pages = { upload: UploadPage, functions: FunctionSelectPage, change: ChangePage, report: ReportPage, projects: ProjectLibraryPage, tasks: AnalysisTasksPage, history: HistoryPage, graph: GraphPage, planned: PlannedPage }
 function currentPage() {
   const page = window.location.hash.replace(/^#\/?/, '') || 'upload'
   return Object.hasOwn(pages, page) ? page : 'planned'
