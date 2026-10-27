@@ -1,4 +1,10 @@
 .oi-graph-page { display: grid; gap: 20px; }
+.oi-graph-scope { display: flex; flex-wrap: wrap; align-items: center; gap: var(--oi-space-2); }
+.oi-graph-scope button { min-height: 44px; padding: var(--oi-space-2) var(--oi-space-4); border: 1px solid var(--oi-line); border-radius: var(--oi-radius-control); color: var(--oi-ink); background: var(--oi-surface); cursor: pointer; }
+.oi-graph-scope button[aria-pressed='true'] { border-color: var(--oi-trace); background: var(--oi-trace-soft); }
+.oi-graph-scope button:focus-visible { outline: var(--oi-selection) solid var(--oi-trace); outline-offset: var(--oi-focus-offset); }
+.oi-graph-scope button:disabled { opacity: .5; cursor: not-allowed; }
+.oi-graph-scope p { flex-basis: 100%; margin: var(--oi-space-1) 0 0; color: var(--oi-muted); font-size: var(--oi-text-sm); }
 .oi-graph-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .oi-graph-stats > div { padding: 18px; border: 1px solid var(--oi-line); border-radius: 10px; background: var(--oi-surface); }
 .oi-graph-stats b, .oi-graph-stats span { display: block; }

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildEvidenceGraph, buildProjectGraph } from '../src/pages/graphData.js'
+import { buildEvidenceGraph, buildProjectGraph, buildChangeGraph } from '../src/pages/graphData.js'
 import { floatingPosition, simulateGraphStep } from '../src/pages/graphMotion.js'
 import fixture from '../src/demo/fixtures/analyze.json' with { type: 'json' }
 
@@ -126,6 +126,75 @@ test('完整项目图保留所有节点，并把未解析调用放在诊断中',
   assert.equal(graph.edges.length, 0)
   assert.equal(graph.unresolved.length, 1)
   assert.equal(graph.coverage.status, 'partial')
+})
+
+test('本次变更图只保留真实报告路径，不纳入无关节点、兼容调用或路径节点间其他调用', () => {
+  const evidenceGraph = buildEvidenceGraph(fixture)
+  const payload = { graph: {
+    nodes: [...evidenceGraph.nodes.map((node, index) => ({ id: node.id, kind: 'function', file: `source${index}.py`, line: index + 1 })),
+      { id: 'unrelated.isolated' }, { id: 'compatible.caller' }],
+    edges: [...evidenceGraph.edges, callEdge(9, 'compatible.caller', 'utils.format_date'),
+      callEdge(19, 'page.page', 'utils.format_date')],
+  } }
+  const project = buildProjectGraph(payload, fixture)
+  const before = JSON.stringify({ project, report: fixture })
+  const focused = buildChangeGraph(project, fixture)
+  assert.equal(focused.supported, true)
+  assert.deepEqual(focused.nodes.map(node => node.id), evidenceGraph.nodes.map(node => node.id))
+  assert.deepEqual(focused.edges, evidenceGraph.edges)
+  assert.deepEqual(focused.edges.map(edge => edge.impactType), ['direct', 'indirect_1hop', 'indirect_2hop'])
+  assert.deepEqual(focused.paths, evidenceGraph.paths)
+  assert.equal(focused.nodes.find(node => node.id === 'page.page').file, 'source0.py')
+  assert.equal(focused.nodes.find(node => node.id === 'page.page').line, 1)
+  assert.equal(focused.nodes.find(node => node.id === 'utils.format_date').role, 'target')
+  assert.equal(project.nodes.length, 6)
+  assert.equal(project.edges.length, 5)
+  assert.equal(JSON.stringify({ project, report: fixture }), before)
+})
+
+test('本次变更图保留多个Direct以及同一行不同列调用，定义元信息不覆盖影响角色', () => {
+  const calls = [directCall(4), directCall(14), directCall(4, 'other.f')]
+  const report = { change_domain: 'function', change: { target_symbol_id: 'utils.f' }, direct_impacts: calls, evidences: calls.map(directEvidence) }
+  const project = buildProjectGraph(projectPayload([callEdge(), callEdge(14), callEdge(4, 'other.f'), callEdge(8, 'compatible.f')]), report)
+  project.nodes.find(node => node.id === 'caller.f').kind = 'function'
+  const graph = buildChangeGraph(project, report)
+  assert.equal(graph.edges.length, 3)
+  assert.deepEqual(graph.edges.map(edge => edge.location.column), [4, 14, 4])
+  assert.equal(new Set(graph.edges.map(edge => edge.id)).size, 3)
+  assert.equal(graph.paths.length, 3)
+  assert.deepEqual(graph.nodes.map(node => node.id), ['caller.f', 'utils.f', 'other.f'])
+  assert.equal(graph.nodes.find(node => node.id === 'caller.f').role, 'direct')
+  assert.equal(graph.nodes.find(node => node.id === 'caller.f').kind, 'function')
+})
+
+test('零影响只展示报告目标，不能把项目中的兼容调用补成影响', () => {
+  const report = { change: { target_symbol_id: 'utils.f' }, direct_impacts: [], indirect_impacts: [], coverage: { status: 'partial' } }
+  const project = buildProjectGraph(projectPayload([callEdge()]), report)
+  const graph = buildChangeGraph(project, report)
+  assert.deepEqual(graph.nodes.map(node => node.id), ['utils.f'])
+  assert.equal(graph.nodes[0].role, 'target')
+  assert.deepEqual(graph.edges, [])
+  assert.deepEqual(graph.paths, [])
+  assert.deepEqual(graph.coverage, { status: 'partial' })
+  assert.equal(project.nodes.length, 2)
+  assert.equal(project.edges.length, 1)
+})
+
+test('没有项目图元信息时仍保留报告路径和零影响目标，不编造定义位置', () => {
+  const graph = buildChangeGraph(null, fixture)
+  assert.deepEqual(graph.edges, buildEvidenceGraph(fixture).edges)
+  assert.equal(graph.nodes.length, 4)
+  assert.ok(graph.nodes.every(node => node.file === undefined && node.line === undefined))
+  const zero = buildChangeGraph(null, { change: { target_symbol_id: 'utils.f' }, direct_impacts: [] })
+  assert.deepEqual(zero.nodes, [{ id: 'utils.f', label: 'utils.f', role: 'target' }])
+})
+
+test('未分析、缺少目标或非函数领域时不生成本次函数变更图', () => {
+  for (const report of [null, {}, { change: { target_symbol_id: '' } },
+    { change_domain: 'module', change: { target_symbol_id: 'utils.f' } },
+    { change_domain: 'symbol', change: { target_symbol_id: 'config.VALUE' } }]) {
+    assert.deepEqual(buildChangeGraph({ nodes: [{ id: 'unrelated.f' }] }, report), { nodes: [], edges: [], paths: [], supported: false })
+  }
 })
 
 test('节点轻微漂浮有边界且不改变原始坐标', () => {

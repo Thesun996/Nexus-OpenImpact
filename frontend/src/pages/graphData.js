@@ -77,3 +77,13 @@ export function buildProjectGraph(payload, report = null) {
   }))
   return { nodes, edges, paths: evidenceGraph.paths, supported: true, diagnostics, unresolved: list(diagnostics.unresolved_calls), coverage: payload.coverage }
 }
+
+export function buildChangeGraph(projectGraph, report) {
+  const graph = buildEvidenceGraph(report)
+  const target = report?.change?.target_symbol_id
+  if (!graph.supported || typeof target !== 'string' || !target.trim()) return { nodes: [], edges: [], paths: [], supported: false }
+  const definitions = new Map(list(projectGraph?.nodes).map(node => [node.id, node]))
+  const nodes = graph.nodes.map(node => ({ ...definitions.get(node.id), ...node }))
+  if (!nodes.some(node => node.id === target)) nodes.push({ ...definitions.get(target), id: target, label: target, role: 'target' })
+  return { ...graph, nodes, coverage: report.coverage }
+}

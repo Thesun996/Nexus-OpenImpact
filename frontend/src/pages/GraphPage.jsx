@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useWorkflow } from '../state/WorkflowContext.jsx'
 import { locationText, impactLabel } from '../components/report/presentation.js'
-import { buildEvidenceGraph, buildProjectGraph } from './graphData.js'
+import { buildChangeGraph, buildEvidenceGraph, buildProjectGraph } from './graphData.js'
 import { apiClient } from '../api/client.js'
 import { getProjectSource } from '../state/workflow.js'
 import { useReducedMotionPreference } from '../motion/reducedMotion.js'
@@ -177,6 +177,7 @@ export default function GraphPage({ navigate }) {
   const [graphError, setGraphError] = useState(null)
   const [selected, setSelected] = useState(null)
   const [query, setQuery] = useState('')
+  const [view, setView] = useState(null)
   const selectNode = node => setSelected(node ? { ...node } : null)
   useEffect(() => {
     const source = getProjectSource(state)
@@ -202,9 +203,17 @@ export default function GraphPage({ navigate }) {
   }, [state.mode, state.file, state.snapshot, state.projectFingerprint, state.analysisRoot])
   const evidenceGraph = useMemo(() => buildEvidenceGraph(state.report), [state.report])
   const projectGraph = useMemo(() => buildProjectGraph(projectPayload, state.report), [projectPayload, state.report])
-  const graph = projectGraph?.supported ? projectGraph : evidenceGraph
-  const isFullGraph = projectGraph?.supported === true
-  const unresolvedCount = projectGraph?.unresolved?.length || 0
+  const changeGraph = useMemo(() => buildChangeGraph(projectGraph, state.report), [projectGraph, state.report])
+  const showChange = changeGraph.supported && !(view?.report === state.report && view.scope === 'project')
+  const graph = showChange ? changeGraph : projectGraph.supported ? projectGraph : evidenceGraph
+  const isFullGraph = !showChange && projectGraph.supported
+  const unresolvedCount = projectGraph.supported ? projectGraph.unresolved.length : null
+  function selectView(scope) {
+    setView({ report: state.report, scope })
+    setSelected(null)
+    setQuery('')
+  }
+  useEffect(() => { setSelected(null); setQuery('') }, [state.report])
   const selectedEdges = selected ? graph.edges.filter(edge => edge.source === selected.id || edge.target === selected.id) : graph.edges
   const selectedNode = selected ? graph.nodes.find(node => node.id === selected.id) : null
   const matchingNodes = graph.nodes.filter(node => `${node.label} ${node.file || ''}`.toLowerCase().includes(query.trim().toLowerCase()))
@@ -213,34 +222,40 @@ export default function GraphPage({ navigate }) {
   }, [selected, selectedNode])
   const unsupported = state.report && state.changeDomain && state.changeDomain !== 'function' && !projectGraph?.supported
   return <div className="oi-graph-page">
-    <section className="page-heading"><div><h1>代码关系图</h1><p>{isFullGraph ? '展示当前项目中已由静态分析确认的函数调用关系' : '只展示当前分析报告中有静态证据支持的调用关系'}</p></div><div className="heading-actions"><button className="ghost-action" type="button" onClick={() => navigate(state.report ? 'report' : 'upload')}>{state.report ? '返回报告' : '开始分析'}</button></div></section>
+    <section className="page-heading"><div><h1>代码关系图</h1><p>{showChange ? '聚焦本次变更的目标函数与报告中的影响路径' : isFullGraph ? '展示当前项目中已由静态分析确认的函数调用关系' : '只展示当前分析报告中有静态证据支持的调用关系'}</p></div><div className="heading-actions"><button className="ghost-action" type="button" onClick={() => navigate(state.report ? 'report' : 'upload')}>{state.report ? '返回报告' : '开始分析'}</button></div></section>
+    {changeGraph.supported && <div className="oi-graph-scope" role="group" aria-label="关系图显示范围">
+      <button type="button" aria-pressed={showChange} onClick={() => selectView('change')}>本次变更</button>
+      <button type="button" aria-pressed={!showChange} disabled={!projectGraph.supported} onClick={() => selectView('project')}>项目全图</button>
+      <p>{showChange ? '仅展示目标函数、直接影响及已确认的上游传播路径；隐藏的节点不代表已确认无影响。' : '展示项目内全部已确认的函数调用关系，普通调用不等同于本次变更的影响。'}</p>
+    </div>}
     {graphError && <section className="state-message" role="status">完整项目关系图暂时读取失败：{graphError} 当前仍可查看分析报告中的证据关系。</section>}
     {!state.report && !projectGraph?.supported && <section className="detail-card empty-state-card"><h2>还没有可展示的关系</h2><p>请先读取项目 ZIP。关系图不会生成没有证据支持的节点或连线。</p></section>}
     {unsupported && <section className="state-message">当前报告属于{state.changeDomain === 'module' ? '模块' : '模块符号'}领域；第一版关系图暂只展示函数调用路径。</section>}
-    {isFullGraph && projectGraph.coverage?.status === 'partial' && <section className="state-message" role="status">图谱包含未解析或未支持的范围；未确认的关系不会绘制为确定连线。</section>}
+    {projectGraph.supported && projectGraph.coverage?.status === 'partial' && <section className="state-message" role="status">项目中尚有未确认的关系；图中只绘制已有静态证据支持的调用。</section>}
+    {showChange && graph.edges.length === 0 && <p className="oi-graph-view-hint" role="status">当前报告没有可展示的确定影响路径，仅显示目标函数。可切换项目全图查看其他已确认调用。</p>}
     {!unsupported && graph.nodes.length > 0 && <>
-      <section className="oi-graph-stats"><div><b>{graph.nodes.length}</b><span>证据节点</span></div><div><b>{graph.edges.length}</b><span>已确认调用</span></div><div><b>{graph.edges.filter(edge => edge.impactType === 'direct').length}</b><span>直接影响调用</span></div><div><b>{unresolvedCount}</b><span>待人工检查</span></div></section>
+      <section className="oi-graph-stats"><div><b>{graph.nodes.length}</b><span>当前视图节点</span></div><div><b>{graph.edges.length}</b><span>当前视图调用</span></div><div><b>{graph.edges.filter(edge => edge.impactType === 'direct').length}</b><span>直接影响调用</span></div><div><b>{unresolvedCount ?? '—'}</b><span>项目待确认调用</span></div></section>
       <section className="oi-graph-layout">
         <div>
-          <GraphCanvas graph={graph} selected={selected} onSelect={selectNode} />
-          <p className="oi-graph-view-hint">画布按可读比例显示局部。拖动空白区域浏览，或从下方清单搜索并定位节点；全部 {graph.nodes.length} 个节点均保留。</p>
-          <div className="oi-graph-legend"><span className="is-target">目标函数</span><span className="is-direct">直接影响</span><span className="is-upstream">影响传播路径</span><span className="is-function">普通调用节点</span></div>
+          <GraphCanvas key={showChange ? 'change' : 'project'} graph={graph} selected={selected} onSelect={selectNode} />
+          <p className="oi-graph-view-hint">当前视图显示 {graph.nodes.length} 个节点。拖动空白区域浏览，或从下方清单搜索并定位节点。</p>
+          <div className="oi-graph-legend"><span className="is-target">目标函数</span><span className="is-direct">直接影响</span><span className="is-upstream">影响传播路径</span>{isFullGraph && <span className="is-function">普通调用节点</span>}</div>
           <section className="oi-graph-chain">
             <h2>搜索并定位节点</h2>
             <label htmlFor="oi-graph-search">按函数标识或文件搜索</label>
             <input id="oi-graph-search" type="search" value={query} onChange={event => setQuery(event.target.value)} />
             <div className="oi-graph-node-list">{matchingNodes.map(node => <button key={node.id} type="button" className={`is-${node.role}`} aria-pressed={selected?.id === node.id} onClick={() => selectNode(node)}>{node.label}</button>)}</div>
             {!matchingNodes.length && <p>没有匹配的节点。</p>}
-            <p>清单筛选只帮助定位，不删除图中的节点或调用关系。</p>
+            <p>清单仅搜索当前视图；项目全图保留其他已确认节点与调用关系。</p>
           </section>
-          {!isFullGraph && graph.paths.length > 0 && <section className="oi-graph-chain"><h2>报告中的调用路径</h2><GraphPathList paths={graph.paths} /><p>每条路径分别来自报告中的真实调用证据。</p></section>}
+          {!projectGraph.supported && graph.paths.length > 0 && <section className="oi-graph-chain"><h2>报告中的调用路径</h2><GraphPathList paths={graph.paths} /><p>每条路径分别来自报告中的真实调用证据。</p></section>}
         </div>
         <aside className="oi-graph-evidence">
           <h2>{selected ? selected.label : '关系证据'}</h2>
           {selectedNode && <p className="oi-graph-location">定义位置：{selectedNode.file || '位置未提供'}:{selectedNode.line ?? '—'}</p>}
-          <p>{selected ? '该节点关联的已确认调用关系如下。' : '点击节点或搜索清单，查看相关静态证据。'}</p>
+          <p>{selected ? '该节点在当前视图中的调用关系如下。' : '点击节点或搜索清单，查看相关静态证据。'}</p>
           {selectedEdges.map(edge => <button className="oi-graph-edge" key={edge.id} type="button" onClick={() => selectNode(graph.nodes.find(node => node.id === edge.target))}><strong>{edge.source} → {edge.target}</strong><span>{graphRelationLabel(edge.impactType)} · {locationText(edge.location)}</span></button>)}
-          {selected && !selectedEdges.length && <p className="oi-graph-empty-detail">当前没有已确认的调用边连接到这个节点。</p>}
+          {selected && !selectedEdges.length && <p className="oi-graph-empty-detail">当前视图中没有已确认的调用边连接到这个节点。</p>}
         </aside>
       </section>
     </>}
